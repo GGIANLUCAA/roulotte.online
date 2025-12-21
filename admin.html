@@ -1,0 +1,2794 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin - Toulotte Online</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --primary:#2563eb;
+      --primary-hover:#1d4ed8;
+      --bg:#f5f7fb;
+      --panel:#ffffff;
+      --surface:#f1f5f9;
+      --text:#0f172a;
+      --muted:#475569;
+      --border:rgba(15,23,42,.12);
+      --danger:#dc2626;
+      --success:#059669;
+      --warning:#d97706;
+      --radius:14px;
+      --shadow: 0 12px 26px rgba(15,23,42,.08);
+      --sidebar: 270px;
+    }
+
+    :root[data-theme="dark"]{
+      --primary:#2563eb;
+      --primary-hover:#1d4ed8;
+      --bg:#0b1220;
+      --panel:#0f172a;
+      --surface:#111b33;
+      --text:#e5e7eb;
+      --muted:#a7b0c0;
+      --border:rgba(255,255,255,.10);
+      --danger:#ef4444;
+      --success:#10b981;
+      --warning:#f59e0b;
+      --radius:14px;
+      --shadow: 0 12px 30px rgba(0,0,0,.35);
+      --sidebar: 270px;
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{
+      font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:
+        radial-gradient(900px 620px at 20% 0%, rgba(37,99,235,.16) 0%, transparent 60%),
+        radial-gradient(900px 620px at 90% 10%, rgba(16,185,129,.10) 0%, transparent 60%),
+        var(--bg);
+      color:var(--text);
+      line-height:1.45;
+      overflow:hidden;
+    }
+    :root[data-theme="dark"] body{
+      background:
+        radial-gradient(1100px 700px at 20% 0%, rgba(37,99,235,.25) 0%, transparent 55%),
+        radial-gradient(900px 600px at 90% 20%, rgba(16,185,129,.16) 0%, transparent 55%),
+        var(--bg);
+    }
+
+    a{color:inherit}
+    .skip-link{
+      position:absolute;
+      left:-9999px;
+      top:0;
+      background:#fff;
+      color:#000;
+      padding:.75rem 1rem;
+      border-radius:10px;
+      z-index:9999;
+    }
+    .skip-link:focus{left:12px;top:12px;outline:3px solid #000}
+
+    .app{
+      height:100%;
+      display:flex;
+      align-items:stretch;
+      min-height:0;
+    }
+    #app[aria-hidden="true"]{display:none}
+
+    .sidebar{
+      width:var(--sidebar);
+      border-right:1px solid var(--border);
+      background:linear-gradient(180deg, rgba(255,255,255,.65), rgba(255,255,255,.35));
+      padding:16px;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      flex:0 0 auto;
+    }
+    :root[data-theme="dark"] .sidebar{
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+    }
+
+    .brand{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      text-decoration:none;
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:12px;
+      background:rgba(255,255,255,.55);
+    }
+    :root[data-theme="dark"] .brand{background:rgba(255,255,255,.04)}
+
+    .logo{
+      width:40px;height:40px;
+      display:grid;place-items:center;
+      border-radius:14px;
+      background:linear-gradient(135deg, rgba(37,99,235,.92), rgba(16,185,129,.78));
+      box-shadow:0 10px 24px rgba(0,0,0,.18);
+      flex:0 0 auto;
+      color:#fff;
+    }
+    :root[data-theme="dark"] .logo{box-shadow:0 10px 24px rgba(0,0,0,.35)}
+
+    .brand-title{font-weight:900;letter-spacing:.2px}
+    .brand-sub{font-size:.86rem;color:var(--muted);margin-top:2px}
+
+    nav{display:grid;gap:8px}
+    .nav-btn{
+      appearance:none;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.55);
+      color:var(--text);
+      padding:12px 12px;
+      border-radius:14px;
+      cursor:pointer;
+      text-align:left;
+      font-weight:800;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    :root[data-theme="dark"] .nav-btn{background:rgba(255,255,255,.04)}
+    .nav-btn:hover{background:rgba(255,255,255,.75)}
+    :root[data-theme="dark"] .nav-btn:hover{background:rgba(255,255,255,.08)}
+    .nav-btn[aria-current="page"]{
+      background:rgba(37,99,235,.14);
+      border-color:rgba(37,99,235,.38);
+    }
+    .nav-btn:focus-visible{outline:3px solid rgba(37,99,235,.45);outline-offset:3px}
+    :root[data-theme="dark"] .nav-btn:focus-visible{outline:3px solid rgba(255,255,255,.85)}
+
+    .spacer{flex:1 1 auto}
+    .profile{
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:12px;
+      background:rgba(255,255,255,.55);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+    :root[data-theme="dark"] .profile{background:rgba(255,255,255,.04)}
+
+    .badge{
+      width:40px;height:40px;border-radius:14px;
+      background:rgba(255,255,255,.65);
+      display:grid;place-items:center;
+      font-weight:900;color:var(--muted);
+      border:1px solid var(--border);
+    }
+    :root[data-theme="dark"] .badge{background:rgba(255,255,255,.06)}
+
+    .btn{
+      appearance:none;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.65);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:800;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      text-decoration:none;
+    }
+    :root[data-theme="dark"] .btn{background:rgba(255,255,255,.06)}
+    .btn:hover{background:rgba(255,255,255,.80)}
+    :root[data-theme="dark"] .btn:hover{background:rgba(255,255,255,.10)}
+    .btn-primary{background:var(--primary);border-color:transparent;color:#fff}
+    .btn-primary:hover{background:var(--primary-hover)}
+    .btn-danger{background:rgba(220,38,38,.12);border-color:rgba(220,38,38,.25)}
+    :root[data-theme="dark"] .btn-danger{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.35)}
+    .btn-danger:hover{background:rgba(220,38,38,.18)}
+    :root[data-theme="dark"] .btn-danger:hover{background:rgba(239,68,68,.26)}
+    .btn:focus-visible{outline:3px solid rgba(37,99,235,.45);outline-offset:3px}
+    :root[data-theme="dark"] .btn:focus-visible{outline:3px solid rgba(255,255,255,.85)}
+
+    .main{
+      flex:1 1 auto;
+      overflow:auto;
+      padding:18px;
+      min-height:0;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin-bottom:14px;
+    }
+    .topbar h1{font-size:1.4rem;letter-spacing:-.3px}
+    .top-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+    .card{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.62);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:16px;
+      min-height:0;
+    }
+    :root[data-theme="dark"] .card{background:rgba(255,255,255,.04)}
+    .card-title{font-weight:900;font-size:1.05rem}
+
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap:14px;
+    }
+    .span-4{grid-column: span 4}
+    .span-5{grid-column: span 5}
+    .span-6{grid-column: span 6}
+    .span-7{grid-column: span 7}
+    .span-8{grid-column: span 8}
+    .span-12{grid-column: span 12}
+
+    .stat{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .stat .label{color:var(--muted);font-weight:700;font-size:.88rem}
+    .stat .value{font-size:1.7rem;font-weight:900;letter-spacing:-.4px}
+    .sub-value{font-size:.9rem;color:var(--muted);margin-top:4px}
+
+    .section{display:none}
+    .section.active{display:block}
+
+    .form-grid{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap:12px;
+    }
+    label{font-size:.9rem;color:var(--muted);font-weight:700}
+    .field{display:grid;gap:6px}
+    input:not([type="checkbox"]):not([type="radio"]),select,textarea{
+      width:100%;
+      padding:12px 12px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:#fff;
+      color:var(--text);
+      outline:none;
+    }
+    :root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+    :root[data-theme="dark"] select,
+    :root[data-theme="dark"] textarea{
+      background:rgba(255,255,255,.05);
+      color:var(--text);
+    }
+    .choice-box{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.45);
+      border-radius:12px;
+      padding:12px;
+      display:grid;
+      gap:10px;
+    }
+    :root[data-theme="dark"] .choice-box{background:rgba(255,255,255,.03)}
+    .choice-grid{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:8px 10px;
+    }
+    .choice-item{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.35);
+      border-radius:12px;
+      padding:10px 10px;
+      font-weight:800;
+      color:var(--text);
+      cursor:pointer;
+      user-select:none;
+    }
+    :root[data-theme="dark"] .choice-item{background:rgba(255,255,255,.02)}
+    .choice-item input{width:auto}
+    textarea{min-height:90px;resize:vertical}
+    input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.75);box-shadow:0 0 0 3px rgba(37,99,235,.20)}
+
+    .hint{color:var(--muted);font-size:.9rem}
+    .row-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap}
+    .row-actions.sticky{
+      position:sticky;
+      bottom:0;
+      background:linear-gradient(180deg, rgba(245,247,251,.1), rgba(245,247,251,.92) 35%, rgba(245,247,251,.98));
+      padding-top:12px;
+      margin-top:18px;
+    }
+    :root[data-theme="dark"] .row-actions.sticky{
+      background:linear-gradient(180deg, rgba(15,23,42,.1), rgba(15,23,42,.78) 35%, rgba(15,23,42,.92));
+    }
+
+    .table-wrap{overflow:auto;border-radius:14px;border:1px solid var(--border)}
+    table{width:100%;border-collapse:collapse;min-width:760px;background:rgba(255,255,255,.42)}
+    :root[data-theme="dark"] table{background:rgba(0,0,0,.10)}
+    th,td{padding:12px 12px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+    th{color:var(--muted);font-weight:900;background:rgba(255,255,255,.35)}
+    :root[data-theme="dark"] th{background:rgba(255,255,255,.03)}
+
+    .status{
+      display:inline-flex;
+      align-items:center;
+      padding:6px 10px;
+      border-radius:999px;
+      font-weight:900;
+      font-size:.78rem;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.55);
+    }
+    :root[data-theme="dark"] .status{background:rgba(255,255,255,.04)}
+    .ok{border-color:rgba(5,150,105,.35);background:rgba(5,150,105,.10)}
+    .warn{border-color:rgba(217,119,6,.35);background:rgba(217,119,6,.10)}
+    .danger{border-color:rgba(220,38,38,.35);background:rgba(220,38,38,.10)}
+    :root[data-theme="dark"] .ok{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.16)}
+    :root[data-theme="dark"] .warn{border-color:rgba(245,158,11,.40);background:rgba(245,158,11,.16)}
+    :root[data-theme="dark"] .danger{border-color:rgba(239,68,68,.40);background:rgba(239,68,68,.16)}
+
+    .filters{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:end;
+    }
+    .filters .field{min-width:200px}
+
+    .photos{
+      display:grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap:10px;
+      margin-top:10px;
+    }
+    .photo{
+      border-radius:14px;
+      border:1px solid var(--border);
+      overflow:hidden;
+      background:rgba(255,255,255,.35);
+      height:90px;
+      position:relative;
+    }
+    :root[data-theme="dark"] .photo{background:rgba(255,255,255,.03)}
+    .photo img{width:100%;height:100%;object-fit:cover;display:block}
+    .photo button{
+      position:absolute;
+      top:6px;
+      right:6px;
+      border:1px solid var(--border);
+      background:rgba(0,0,0,.45);
+      color:#fff;
+      border-radius:10px;
+      padding:6px 8px;
+      cursor:pointer;
+      font-weight:900;
+    }
+    .photo button:focus-visible{outline:3px solid rgba(255,255,255,.85);outline-offset:2px}
+
+    .login{
+      position:fixed;
+      inset:0;
+      display:grid;
+      place-items:center;
+      padding:20px;
+      background:var(--bg);
+      z-index:9999;
+    }
+    .login-card{
+      width:min(460px, 100%);
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.85);
+      border-radius:18px;
+      box-shadow:0 30px 70px rgba(15,23,42,.18);
+      padding:18px;
+    }
+    :root[data-theme="dark"] .login-card{
+      background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.04));
+      box-shadow:0 30px 70px rgba(0,0,0,.55);
+    }
+    .login-card h2{font-size:1.3rem;font-weight:900}
+    .login-card p{color:var(--muted);margin-top:6px}
+    .login-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+
+    .error{
+      border:1px solid rgba(220,38,38,.25);
+      background:rgba(220,38,38,.10);
+      color:rgba(185,28,28,1);
+      padding:10px 12px;
+      border-radius:14px;
+      margin-top:12px;
+    }
+    :root[data-theme="dark"] .error{
+      border:1px solid rgba(239,68,68,.35);
+      background:rgba(239,68,68,.14);
+      color:#fecaca;
+    }
+
+    .mobile-only{display:none}
+    .sr-only{
+      position:absolute;
+      width:1px;height:1px;
+      padding:0;margin:-1px;
+      overflow:hidden;
+      clip:rect(0,0,0,0);
+      white-space:nowrap;
+      border:0;
+    }
+
+    .tree-item{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:10px;
+      background:rgba(255,255,255,.45);
+      border:1px solid var(--border);
+      border-radius:10px;
+      margin-bottom:8px;
+      gap:10px;
+    }
+    :root[data-theme="dark"] .tree-item{background:rgba(255,255,255,.03)}
+    .tree-actions{display:flex;gap:6px;flex-wrap:wrap}
+
+    .log-list{
+      max-height:300px;
+      overflow-y:auto;
+      font-size:.85rem;
+      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      background:rgba(15,23,42,.06);
+      padding:10px;
+      border-radius:10px;
+    }
+    :root[data-theme="dark"] .log-list{background:rgba(0,0,0,.2)}
+    .log-item{
+      padding:4px 0;
+      border-bottom:1px solid rgba(15,23,42,.06);
+      color:var(--muted);
+    }
+    :root[data-theme="dark"] .log-item{border-bottom:1px solid rgba(255,255,255,.05)}
+
+    .editor-toolbar{
+      display:flex;
+      gap:4px;
+      padding:6px;
+      background:rgba(15,23,42,.04);
+      border:1px solid var(--border);
+      border-bottom:none;
+      border-radius:12px 12px 0 0;
+    }
+    :root[data-theme="dark"] .editor-toolbar{background:rgba(255,255,255,.05)}
+    .editor-btn{
+      padding:4px 8px;
+      background:transparent;
+      border:none;
+      color:var(--text);
+      cursor:pointer;
+      border-radius:6px;
+      font-weight:800;
+    }
+    .editor-btn:hover{background:rgba(37,99,235,.10)}
+    :root[data-theme="dark"] .editor-btn:hover{background:rgba(255,255,255,.1)}
+    #editor{
+      min-height:120px;
+      padding:12px;
+      border:1px solid var(--border);
+      border-top:none;
+      border-radius:0 0 12px 12px;
+      background:#fff;
+      outline:none;
+    }
+    :root[data-theme="dark"] #editor{background:rgba(255,255,255,.05)}
+    #note{border-top-left-radius:0;border-top-right-radius:0}
+
+    .dropzone{
+      border:2px dashed var(--border);
+      padding:20px;
+      text-align:center;
+      border-radius:14px;
+      background:rgba(255,255,255,.35);
+      cursor:pointer;
+      transition:all .2s;
+    }
+    :root[data-theme="dark"] .dropzone{background:rgba(255,255,255,.02)}
+    .dropzone.dragover{
+      border-color:var(--primary);
+      background:rgba(37,99,235,.10);
+    }
+
+    .inline-row{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+    .inline-row > *{flex:1 1 auto}
+
+    @media (max-width: 980px){
+      .span-4,.span-5,.span-6,.span-7,.span-8,.span-12{grid-column: span 12}
+      .form-grid{grid-template-columns:1fr}
+      table{min-width: 680px}
+      .photos{grid-template-columns: repeat(4, minmax(0, 1fr))}
+    }
+    @media (max-width: 820px){
+      body{overflow:auto}
+      .app{flex-direction:column;overflow:auto}
+      .sidebar{
+        width:100%;
+        position:sticky;
+        top:0;
+        z-index:20;
+        padding:12px;
+      }
+      nav{grid-template-columns: repeat(2, minmax(0, 1fr))}
+      .mobile-only{display:inline-flex}
+      .profile{display:none}
+      .main{padding:14px}
+      .photos{grid-template-columns: repeat(3, minmax(0, 1fr))}
+    }
+    @media (prefers-reduced-motion: reduce){
+      *{scroll-behavior:auto;transition:none !important;animation:none !important}
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#contenuto">Vai al contenuto</a>
+
+  <div id="loginOverlay" class="login" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+    <div class="login-card">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="logo" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9L2.2 10.8A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/>
+            <circle cx="7" cy="17" r="2"/>
+            <circle cx="17" cy="17" r="2"/>
+          </svg>
+        </div>
+        <div>
+          <h2 id="loginTitle">Area Admin</h2>
+          <p>Accedi con utente <strong>admin</strong> e password <strong>admin</strong></p>
+        </div>
+      </div>
+
+      <form id="loginForm" style="margin-top:14px">
+        <div class="field">
+          <label for="user">Username</label>
+          <input id="user" name="user" autocomplete="username" required />
+        </div>
+        <div class="field" style="margin-top:10px">
+          <label for="pass">Password</label>
+          <input id="pass" name="pass" type="password" autocomplete="current-password" required />
+        </div>
+        <div class="login-actions">
+          <a class="btn" href="index.html">Torna al sito</a>
+          <button class="btn btn-primary" type="submit">Entra</button>
+        </div>
+        <div id="loginError" class="error" hidden>Credenziali non valide.</div>
+      </form>
+    </div>
+  </div>
+
+  <div class="app" id="app" aria-hidden="true">
+    <aside class="sidebar" aria-label="Menu">
+      <a class="brand" href="index.html" aria-label="Vai al sito pubblico">
+        <div class="logo" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9L2.2 10.8A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/>
+            <circle cx="7" cy="17" r="2"/>
+            <circle cx="17" cy="17" r="2"/>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">Toulotte Online</div>
+          <div class="brand-sub">Dashboard Admin</div>
+        </div>
+      </a>
+
+      <nav aria-label="Sezioni">
+        <button class="nav-btn" type="button" data-section="dashboard" aria-current="page">Dashboard</button>
+        <button class="nav-btn" type="button" data-section="new">Nuova Roulotte</button>
+        <button class="nav-btn" type="button" data-section="list">Elenco</button>
+        <button class="nav-btn" type="button" data-section="categories">Categorie</button>
+        <button class="nav-btn" type="button" data-section="settings">Impostazioni</button>
+      </nav>
+
+      <div class="spacer"></div>
+
+      <div class="profile" aria-label="Profilo">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="badge" aria-hidden="true">AD</div>
+          <div>
+            <div style="font-weight:900">Admin</div>
+            <div class="brand-sub">Gestione parco mezzi</div>
+          </div>
+        </div>
+        <button class="btn btn-danger" type="button" id="logoutBtn">Esci</button>
+      </div>
+    </aside>
+
+    <main class="main" id="contenuto" role="main" aria-label="Contenuto admin">
+      <div class="topbar">
+        <h1 id="pageTitle">Dashboard</h1>
+        <div class="top-actions">
+          <a class="btn mobile-only" href="index.html">Sito</a>
+          <button class="btn" type="button" id="refreshBtn">Aggiorna</button>
+          <button class="btn" type="button" id="themeToggleBtn">Tema: Chiaro</button>
+          <button class="btn btn-danger mobile-only" type="button" id="logoutBtnMobile">Esci</button>
+        </div>
+      </div>
+
+      <section id="dashboard" class="section active" aria-label="Dashboard">
+        <div class="grid">
+          <div class="card span-4">
+            <div class="stat">
+              <div>
+                <div class="label">In Vendita</div>
+                <div class="value" id="statAvailable">0</div>
+              </div>
+              <div class="status ok">Store</div>
+            </div>
+          </div>
+          <div class="card span-4">
+            <div class="stat">
+              <div>
+                <div class="label">Vendute (Valore)</div>
+                <div class="value" id="statSoldValue">€ 0</div>
+                <div class="sub-value" id="statSold">0 veicoli</div>
+              </div>
+              <div class="status warn">Sold</div>
+            </div>
+          </div>
+          <div class="card span-4">
+            <div class="stat">
+              <div>
+                <div class="label">Valore Magazzino</div>
+                <div class="value" id="statValue">€ 0</div>
+                <div class="sub-value" style="font-size:0.9rem;color:var(--muted)">Disponibili</div>
+              </div>
+              <div class="status ok">€</div>
+            </div>
+          </div>
+          <div class="card span-12">
+            <div class="card-title" style="margin-bottom:12px">Riepilogo Categorie</div>
+            <div id="catStats" class="grid" style="grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:10px">
+              <!-- Popolato via JS -->
+            </div>
+          </div>
+          <div class="card span-12">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap">
+              <div>
+                <div class="card-title">Suggerimenti</div>
+                <div class="hint" style="margin-top:6px">Aggiungi foto leggere (massimo 9) per non saturare la memoria del browser.</div>
+              </div>
+              <a class="btn btn-primary" href="index.html">Apri sito pubblico</a>
+            </div>
+          </div>
+          <div class="card span-12" style="opacity:0.8">
+            <details>
+              <summary style="cursor:pointer;font-weight:700;color:var(--muted)">Mostra Log Attività Recenti</summary>
+              <div class="log-list" id="activityLog" style="margin-top:10px">
+                <!-- Logs popolati via JS -->
+              </div>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section id="new" class="section" aria-label="Nuova roulotte">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div>
+              <div style="font-weight:900;font-size:1.1rem" id="formTitle">Crea nuova scheda</div>
+              <div class="hint" style="margin-top:6px">I campi Marca, Modello, Prezzo e Anno sono obbligatori.</div>
+            </div>
+            <button class="btn" type="button" id="clearFormBtn">Nuova Scheda</button>
+          </div>
+
+          <form id="newForm" style="margin-top:14px">
+            <input type="hidden" id="editId" name="editId" value="" />
+            <div class="form-grid">
+              <div class="field">
+                <label for="marca">Marca</label>
+                <input id="marca" name="marca" autocomplete="organization" required />
+              </div>
+              <div class="field">
+                <label for="modello">Modello</label>
+                <input id="modello" name="modello" autocomplete="off" required />
+              </div>
+              <div class="field">
+                <label for="versione">Versione / Allestimento</label>
+                <input id="versione" name="versione" autocomplete="off" />
+              </div>
+              <div class="field">
+                <label for="categoryId">Categoria</label>
+                <select id="categoryId" name="categoryId">
+                  <!-- Popolato via JS -->
+                </select>
+              </div>
+              <div class="field">
+                <label for="stato">Stato</label>
+                <select id="stato" name="stato">
+                  <option value="Ottimo">Ottimo</option>
+                  <option value="Buono">Buono</option>
+                  <option value="Da sistemare">Da sistemare</option>
+                  <option value="Nuovo">Nuovo</option>
+                  <option value="Venduto">Venduto</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="prezzo">Prezzo (€)</label>
+                <input id="prezzo" name="prezzo" type="number" inputmode="decimal" min="0" step="0.01" required />
+              </div>
+              <div class="field">
+                <label for="anno">Anno</label>
+                <input id="anno" name="anno" type="number" inputmode="numeric" min="1970" max="2100" required />
+              </div>
+              <div class="field">
+                <label for="tipologiaMezzo">Tipologia</label>
+                <select id="tipologiaMezzo" name="tipologiaMezzo" required>
+                  <option value="">-- Seleziona --</option>
+                  <option value="Roulotte stradale">Roulotte stradale</option>
+                  <option value="Roulotte da campeggio">Roulotte da campeggio</option>
+                  <option value="Casa mobile">Casa mobile</option>
+                  <option value="Da sistemare / progetto">Da sistemare / progetto</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Disponibilità</label>
+                <div class="choice-box">
+                  <label class="choice-item" for="prontaConsegna">
+                    <input id="prontaConsegna" name="prontaConsegna" type="checkbox" />
+                    Pronta consegna
+                  </label>
+                </div>
+              </div>
+              <div class="field">
+                <label>Permuta</label>
+                <div class="choice-box">
+                  <div class="choice-grid" style="grid-template-columns:repeat(2, minmax(0, 1fr))">
+                    <label class="choice-item">
+                      <input type="radio" name="permuta" value="Sì" />
+                      Sì
+                    </label>
+                    <label class="choice-item">
+                      <input type="radio" name="permuta" value="No" />
+                      No
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <details style="margin-top:16px">
+              <summary style="cursor:pointer;font-weight:900">Stato del mezzo</summary>
+              <div class="hint" style="margin-top:6px">Campi facoltativi: aiutano a filtrare e a generare una descrizione più completa.</div>
+              <div class="form-grid" style="margin-top:12px">
+                <div class="field">
+                  <label for="condizioneGenerale">Condizione generale</label>
+                  <select id="condizioneGenerale" name="condizioneGenerale">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Nuovo">Nuovo</option>
+                    <option value="Usato">Usato</option>
+                    <option value="Da sistemare">Da sistemare</option>
+                    <option value="Da demolire">Da demolire</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="statoInterni">Stato interni</label>
+                  <select id="statoInterni" name="statoInterni">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Ottimo">Ottimo</option>
+                    <option value="Buono">Buono</option>
+                    <option value="Discreto">Discreto</option>
+                    <option value="Da rifare">Da rifare</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="statoEsterni">Stato esterni</label>
+                  <select id="statoEsterni" name="statoEsterni">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Ottimo">Ottimo</option>
+                    <option value="Buono">Buono</option>
+                    <option value="Discreto">Discreto</option>
+                    <option value="Da rifare">Da rifare</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="infiltrazioni">Presenza infiltrazioni</label>
+                  <select id="infiltrazioni" name="infiltrazioni">
+                    <option value="">-- Seleziona --</option>
+                    <option value="No">No</option>
+                    <option value="Sì">Sì</option>
+                    <option value="Da verificare">Da verificare</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="odori">Odori / muffe</label>
+                  <select id="odori" name="odori">
+                    <option value="">-- Seleziona --</option>
+                    <option value="No">No</option>
+                    <option value="Sì">Sì</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="provenienza">Provenienza</label>
+                  <select id="provenienza" name="provenienza">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Privato">Privato</option>
+                    <option value="Campeggio">Campeggio</option>
+                    <option value="Estero">Estero</option>
+                  </select>
+                </div>
+              </div>
+            </details>
+
+            <details style="margin-top:10px">
+              <summary style="cursor:pointer;font-weight:900">Omologazione & documenti</summary>
+              <div class="form-grid" style="margin-top:12px">
+                <div class="field">
+                  <label for="targata">Targata</label>
+                  <select id="targata" name="targata">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="librettoCircolazione">Libretto di circolazione</label>
+                  <select id="librettoCircolazione" name="librettoCircolazione">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="omologataCircolazione">Omologata per circolazione</label>
+                  <select id="omologataCircolazione" name="omologataCircolazione">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="numeroTelaio">Numero di telaio</label>
+                  <input id="numeroTelaio" name="numeroTelaio" autocomplete="off" placeholder="es. VIN / telaio" />
+                </div>
+                <div class="field">
+                  <label for="numeroAssi">Numero assi</label>
+                  <select id="numeroAssi" name="numeroAssi">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Monoasse">Monoasse</option>
+                    <option value="Doppio asse">Doppio asse</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="timone">Timone</label>
+                  <select id="timone" name="timone">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Presente">Presente</option>
+                    <option value="Assente">Assente</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="frenoRepulsione">Freno a repulsione</label>
+                  <select id="frenoRepulsione" name="frenoRepulsione">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="pesoVuoto">Peso a vuoto (kg)</label>
+                  <input id="pesoVuoto" name="pesoVuoto" type="number" inputmode="decimal" min="0" step="1" />
+                </div>
+              </div>
+            </details>
+
+            <div style="margin-top:20px;margin-bottom:10px;font-weight:900;font-size:1.05rem;border-bottom:1px solid var(--border);padding-bottom:5px">Dimensioni & letti</div>
+            <div class="form-grid">
+              <div class="field">
+                 <label for="lunghezza">Lunghezza totale (m)</label>
+                 <input id="lunghezza" type="number" step="0.01" placeholder="es. 7.50" />
+              </div>
+              <div class="field">
+                 <label for="lunghezzaInterna">Lunghezza interna (m)</label>
+                 <input id="lunghezzaInterna" name="lunghezzaInterna" type="number" step="0.01" placeholder="es. 6.00" />
+              </div>
+              <div class="field">
+                 <label for="larghezza">Larghezza (m)</label>
+                 <input id="larghezza" type="number" step="0.01" placeholder="es. 2.30" />
+              </div>
+              <div class="field">
+                 <label for="altezza">Altezza (m)</label>
+                 <input id="altezza" name="altezza" type="number" step="0.01" placeholder="es. 2.60" />
+              </div>
+              <div class="field">
+                 <label for="posti">Posti letto totali</label>
+                 <input id="posti" type="number" placeholder="es. 4" />
+              </div>
+              <div class="field">
+                 <label for="massa">Massa Complessiva (kg)</label>
+                 <input id="massa" type="number" placeholder="es. 1300" />
+              </div>
+              <div class="field">
+                 <label for="documenti">Documenti</label>
+                 <select id="documenti">
+                   <option value="">-- Seleziona --</option>
+                   <option value="Con documenti">Con documenti</option>
+                   <option value="Senza documenti">Senza documenti</option>
+                   <option value="Con documenti esteri">Con documenti esteri</option>
+                 </select>
+              </div>
+              <div class="field">
+                 <label for="tipologia">Tipologia Interna</label>
+                 <select id="tipologia">
+                   <option value="">-- Seleziona --</option>
+                   <option>Bagno con box doccia e wc separati</option>
+                   <option>Bagno con box doccia e wc opposti</option>
+                   <option>Bagno con box doccia posteriore</option>
+                   <option>Bagno con doccia e wc integrati</option>
+                   <option>Cucina in linea</option>
+                   <option>Cucina ad L oppure ad angolo</option>
+                   <option>Cucina in coda</option>
+                   <option>Cucina anteriore</option>
+                   <option>Dinette a L</option>
+                   <option>Dinette a "U" convertibile in letto</option>
+                   <option>Dinette tradizionale</option>
+                   <option>Semidinette anteriore</option>
+                   <option>Dinette anteriore</option>
+                   <option>Dinette centrale convertibile in letto (caravan)</option>
+                   <option>Dinette a L con divanetto</option>
+                   <option>Dinette laterale convertibile in letto (caravan)</option>
+                   <option>Dinette couch</option>
+                   <option>Dinette per bambini</option>
+                   <option>Semidinette anteriore con divano</option>
+                 </select>
+              </div>
+            </div>
+
+            <details style="margin-top:10px">
+              <summary style="cursor:pointer;font-weight:900">Disposizione letti</summary>
+              <div class="choice-box" style="margin-top:12px">
+                <div class="choice-grid">
+                  <label class="choice-item"><input type="checkbox" name="disposizioneLetti" value="Matrimoniale" />Matrimoniale</label>
+                  <label class="choice-item"><input type="checkbox" name="disposizioneLetti" value="Singoli" />Singoli</label>
+                  <label class="choice-item"><input type="checkbox" name="disposizioneLetti" value="Letti a castello" />Letti a castello</label>
+                  <label class="choice-item"><input type="checkbox" name="disposizioneLetti" value="Dinette trasformabile" />Dinette trasformabile</label>
+                </div>
+              </div>
+              <div class="form-grid" style="margin-top:12px">
+                <div class="field">
+                  <label for="lettoFisso">Letto fisso</label>
+                  <select id="lettoFisso" name="lettoFisso">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field" style="grid-column: span 2">
+                  <label>Ideale per</label>
+                  <div class="choice-box">
+                    <div class="choice-grid">
+                      <label class="choice-item"><input type="checkbox" name="idealePer" value="Coppia" />Coppia</label>
+                      <label class="choice-item"><input type="checkbox" name="idealePer" value="Famiglia" />Famiglia</label>
+                      <label class="choice-item"><input type="checkbox" name="idealePer" value="Campeggio fisso" />Campeggio fisso</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details style="margin-top:10px">
+              <summary style="cursor:pointer;font-weight:900">Disposizione interna</summary>
+              <div class="form-grid" style="margin-top:12px">
+                <div class="field">
+                  <label for="tipoDinette">Tipo dinette</label>
+                  <select id="tipoDinette" name="tipoDinette">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Piccola">Piccola</option>
+                    <option value="Grande">Grande</option>
+                    <option value="A U">A U</option>
+                    <option value="A L">A L</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="cucina">Cucina</label>
+                  <select id="cucina" name="cucina">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Lineare">Lineare</option>
+                    <option value="Angolare">Angolare</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="bagno">Bagno</label>
+                  <select id="bagno" name="bagno">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Assente">Assente</option>
+                    <option value="WC chimico">WC chimico</option>
+                    <option value="WC + doccia">WC + doccia</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="docciaSeparata">Doccia separata</label>
+                  <select id="docciaSeparata" name="docciaSeparata">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="armadi">Armadi</label>
+                  <select id="armadi" name="armadi">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="gavoniInterni">Gavoni interni</label>
+                  <select id="gavoniInterni" name="gavoniInterni">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+              </div>
+            </details>
+
+            <details style="margin-top:10px">
+              <summary style="cursor:pointer;font-weight:900">Impianti & accessori</summary>
+              <div class="form-grid" style="margin-top:12px">
+                <div class="field">
+                  <label for="presa220Esterna">Presa 220V esterna</label>
+                  <select id="presa220Esterna" name="presa220Esterna">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="impianto12V">Impianto 12V</label>
+                  <select id="impianto12V" name="impianto12V">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="batteriaServizi">Batteria servizi</label>
+                  <select id="batteriaServizi" name="batteriaServizi">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="illuminazioneLed">Illuminazione LED</label>
+                  <select id="illuminazioneLed" name="illuminazioneLed">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="impiantoGas">Impianto gas</label>
+                  <select id="impiantoGas" name="impiantoGas">
+                    <option value="">-- Seleziona --</option>
+                    <option value="A norma">A norma</option>
+                    <option value="Da verificare">Da verificare</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="numeroBombole">Numero bombole</label>
+                  <input id="numeroBombole" name="numeroBombole" type="number" inputmode="numeric" min="0" step="1" />
+                </div>
+                <div class="field">
+                  <label for="scadenzaImpiantoGas">Scadenza impianto gas</label>
+                  <input id="scadenzaImpiantoGas" name="scadenzaImpiantoGas" type="date" />
+                </div>
+                <div class="field">
+                  <label for="serbatoioAcquaPulita">Serbatoio acqua pulita</label>
+                  <select id="serbatoioAcquaPulita" name="serbatoioAcquaPulita">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="serbatoioAcqueGrigie">Serbatoio acque grigie</label>
+                  <select id="serbatoioAcqueGrigie" name="serbatoioAcqueGrigie">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="riscaldamento">Riscaldamento</label>
+                  <select id="riscaldamento" name="riscaldamento">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="tipoRiscaldamento">Tipo riscaldamento</label>
+                  <select id="tipoRiscaldamento" name="tipoRiscaldamento">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Truma">Truma</option>
+                    <option value="Elettrico">Elettrico</option>
+                    <option value="Altro">Altro</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="climatizzatore">Climatizzatore</label>
+                  <select id="climatizzatore" name="climatizzatore">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="predisposizioneClima">Predisposizione clima</label>
+                  <select id="predisposizioneClima" name="predisposizioneClima">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="verandaTendalino">Veranda / tendalino</label>
+                  <select id="verandaTendalino" name="verandaTendalino">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="portabici">Portabici</label>
+                  <select id="portabici" name="portabici">
+                    <option value="">-- Seleziona --</option>
+                    <option value="Sì">Sì</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+              </div>
+            </details>
+
+            <details style="margin-top:10px">
+              <summary style="cursor:pointer;font-weight:900">Contatti & media</summary>
+              <div class="form-grid" style="margin-top:12px">
+                <div class="field">
+                  <label for="contattoTelefono">Telefono</label>
+                  <input id="contattoTelefono" name="contattoTelefono" type="tel" autocomplete="tel" />
+                </div>
+                <div class="field">
+                  <label for="contattoWhatsapp">WhatsApp</label>
+                  <input id="contattoWhatsapp" name="contattoWhatsapp" type="tel" autocomplete="tel" />
+                </div>
+                <div class="field">
+                  <label for="contattoEmail">Email</label>
+                  <input id="contattoEmail" name="contattoEmail" type="email" autocomplete="email" />
+                </div>
+                <div class="field">
+                  <label for="localita">Località</label>
+                  <input id="localita" name="localita" autocomplete="address-level2" />
+                </div>
+                <div class="field">
+                  <label for="orariContatto">Orari di contatto</label>
+                  <input id="orariContatto" name="orariContatto" autocomplete="off" placeholder="es. 9-12 / 15-19" />
+                </div>
+                <div class="field">
+                  <label for="videoUrl">Video (URL)</label>
+                  <input id="videoUrl" name="videoUrl" type="url" autocomplete="off" placeholder="https://..." />
+                </div>
+                <div class="field">
+                  <label for="planimetriaUrl">Planimetria (URL)</label>
+                  <input id="planimetriaUrl" name="planimetriaUrl" type="url" autocomplete="off" placeholder="https://..." />
+                </div>
+              </div>
+            </details>
+
+            <div class="form-grid" style="margin-top:12px">
+              <div class="field" style="grid-column:1/-1">
+                <label for="note">Note (Descrizione)</label>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+                   <span class="hint">Generata automaticamente dai dati tecnici, ma modificabile.</span>
+                   <button type="button" class="btn" style="padding:4px 8px;font-size:0.8rem" onclick="generateDescription()">Rigenera Descrizione</button>
+                </div>
+                <div style="display:grid">
+                  <div class="editor-toolbar">
+                    <button type="button" class="editor-btn" onclick="formatDoc('bold')" title="Grassetto">B</button>
+                    <button type="button" class="editor-btn" onclick="formatDoc('italic')" title="Corsivo">I</button>
+                    <button type="button" class="editor-btn" onclick="formatDoc('underline')" title="Sottolineato">U</button>
+                    <div style="width:1px;background:var(--border);margin:0 4px"></div>
+                    <button type="button" class="editor-btn" onclick="formatDoc('insertUnorderedList')" title="Elenco puntato">• Lista</button>
+                    <button type="button" class="editor-btn" onclick="formatDoc('insertOrderedList')" title="Elenco numerato">1. Lista</button>
+                  </div>
+                  <!-- Semplice textarea, ma l'utente chiedeva WYSIWYG. 
+                       Per una vera WYSIWYG senza dipendenze, contenteditable è meglio.
+                       Uso un div contenteditable che sincronizzo con una textarea nascosta. -->
+                  <div id="editor" contenteditable="true" style="min-height:120px;padding:12px;border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;background:rgba(255,255,255,.05);outline:none"></div>
+                  <textarea id="note" name="note" hidden></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top:14px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+                <div>
+                  <div style="font-weight:900">Foto</div>
+                  <div class="hint">Trascina qui le immagini o clicca per selezionare (Max 9).</div>
+                </div>
+              </div>
+              
+              <div id="dropzone" class="dropzone" style="margin-top:10px">
+                <p style="color:var(--muted);pointer-events:none">Trascina le foto qui o clicca per aprire</p>
+                <input id="photosInput" name="photosInput" type="file" accept="image/*" multiple style="display:none" />
+              </div>
+              
+              <div id="photosPreview" class="photos" aria-label="Anteprima foto"></div>
+              <div id="photoHint" class="hint" style="margin-top:8px"></div>
+            </div>
+
+            <div class="row-actions sticky">
+              <button class="btn" type="button" id="goListBtn">Vai all'elenco</button>
+              <button class="btn btn-primary" type="submit">Salva scheda</button>
+            </div>
+            <div id="formMsg" class="error" hidden></div>
+          </form>
+        </div>
+      </section>
+
+      <section id="list" class="section" aria-label="Elenco roulotte">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div>
+              <div style="font-weight:900;font-size:1.1rem">Elenco</div>
+              <div class="hint" id="listMeta" style="margin-top:6px"></div>
+            </div>
+            <div class="filters" role="search" aria-label="Ricerca elenco">
+              <div class="field">
+                <label for="listQ">Cerca</label>
+                <input id="listQ" name="listQ" type="search" autocomplete="off" placeholder="Marca, modello, anno..." />
+              </div>
+              <div class="field">
+                <label for="listCategory">Categoria</label>
+                <select id="listCategory" name="listCategory">
+                  <option value="">Tutte</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="listStato">Stato</label>
+                <select id="listStato" name="listStato">
+                  <option value="">Tutti</option>
+                  <option value="Ottimo">Ottimo</option>
+                  <option value="Buono">Buono</option>
+                  <option value="Da sistemare">Da sistemare</option>
+                  <option value="Nuovo">Nuovo</option>
+                  <option value="Venduto">Venduto</option>
+                </select>
+              </div>
+              <div class="field" style="min-width:auto">
+                <label class="sr-only" for="listReset">Reset</label>
+                <button class="btn" type="button" id="listReset">Reset</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top:14px" class="table-wrap" aria-label="Tabella roulotte">
+            <table>
+              <thead>
+                <tr>
+                  <th>Roulotte</th>
+                  <th>Anno</th>
+                  <th>Prezzo</th>
+                  <th>Stato</th>
+                  <th>Azioni</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="detail" class="section" aria-label="Dettaglio mezzo">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div>
+              <div style="font-weight:900;font-size:1.1rem" id="detailTitle">Dettaglio</div>
+              <div class="hint" id="detailMeta" style="margin-top:6px"></div>
+            </div>
+            <div class="row-actions" style="justify-content:flex-end">
+              <button class="btn" type="button" id="detailBackBtn">Torna all'elenco</button>
+              <button class="btn" type="button" id="detailOpenPublicBtn">Apri sul sito</button>
+              <button class="btn" type="button" id="detailDuplicateBtn">Duplica</button>
+              <button class="btn" type="button" id="detailSoldBtn">Segna venduto</button>
+              <button class="btn btn-primary" type="button" id="detailEditBtn">Modifica</button>
+            </div>
+          </div>
+
+          <div class="grid" style="margin-top:14px">
+            <div class="card span-7">
+              <div class="card-title" style="margin-bottom:10px">Foto</div>
+              <div id="detailPhotos" class="photos" aria-label="Foto mezzo"></div>
+            </div>
+            <div class="card span-5">
+              <div class="card-title" style="margin-bottom:10px">Dettagli</div>
+              <div id="detailInfo" style="display:grid;gap:10px"></div>
+            </div>
+            <div class="card span-12">
+              <div class="card-title" style="margin-bottom:10px">Descrizione</div>
+              <div id="detailNote" style="color:var(--text)"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="categories" class="section" aria-label="Gestione Categorie">
+        <div class="grid">
+          <div class="card span-5">
+            <div class="card-title" style="margin-bottom:10px">Gestione</div>
+            <div class="inline-row" style="margin-bottom:12px">
+              <div class="field" style="min-width:240px">
+                <label for="newCatName">Nuova categoria</label>
+                <input id="newCatName" placeholder="Es. Caravan Nuove" />
+              </div>
+              <div style="display:flex;justify-content:flex-end">
+                <button class="btn btn-primary" type="button" id="addCatBtn">Aggiungi</button>
+              </div>
+            </div>
+            <div id="catList"></div>
+          </div>
+          <div class="card span-7">
+            <div class="card-title" style="margin-bottom:10px">Panoramica</div>
+            <div class="hint" style="margin-bottom:12px">Clicca una categoria per aprire l'elenco filtrato.</div>
+            <div id="categoriesGrid" class="grid" style="grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:10px"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="settings" class="section" aria-label="Amministrazione">
+        <div class="grid">
+          <div class="card span-6">
+            <div style="font-weight:900;font-size:1.05rem">Sicurezza Admin</div>
+            <div class="hint" style="margin-top:6px">Modifica le credenziali di accesso.</div>
+            
+            <form id="securityForm" style="margin-top:12px">
+               <div class="field">
+                 <label for="newAuthUser">Nuovo Username</label>
+                 <input id="newAuthUser" required />
+               </div>
+               <div class="field" style="margin-top:8px">
+                 <label for="newAuthPass">Nuova Password</label>
+                 <input id="newAuthPass" type="password" required />
+               </div>
+               <div class="row-actions">
+                 <button class="btn btn-primary" type="submit">Aggiorna Credenziali</button>
+               </div>
+               <div id="secMsg" class="error ok" hidden style="background:rgba(16,185,129,.16);border-color:rgba(16,185,129,.35);color:#a7f3d0"></div>
+            </form>
+          </div>
+          <div class="card span-6">
+            <div style="font-weight:900;font-size:1.05rem">Esporta Dati</div>
+            <div class="hint" style="margin-top:6px">Scarica il database completo in un file.</div>
+            <div class="row-actions" style="justify-content:flex-start">
+              <button class="btn btn-primary" type="button" id="exportBtn">Esporta</button>
+            </div>
+          </div>
+          <div class="card span-6">
+            <div style="font-weight:900;font-size:1.05rem">Importa JSON</div>
+            <div class="hint" style="margin-top:6px">Carica un backup per sostituire i dati.</div>
+            <div class="row-actions" style="justify-content:flex-start;align-items:center">
+              <input id="importInput" type="file" accept="application/json" />
+              <button class="btn" type="button" id="importBtn">Importa</button>
+            </div>
+            <div id="importMsg" class="error" hidden></div>
+          </div>
+          <div class="card span-6">
+            <div style="font-weight:900;font-size:1.05rem">Sync Server</div>
+            <div class="hint" style="margin-top:6px">Sincronizza il database con il server locale (dev-server).</div>
+            <div class="row-actions" style="justify-content:flex-start;align-items:center;flex-wrap:wrap">
+              <button class="btn btn-primary" type="button" id="syncNowBtn">Sincronizza</button>
+              <button class="btn" type="button" id="pullServerBtn">Scarica</button>
+              <button class="btn" type="button" id="pushServerBtn">Carica</button>
+            </div>
+            <div id="syncMsg" class="error ok" hidden style="background:rgba(16,185,129,.16);border-color:rgba(16,185,129,.35);color:#a7f3d0"></div>
+          </div>
+          <div class="card span-12">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+              <div>
+                <div style="font-weight:900;font-size:1.05rem">Pulizia</div>
+                <div class="hint" style="margin-top:6px">Elimina tutti i dati salvati nel browser.</div>
+              </div>
+              <button class="btn btn-danger" type="button" id="wipeBtn">Svuota database</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="roulotte-store.js"></script>
+  <script>
+    const AUTH_KEY = 'admin_auth_v2';
+
+    // Elementi UI Principali
+    const loginOverlay = document.getElementById('loginOverlay');
+    const loginForm = document.getElementById('loginForm');
+    const loginError = document.getElementById('loginError');
+    const userEl = document.getElementById('user');
+    const passEl = document.getElementById('pass');
+
+    const app = document.getElementById('app');
+    const pageTitle = document.getElementById('pageTitle');
+    const navButtons = Array.from(document.querySelectorAll('.nav-btn'));
+    const refreshBtn = document.getElementById('refreshBtn');
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const logoutBtnMobile = document.getElementById('logoutBtnMobile');
+
+    // Dashboard
+    const statAvailable = document.getElementById('statAvailable');
+    const statSold = document.getElementById('statSold');
+    const statSoldValue = document.getElementById('statSoldValue');
+    const statValue = document.getElementById('statValue');
+    const catStats = document.getElementById('catStats');
+    const activityLog = document.getElementById('activityLog');
+
+    // Form Nuova Roulotte
+    const newForm = document.getElementById('newForm');
+    const clearFormBtn = document.getElementById('clearFormBtn');
+    const goListBtn = document.getElementById('goListBtn');
+    const formMsg = document.getElementById('formMsg');
+    const formTitle = document.getElementById('formTitle');
+
+    const editIdEl = document.getElementById('editId'); // Hidden
+    const marcaEl = document.getElementById('marca');
+    const modelloEl = document.getElementById('modello');
+    const statoEl = document.getElementById('stato');
+    const categoryIdEl = document.getElementById('categoryId'); 
+    const prezzoEl = document.getElementById('prezzo');
+    const annoEl = document.getElementById('anno');
+    
+    // Nuovi campi
+    const versioneEl = document.getElementById('versione');
+    const tipologiaMezzoEl = document.getElementById('tipologiaMezzo');
+    const prontaConsegnaEl = document.getElementById('prontaConsegna');
+
+    const condizioneGeneraleEl = document.getElementById('condizioneGenerale');
+    const statoInterniEl = document.getElementById('statoInterni');
+    const statoEsterniEl = document.getElementById('statoEsterni');
+    const infiltrazioniEl = document.getElementById('infiltrazioni');
+    const odoriEl = document.getElementById('odori');
+    const provenienzaEl = document.getElementById('provenienza');
+
+    const targataEl = document.getElementById('targata');
+    const librettoCircolazioneEl = document.getElementById('librettoCircolazione');
+    const omologataCircolazioneEl = document.getElementById('omologataCircolazione');
+    const numeroTelaioEl = document.getElementById('numeroTelaio');
+    const numeroAssiEl = document.getElementById('numeroAssi');
+    const timoneEl = document.getElementById('timone');
+    const frenoRepulsioneEl = document.getElementById('frenoRepulsione');
+    const pesoVuotoEl = document.getElementById('pesoVuoto');
+
+    const lunghezzaEl = document.getElementById('lunghezza');
+    const lunghezzaInternaEl = document.getElementById('lunghezzaInterna');
+    const larghezzaEl = document.getElementById('larghezza');
+    const altezzaEl = document.getElementById('altezza');
+    const postiEl = document.getElementById('posti');
+    const massaEl = document.getElementById('massa');
+    const documentiEl = document.getElementById('documenti');
+    const tipologiaEl = document.getElementById('tipologia');
+
+    const lettoFissoEl = document.getElementById('lettoFisso');
+
+    const tipoDinetteEl = document.getElementById('tipoDinette');
+    const cucinaEl = document.getElementById('cucina');
+    const bagnoEl = document.getElementById('bagno');
+    const docciaSeparataEl = document.getElementById('docciaSeparata');
+    const armadiEl = document.getElementById('armadi');
+    const gavoniInterniEl = document.getElementById('gavoniInterni');
+
+    const presa220EsternaEl = document.getElementById('presa220Esterna');
+    const impianto12VEl = document.getElementById('impianto12V');
+    const batteriaServiziEl = document.getElementById('batteriaServizi');
+    const illuminazioneLedEl = document.getElementById('illuminazioneLed');
+    const impiantoGasEl = document.getElementById('impiantoGas');
+    const numeroBomboleEl = document.getElementById('numeroBombole');
+    const scadenzaImpiantoGasEl = document.getElementById('scadenzaImpiantoGas');
+    const serbatoioAcquaPulitaEl = document.getElementById('serbatoioAcquaPulita');
+    const serbatoioAcqueGrigieEl = document.getElementById('serbatoioAcqueGrigie');
+    const riscaldamentoEl = document.getElementById('riscaldamento');
+    const tipoRiscaldamentoEl = document.getElementById('tipoRiscaldamento');
+    const climatizzatoreEl = document.getElementById('climatizzatore');
+    const predisposizioneClimaEl = document.getElementById('predisposizioneClima');
+    const verandaTendalinoEl = document.getElementById('verandaTendalino');
+    const portabiciEl = document.getElementById('portabici');
+
+    const contattoTelefonoEl = document.getElementById('contattoTelefono');
+    const contattoWhatsappEl = document.getElementById('contattoWhatsapp');
+    const contattoEmailEl = document.getElementById('contattoEmail');
+    const localitaEl = document.getElementById('localita');
+    const orariContattoEl = document.getElementById('orariContatto');
+    const videoUrlEl = document.getElementById('videoUrl');
+    const planimetriaUrlEl = document.getElementById('planimetriaUrl');
+
+    const noteEl = document.getElementById('note');
+    const editor = document.getElementById('editor'); // Nuovo WYSIWYG
+
+    // Upload
+    const photosInput = document.getElementById('photosInput');
+    const dropzone = document.getElementById('dropzone'); // Nuovo
+    const photosPreview = document.getElementById('photosPreview');
+    const photoHint = document.getElementById('photoHint');
+    let draftPhotos = [];
+
+    // Categorie
+    const catList = document.getElementById('catList');
+    const categoriesGrid = document.getElementById('categoriesGrid');
+    const newCatName = document.getElementById('newCatName');
+    const addCatBtn = document.getElementById('addCatBtn');
+
+    // Sicurezza e Settings
+    const securityForm = document.getElementById('securityForm');
+    const newAuthUser = document.getElementById('newAuthUser');
+    const newAuthPass = document.getElementById('newAuthPass');
+    const secMsg = document.getElementById('secMsg');
+    const exportBtn = document.getElementById('exportBtn');
+    const importInput = document.getElementById('importInput');
+    const importBtn = document.getElementById('importBtn');
+    const importMsg = document.getElementById('importMsg');
+    const syncNowBtn = document.getElementById('syncNowBtn');
+    const pullServerBtn = document.getElementById('pullServerBtn');
+    const pushServerBtn = document.getElementById('pushServerBtn');
+    const syncMsg = document.getElementById('syncMsg');
+    const wipeBtn = document.getElementById('wipeBtn');
+
+    // Elenco
+    const listMeta = document.getElementById('listMeta');
+    const listQ = document.getElementById('listQ');
+    const listCategory = document.getElementById('listCategory');
+    const listStato = document.getElementById('listStato');
+    const listReset = document.getElementById('listReset');
+    const tableBody = document.getElementById('tableBody');
+
+    // Dettaglio
+    const detailTitle = document.getElementById('detailTitle');
+    const detailMeta = document.getElementById('detailMeta');
+    const detailBackBtn = document.getElementById('detailBackBtn');
+    const detailOpenPublicBtn = document.getElementById('detailOpenPublicBtn');
+    const detailDuplicateBtn = document.getElementById('detailDuplicateBtn');
+    const detailSoldBtn = document.getElementById('detailSoldBtn');
+    const detailEditBtn = document.getElementById('detailEditBtn');
+    const detailPhotos = document.getElementById('detailPhotos');
+    const detailInfo = document.getElementById('detailInfo');
+    const detailNote = document.getElementById('detailNote');
+    let currentDetailId = null;
+
+    // --- Helpers ---
+    function normalize(s) { return String(s ?? '').trim().toLowerCase(); }
+    function formatPrice(v) { 
+      const n = Number(v); 
+      return Number.isFinite(n) ? '€ ' + n.toLocaleString('it-IT') : '€ —'; 
+    }
+    function toNullIfEmpty(v) {
+      const s = String(v ?? '').trim();
+      return s === '' ? null : s;
+    }
+    function toNullIfEmptyNumber(v) {
+      const s = String(v ?? '').trim();
+      if (s === '') return null;
+      const n = Number(s);
+      return Number.isFinite(n) ? n : null;
+    }
+    function getRadioValue(name) {
+      const el = document.querySelector(`input[type="radio"][name="${name}"]:checked`);
+      return el ? el.value : '';
+    }
+    function setRadioValue(name, value) {
+      const v = String(value ?? '').trim();
+      document.querySelectorAll(`input[type="radio"][name="${name}"]`).forEach(r => r.checked = (r.value === v));
+    }
+    function getCheckedValues(name) {
+      return Array.from(document.querySelectorAll(`input[type="checkbox"][name="${name}"]:checked`)).map(el => el.value);
+    }
+    function setCheckedValues(name, values) {
+      const set = new Set((Array.isArray(values) ? values : []).map(v => String(v ?? '').trim()));
+      document.querySelectorAll(`input[type="checkbox"][name="${name}"]`).forEach(el => el.checked = set.has(el.value));
+    }
+    function setBoolSelect(el, v) {
+      if (!el) return;
+      if (v === true) el.value = 'Sì';
+      else if (v === false) el.value = 'No';
+      else el.value = '';
+    }
+    function boolLabel(v) {
+      if (v === true) return 'Sì';
+      if (v === false) return 'No';
+      return '—';
+    }
+
+    function applyTheme(theme) {
+      const next = theme === 'dark' ? 'dark' : 'light';
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem('admin_theme', next);
+      if (themeToggleBtn) themeToggleBtn.textContent = next === 'dark' ? 'Tema: Scuro' : 'Tema: Chiaro';
+    }
+    function initTheme() {
+      const saved = localStorage.getItem('admin_theme');
+      applyTheme(saved || document.documentElement.dataset.theme || 'light');
+      if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', () => {
+          applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+        });
+      }
+    }
+    initTheme();
+
+    // --- Auth ---
+    function isAuthed() { return sessionStorage.getItem(AUTH_KEY) === '1'; }
+    function setAuthed(v) {
+      if (v) sessionStorage.setItem(AUTH_KEY, '1');
+      else sessionStorage.removeItem(AUTH_KEY);
+    }
+    
+    function showLogin() {
+      loginOverlay.hidden = false;
+      loginOverlay.style.display = 'grid'; // Forza display
+      app.setAttribute('aria-hidden', 'true');
+      userEl.focus();
+    }
+    function showApp() {
+      loginOverlay.hidden = true;
+      loginOverlay.style.display = 'none'; // Nascondi esplicitamente
+      app.removeAttribute('aria-hidden');
+    }
+    function logout() {
+      setAuthed(false);
+      showLogin();
+      loginForm.reset();
+      loginError.hidden = true;
+    }
+
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const res = window.RoulotteStore.checkLogin(userEl.value, passEl.value);
+      if (res.success) {
+        setAuthed(true);
+        showApp();
+        switchSection('dashboard');
+        refreshAll();
+      } else {
+        loginError.hidden = false;
+        loginError.textContent = res.error;
+        passEl.value = '';
+        passEl.focus();
+      }
+    });
+
+    // --- Navigazione ---
+    function switchSection(sectionId) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      const el = document.getElementById(sectionId);
+      if(el) el.classList.add('active');
+      
+      navButtons.forEach(b => b.removeAttribute('aria-current'));
+      const activeBtn = navButtons.find(b => b.dataset.section === sectionId);
+      if (activeBtn) activeBtn.setAttribute('aria-current', 'page');
+
+      const titleMap = { 
+        dashboard: 'Dashboard', 
+        new: 'Nuova Roulotte', 
+        list: 'Elenco', 
+        detail: 'Dettaglio',
+        categories: 'Gestione Categorie',
+        settings: 'Impostazioni' 
+      };
+      pageTitle.textContent = titleMap[sectionId] || 'Admin';
+      
+      if (sectionId === 'new') marcaEl.focus();
+      if (sectionId === 'list') listQ.focus();
+    }
+    navButtons.forEach(btn => btn.addEventListener('click', () => switchSection(btn.dataset.section)));
+    refreshBtn.addEventListener('click', () => refreshAll());
+    logoutBtn.addEventListener('click', logout);
+    logoutBtnMobile.addEventListener('click', logout);
+
+    // --- Dashboard & Log ---
+    function refreshStats() {
+      const db = window.RoulotteStore.getDB();
+      const list = db.roulottes || [];
+      const cats = db.categories || [];
+
+      // Calcolo Totali
+      const soldItems = list.filter(r => r.stato === 'Venduto');
+      const availableItems = list.filter(r => r.stato !== 'Venduto');
+      
+      statAvailable.textContent = String(availableItems.length);
+      statSold.textContent = `${soldItems.length} veicoli`;
+      const soldValue = soldItems.reduce((acc, r) => acc + (Number(r.prezzo) || 0), 0);
+      statSoldValue.textContent = formatPrice(soldValue);
+      
+      const totalValue = availableItems.reduce((acc, r) => acc + (Number(r.prezzo) || 0), 0);
+      statValue.textContent = formatPrice(totalValue);
+      
+      // Calcolo Categorie
+      catStats.innerHTML = '';
+      if(cats.length === 0) {
+        catStats.innerHTML = '<div class="hint">Nessuna categoria definita.</div>';
+      } else {
+        cats.forEach(c => {
+          const availableCount = availableItems.filter(r => r.categoryId === c.id).length;
+          const soldCount = soldItems.filter(r => r.categoryId === c.id).length;
+          const div = document.createElement('div');
+          div.className = 'card';
+          div.style.padding = '12px';
+          div.style.cursor = 'pointer';
+          div.onclick = () => {
+             listQ.value = '';
+             listCategory.value = c.id;
+             listStato.value = '';
+             renderList();
+             switchSection('list');
+          };
+          div.innerHTML = `
+             <div class="label" style="font-size:0.8rem">${c.name}</div>
+             <div class="value" style="font-size:1.2rem">${availableCount}</div>
+             <div class="sub-value">Vendute: ${soldCount}</div>
+          `;
+          catStats.appendChild(div);
+        });
+      }
+
+      // Render Logs
+      const logs = db.logs || [];
+      activityLog.innerHTML = logs.length 
+        ? logs.map(l => `<div class="log-item">[${new Date(l.timestamp).toLocaleTimeString()}] <strong>${l.user}:</strong> ${l.action}</div>`).join('')
+        : '<div class="hint">Nessuna attività recente.</div>';
+    }
+
+    // --- Categorie ---
+    function renderCategories() {
+      const db = window.RoulotteStore.getDB();
+      const cats = db.categories || [];
+      const items = db.roulottes || [];
+      const soldItems = items.filter(r => r.stato === 'Venduto');
+      const availableItems = items.filter(r => r.stato !== 'Venduto');
+      
+      // Select nel form Nuova
+      const currentSel = categoryIdEl.value;
+      categoryIdEl.innerHTML = '<option value="">-- Seleziona Categoria --</option>';
+      cats.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        categoryIdEl.appendChild(opt);
+      });
+      if(currentSel) categoryIdEl.value = currentSel;
+
+      if (listCategory) {
+        const currentListSel = listCategory.value;
+        listCategory.innerHTML = '<option value="">Tutte</option>';
+        cats.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = c.name;
+          listCategory.appendChild(opt);
+        });
+        if (currentListSel) listCategory.value = currentListSel;
+      }
+
+      if (categoriesGrid) {
+        categoriesGrid.innerHTML = '';
+        if (cats.length === 0) {
+          categoriesGrid.innerHTML = '<div class="hint">Nessuna categoria creata.</div>';
+        } else {
+          cats.forEach(c => {
+            const availableCount = availableItems.filter(r => r.categoryId === c.id).length;
+            const soldCount = soldItems.filter(r => r.categoryId === c.id).length;
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.style.padding = '12px';
+            div.style.cursor = 'pointer';
+            div.onclick = () => {
+              listQ.value = '';
+              listCategory.value = c.id;
+              listStato.value = '';
+              renderList();
+              switchSection('list');
+            };
+            div.innerHTML = `
+              <div class="label" style="font-size:0.8rem">${c.name}</div>
+              <div class="value" style="font-size:1.2rem">${availableCount}</div>
+              <div class="sub-value">Vendute: ${soldCount}</div>
+            `;
+            categoriesGrid.appendChild(div);
+          });
+        }
+      }
+
+      // Lista gestione
+      catList.innerHTML = '';
+      if(cats.length === 0) {
+        catList.innerHTML = '<div class="hint">Nessuna categoria creata.</div>';
+        return;
+      }
+      cats.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'tree-item';
+        div.innerHTML = `
+          <span style="font-weight:800">${c.name}</span>
+          <div class="tree-actions">
+            <button class="btn btn-danger" style="padding:4px 8px;font-size:0.8rem" onclick="deleteCat('${c.id}')">Elimina</button>
+          </div>
+        `;
+        catList.appendChild(div);
+      });
+    }
+
+    window.deleteCat = function(id) {
+       if(confirm('Eliminare questa categoria?')) {
+         window.RoulotteStore.deleteCategory(id);
+         refreshAll();
+       }
+    };
+
+    addCatBtn.addEventListener('click', () => {
+      const name = newCatName.value.trim();
+      if(name) {
+        window.RoulotteStore.addCategory(name);
+        newCatName.value = '';
+        refreshAll();
+      }
+    });
+
+    // --- Generazione Automatica Descrizione ---
+    window.generateDescription = function() {
+      const parts = [];
+      const marca = marcaEl.value.trim();
+      const modello = modelloEl.value.trim();
+      const anno = annoEl.value.trim();
+      const versione = versioneEl.value.trim();
+      const tipologiaMezzo = tipologiaMezzoEl.value;
+
+      const title = [marca, modello].filter(Boolean).join(' ');
+      if (title) parts.push(`<b>${title}</b>${versione ? ` ${versione}` : ''}${anno ? ` del ${anno}` : ''}.`);
+
+      const db = window.RoulotteStore.getDB();
+      const cats = db.categories || [];
+      const categoryName = cats.find(c => c.id === categoryIdEl.value)?.name || '';
+
+      const meta = [];
+      if (statoEl.value) meta.push(`<b>Stato:</b> ${statoEl.value}`);
+      if (categoryName) meta.push(`<b>Categoria:</b> ${categoryName}`);
+      if (tipologiaMezzo) meta.push(`<b>Tipologia:</b> ${tipologiaMezzo}`);
+      if (prontaConsegnaEl.checked) meta.push(`<b>Disponibilità:</b> Pronta consegna`);
+      const permuta = getRadioValue('permuta');
+      if (permuta) meta.push(`<b>Permuta:</b> ${permuta}`);
+      if (meta.length) parts.push(`<p>${meta.join(' • ')}</p>`);
+
+      const tech = [];
+      const lunghezzaTot = Number(lunghezzaEl.value);
+      const lunghezzaInt = Number(lunghezzaInternaEl.value);
+      const larghezza = Number(larghezzaEl.value);
+      const altezza = Number(altezzaEl.value);
+      const postiLetto = Number(postiEl.value);
+      const massa = Number(massaEl.value);
+      const pesoVuoto = Number(pesoVuotoEl.value);
+      if (Number.isFinite(lunghezzaTot) && lunghezzaTot > 0) tech.push(`Lunghezza totale: ${lunghezzaTot} m`);
+      if (Number.isFinite(lunghezzaInt) && lunghezzaInt > 0) tech.push(`Lunghezza interna: ${lunghezzaInt} m`);
+      if (Number.isFinite(larghezza) && larghezza > 0) tech.push(`Larghezza: ${larghezza} m`);
+      if (Number.isFinite(altezza) && altezza > 0) tech.push(`Altezza: ${altezza} m`);
+      if (Number.isFinite(postiLetto) && postiLetto > 0) tech.push(`Posti letto: ${postiLetto}`);
+      if (Number.isFinite(massa) && massa > 0) tech.push(`Massa complessiva: ${massa} kg`);
+      if (Number.isFinite(pesoVuoto) && pesoVuoto > 0) tech.push(`Peso a vuoto: ${pesoVuoto} kg`);
+
+      if (tech.length > 0) parts.push("<ul>" + tech.map(t => `<li>${t}</li>`).join('') + "</ul>");
+      if (documentiEl.value) parts.push(`<p><b>Documenti:</b> ${documentiEl.value}.</p>`);
+      if (targataEl.value) parts.push(`<p><b>Targata:</b> ${targataEl.value}.</p>`);
+      if (librettoCircolazioneEl.value) parts.push(`<p><b>Libretto:</b> ${librettoCircolazioneEl.value}.</p>`);
+      if (omologataCircolazioneEl.value) parts.push(`<p><b>Omologata circolazione:</b> ${omologataCircolazioneEl.value}.</p>`);
+      if (numeroAssiEl.value) parts.push(`<p><b>Assi:</b> ${numeroAssiEl.value}.</p>`);
+      if (timoneEl.value) parts.push(`<p><b>Timone:</b> ${timoneEl.value}.</p>`);
+      if (frenoRepulsioneEl.value) parts.push(`<p><b>Freno a repulsione:</b> ${frenoRepulsioneEl.value}.</p>`);
+
+      const letto = [];
+      const disposizioneLetti = getCheckedValues('disposizioneLetti');
+      if (disposizioneLetti.length) letto.push(`Disposizione letti: ${disposizioneLetti.join(', ')}`);
+      if (lettoFissoEl.value) letto.push(`Letto fisso: ${lettoFissoEl.value}`);
+      const idealePer = getCheckedValues('idealePer');
+      if (idealePer.length) letto.push(`Ideale per: ${idealePer.join(', ')}`);
+      if (letto.length) parts.push("<ul>" + letto.map(t => `<li>${t}</li>`).join('') + "</ul>");
+
+      const interna = [];
+      if (tipologiaEl.value) interna.push(`Tipologia interna: ${tipologiaEl.value}`);
+      if (tipoDinetteEl.value) interna.push(`Dinette: ${tipoDinetteEl.value}`);
+      if (cucinaEl.value) interna.push(`Cucina: ${cucinaEl.value}`);
+      if (bagnoEl.value) interna.push(`Bagno: ${bagnoEl.value}`);
+      if (docciaSeparataEl.value) interna.push(`Doccia separata: ${docciaSeparataEl.value}`);
+      if (armadiEl.value) interna.push(`Armadi: ${armadiEl.value}`);
+      if (gavoniInterniEl.value) interna.push(`Gavoni interni: ${gavoniInterniEl.value}`);
+      if (interna.length) parts.push("<ul>" + interna.map(t => `<li>${t}</li>`).join('') + "</ul>");
+
+      const statoMezzo = [];
+      if (condizioneGeneraleEl.value) statoMezzo.push(`Condizione: ${condizioneGeneraleEl.value}`);
+      if (statoInterniEl.value) statoMezzo.push(`Stato interni: ${statoInterniEl.value}`);
+      if (statoEsterniEl.value) statoMezzo.push(`Stato esterni: ${statoEsterniEl.value}`);
+      if (infiltrazioniEl.value) statoMezzo.push(`Infiltrazioni: ${infiltrazioniEl.value}`);
+      if (odoriEl.value) statoMezzo.push(`Odori/muffe: ${odoriEl.value}`);
+      if (provenienzaEl.value) statoMezzo.push(`Provenienza: ${provenienzaEl.value}`);
+      if (statoMezzo.length) parts.push("<ul>" + statoMezzo.map(t => `<li>${t}</li>`).join('') + "</ul>");
+
+      const impianti = [];
+      if (presa220EsternaEl.value) impianti.push(`Presa 220V esterna: ${presa220EsternaEl.value}`);
+      if (impianto12VEl.value) impianti.push(`Impianto 12V: ${impianto12VEl.value}`);
+      if (batteriaServiziEl.value) impianti.push(`Batteria servizi: ${batteriaServiziEl.value}`);
+      if (illuminazioneLedEl.value) impianti.push(`Illuminazione LED: ${illuminazioneLedEl.value}`);
+      if (impiantoGasEl.value) impianti.push(`Impianto gas: ${impiantoGasEl.value}`);
+      if (numeroBomboleEl.value) impianti.push(`Bombole: ${numeroBomboleEl.value}`);
+      if (scadenzaImpiantoGasEl.value) impianti.push(`Scadenza impianto gas: ${scadenzaImpiantoGasEl.value}`);
+      if (serbatoioAcquaPulitaEl.value) impianti.push(`Serbatoio acqua pulita: ${serbatoioAcquaPulitaEl.value}`);
+      if (serbatoioAcqueGrigieEl.value) impianti.push(`Serbatoio acque grigie: ${serbatoioAcqueGrigieEl.value}`);
+      if (riscaldamentoEl.value) impianti.push(`Riscaldamento: ${riscaldamentoEl.value}`);
+      if (tipoRiscaldamentoEl.value) impianti.push(`Tipo riscaldamento: ${tipoRiscaldamentoEl.value}`);
+      if (climatizzatoreEl.value) impianti.push(`Climatizzatore: ${climatizzatoreEl.value}`);
+      if (predisposizioneClimaEl.value) impianti.push(`Predisposizione clima: ${predisposizioneClimaEl.value}`);
+      if (verandaTendalinoEl.value) impianti.push(`Veranda/tendalino: ${verandaTendalinoEl.value}`);
+      if (portabiciEl.value) impianti.push(`Portabici: ${portabiciEl.value}`);
+      if (impianti.length) parts.push("<ul>" + impianti.map(t => `<li>${t}</li>`).join('') + "</ul>");
+
+      const html = parts.filter(Boolean).join('<br>');
+      editor.innerHTML = html;
+      noteEl.value = html;
+      saveDraft();
+    };
+
+    // Trigger auto-gen on change (opzionale, meglio manuale o al primo inserimento)
+    [
+      marcaEl, modelloEl, versioneEl, annoEl, statoEl, categoryIdEl, prezzoEl,
+      tipologiaMezzoEl, prontaConsegnaEl,
+      condizioneGeneraleEl, statoInterniEl, statoEsterniEl, infiltrazioniEl, odoriEl, provenienzaEl,
+      targataEl, librettoCircolazioneEl, omologataCircolazioneEl, numeroTelaioEl, numeroAssiEl, timoneEl, frenoRepulsioneEl, pesoVuotoEl,
+      lunghezzaEl, lunghezzaInternaEl, larghezzaEl, altezzaEl, postiEl, massaEl, documentiEl, tipologiaEl, lettoFissoEl,
+      tipoDinetteEl, cucinaEl, bagnoEl, docciaSeparataEl, armadiEl, gavoniInterniEl,
+      presa220EsternaEl, impianto12VEl, batteriaServiziEl, illuminazioneLedEl, impiantoGasEl, numeroBomboleEl, scadenzaImpiantoGasEl,
+      serbatoioAcquaPulitaEl, serbatoioAcqueGrigieEl, riscaldamentoEl, tipoRiscaldamentoEl, climatizzatoreEl, predisposizioneClimaEl,
+      verandaTendalinoEl, portabiciEl,
+      contattoTelefonoEl, contattoWhatsappEl, contattoEmailEl, localitaEl, orariContattoEl, videoUrlEl, planimetriaUrlEl
+    ].forEach(el => {
+      if (!el) return;
+      el.addEventListener('change', () => {
+        if(!editor.innerHTML.trim()) generateDescription();
+        saveDraft();
+      });
+    });
+    document.querySelectorAll('input[type="radio"][name="permuta"]').forEach(el => {
+      el.addEventListener('change', () => {
+        if(!editor.innerHTML.trim()) generateDescription();
+        saveDraft();
+      });
+    });
+    document.querySelectorAll('input[type="checkbox"][name="disposizioneLetti"], input[type="checkbox"][name="idealePer"]').forEach(el => {
+      el.addEventListener('change', () => {
+        if(!editor.innerHTML.trim()) generateDescription();
+        saveDraft();
+      });
+    });
+
+    // --- Editor WYSIWYG Semplice ---
+    window.formatDoc = function(cmd, value=null) {
+      document.execCommand(cmd, false, value);
+      editor.focus();
+      saveDraft();
+    };
+    
+    // Sync editor -> textarea e autosave
+    editor.addEventListener('input', () => {
+      noteEl.value = editor.innerHTML;
+      saveDraft();
+    });
+
+    // --- Autosave Form (LocalStorage temporaneo) ---
+    function saveDraft() {
+      const draft = {
+        marca: marcaEl.value,
+        modello: modelloEl.value,
+        versione: versioneEl.value,
+        stato: statoEl.value,
+        categoryId: categoryIdEl.value,
+        prezzo: prezzoEl.value,
+        anno: annoEl.value,
+        tipologiaMezzo: tipologiaMezzoEl.value,
+        prontaConsegna: !!prontaConsegnaEl.checked,
+        permuta: getRadioValue('permuta'),
+
+        condizioneGenerale: condizioneGeneraleEl.value,
+        statoInterni: statoInterniEl.value,
+        statoEsterni: statoEsterniEl.value,
+        infiltrazioni: infiltrazioniEl.value,
+        odori: odoriEl.value,
+        provenienza: provenienzaEl.value,
+
+        targata: targataEl.value,
+        librettoCircolazione: librettoCircolazioneEl.value,
+        omologataCircolazione: omologataCircolazioneEl.value,
+        numeroTelaio: numeroTelaioEl.value,
+        numeroAssi: numeroAssiEl.value,
+        timone: timoneEl.value,
+        frenoRepulsione: frenoRepulsioneEl.value,
+        pesoVuoto: pesoVuotoEl.value,
+
+        lunghezzaTotale: lunghezzaEl.value,
+        lunghezzaInterna: lunghezzaInternaEl.value,
+        larghezza: larghezzaEl.value,
+        altezza: altezzaEl.value,
+        posti: postiEl.value,
+        massa: massaEl.value,
+        documenti: documentiEl.value,
+        tipologia: tipologiaEl.value,
+        disposizioneLetti: getCheckedValues('disposizioneLetti'),
+        lettoFisso: lettoFissoEl.value,
+        idealePer: getCheckedValues('idealePer'),
+
+        tipoDinette: tipoDinetteEl.value,
+        cucina: cucinaEl.value,
+        bagno: bagnoEl.value,
+        docciaSeparata: docciaSeparataEl.value,
+        armadi: armadiEl.value,
+        gavoniInterni: gavoniInterniEl.value,
+
+        presa220Esterna: presa220EsternaEl.value,
+        impianto12V: impianto12VEl.value,
+        batteriaServizi: batteriaServiziEl.value,
+        illuminazioneLed: illuminazioneLedEl.value,
+        impiantoGas: impiantoGasEl.value,
+        numeroBombole: numeroBomboleEl.value,
+        scadenzaImpiantoGas: scadenzaImpiantoGasEl.value,
+        serbatoioAcquaPulita: serbatoioAcquaPulitaEl.value,
+        serbatoioAcqueGrigie: serbatoioAcqueGrigieEl.value,
+        riscaldamento: riscaldamentoEl.value,
+        tipoRiscaldamento: tipoRiscaldamentoEl.value,
+        climatizzatore: climatizzatoreEl.value,
+        predisposizioneClima: predisposizioneClimaEl.value,
+        verandaTendalino: verandaTendalinoEl.value,
+        portabici: portabiciEl.value,
+
+        contattoTelefono: contattoTelefonoEl.value,
+        contattoWhatsapp: contattoWhatsappEl.value,
+        contattoEmail: contattoEmailEl.value,
+        localita: localitaEl.value,
+        orariContatto: orariContattoEl.value,
+        videoUrl: videoUrlEl.value,
+        planimetriaUrl: planimetriaUrlEl.value,
+
+        note: editor.innerHTML
+      };
+      sessionStorage.setItem('roulotte_draft', JSON.stringify(draft));
+    }
+
+    function loadDraft() {
+      const raw = sessionStorage.getItem('roulotte_draft');
+      if(raw) {
+        try {
+          const d = JSON.parse(raw);
+          if(d.marca) marcaEl.value = d.marca;
+          if(d.modello) modelloEl.value = d.modello;
+          if(d.versione !== undefined) versioneEl.value = d.versione ?? '';
+          if(d.stato) statoEl.value = d.stato;
+          if(d.categoryId) categoryIdEl.value = d.categoryId;
+          if(d.prezzo) prezzoEl.value = d.prezzo;
+          if(d.anno) annoEl.value = d.anno;
+          if(d.tipologiaMezzo !== undefined) tipologiaMezzoEl.value = d.tipologiaMezzo ?? '';
+          if(d.prontaConsegna !== undefined) prontaConsegnaEl.checked = !!d.prontaConsegna;
+          if(d.permuta !== undefined) setRadioValue('permuta', d.permuta ?? '');
+
+          if(d.condizioneGenerale !== undefined) condizioneGeneraleEl.value = d.condizioneGenerale ?? '';
+          if(d.statoInterni !== undefined) statoInterniEl.value = d.statoInterni ?? '';
+          if(d.statoEsterni !== undefined) statoEsterniEl.value = d.statoEsterni ?? '';
+          if(d.infiltrazioni !== undefined) infiltrazioniEl.value = d.infiltrazioni ?? '';
+          if(d.odori !== undefined) odoriEl.value = d.odori ?? '';
+          if(d.provenienza !== undefined) provenienzaEl.value = d.provenienza ?? '';
+
+          if(d.targata !== undefined) targataEl.value = d.targata ?? '';
+          if(d.librettoCircolazione !== undefined) librettoCircolazioneEl.value = d.librettoCircolazione ?? '';
+          if(d.omologataCircolazione !== undefined) omologataCircolazioneEl.value = d.omologataCircolazione ?? '';
+          if(d.numeroTelaio !== undefined) numeroTelaioEl.value = d.numeroTelaio ?? '';
+          if(d.numeroAssi !== undefined) numeroAssiEl.value = d.numeroAssi ?? '';
+          if(d.timone !== undefined) timoneEl.value = d.timone ?? '';
+          if(d.frenoRepulsione !== undefined) frenoRepulsioneEl.value = d.frenoRepulsione ?? '';
+          if(d.pesoVuoto !== undefined) pesoVuotoEl.value = d.pesoVuoto ?? '';
+
+          if(d.lunghezzaTotale !== undefined) lunghezzaEl.value = d.lunghezzaTotale ?? '';
+          if(d.lunghezzaInterna !== undefined) lunghezzaInternaEl.value = d.lunghezzaInterna ?? '';
+          if(d.larghezza !== undefined) larghezzaEl.value = d.larghezza ?? '';
+          if(d.altezza !== undefined) altezzaEl.value = d.altezza ?? '';
+          if(d.posti !== undefined) postiEl.value = d.posti ?? '';
+          if(d.massa !== undefined) massaEl.value = d.massa ?? '';
+          if(d.documenti !== undefined) documentiEl.value = d.documenti ?? '';
+          if(d.tipologia !== undefined) tipologiaEl.value = d.tipologia ?? '';
+          if(d.disposizioneLetti !== undefined) setCheckedValues('disposizioneLetti', d.disposizioneLetti);
+          if(d.lettoFisso !== undefined) lettoFissoEl.value = d.lettoFisso ?? '';
+          if(d.idealePer !== undefined) setCheckedValues('idealePer', d.idealePer);
+
+          if(d.tipoDinette !== undefined) tipoDinetteEl.value = d.tipoDinette ?? '';
+          if(d.cucina !== undefined) cucinaEl.value = d.cucina ?? '';
+          if(d.bagno !== undefined) bagnoEl.value = d.bagno ?? '';
+          if(d.docciaSeparata !== undefined) docciaSeparataEl.value = d.docciaSeparata ?? '';
+          if(d.armadi !== undefined) armadiEl.value = d.armadi ?? '';
+          if(d.gavoniInterni !== undefined) gavoniInterniEl.value = d.gavoniInterni ?? '';
+
+          if(d.presa220Esterna !== undefined) presa220EsternaEl.value = d.presa220Esterna ?? '';
+          if(d.impianto12V !== undefined) impianto12VEl.value = d.impianto12V ?? '';
+          if(d.batteriaServizi !== undefined) batteriaServiziEl.value = d.batteriaServizi ?? '';
+          if(d.illuminazioneLed !== undefined) illuminazioneLedEl.value = d.illuminazioneLed ?? '';
+          if(d.impiantoGas !== undefined) impiantoGasEl.value = d.impiantoGas ?? '';
+          if(d.numeroBombole !== undefined) numeroBomboleEl.value = d.numeroBombole ?? '';
+          if(d.scadenzaImpiantoGas !== undefined) scadenzaImpiantoGasEl.value = d.scadenzaImpiantoGas ?? '';
+          if(d.serbatoioAcquaPulita !== undefined) serbatoioAcquaPulitaEl.value = d.serbatoioAcquaPulita ?? '';
+          if(d.serbatoioAcqueGrigie !== undefined) serbatoioAcqueGrigieEl.value = d.serbatoioAcqueGrigie ?? '';
+          if(d.riscaldamento !== undefined) riscaldamentoEl.value = d.riscaldamento ?? '';
+          if(d.tipoRiscaldamento !== undefined) tipoRiscaldamentoEl.value = d.tipoRiscaldamento ?? '';
+          if(d.climatizzatore !== undefined) climatizzatoreEl.value = d.climatizzatore ?? '';
+          if(d.predisposizioneClima !== undefined) predisposizioneClimaEl.value = d.predisposizioneClima ?? '';
+          if(d.verandaTendalino !== undefined) verandaTendalinoEl.value = d.verandaTendalino ?? '';
+          if(d.portabici !== undefined) portabiciEl.value = d.portabici ?? '';
+
+          if(d.contattoTelefono !== undefined) contattoTelefonoEl.value = d.contattoTelefono ?? '';
+          if(d.contattoWhatsapp !== undefined) contattoWhatsappEl.value = d.contattoWhatsapp ?? '';
+          if(d.contattoEmail !== undefined) contattoEmailEl.value = d.contattoEmail ?? '';
+          if(d.localita !== undefined) localitaEl.value = d.localita ?? '';
+          if(d.orariContatto !== undefined) orariContattoEl.value = d.orariContatto ?? '';
+          if(d.videoUrl !== undefined) videoUrlEl.value = d.videoUrl ?? '';
+          if(d.planimetriaUrl !== undefined) planimetriaUrlEl.value = d.planimetriaUrl ?? '';
+          if(d.note) {
+            editor.innerHTML = d.note;
+            noteEl.value = d.note;
+          }
+        } catch {}
+      }
+    }
+
+    // --- Upload Drag&Drop + Resize ---
+    // Gestione Drag
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, preventDefaults, false);
+    });
+    function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, () => dropzone.classList.add('dragover'), false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, () => dropzone.classList.remove('dragover'), false);
+    });
+    
+    dropzone.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files));
+    dropzone.addEventListener('click', () => photosInput.click());
+    photosInput.addEventListener('change', () => handleFiles(photosInput.files));
+
+    async function handleFiles(files) {
+      const fileList = Array.from(files || []);
+      const left = Math.max(0, 9 - draftPhotos.length);
+      const toTake = fileList.slice(0, left);
+      
+      if (fileList.length > left) photoHint.textContent = 'Limite 9 foto raggiunto.';
+      else photoHint.textContent = '';
+
+      for (const f of toTake) {
+        if (!f.type.startsWith('image/')) continue;
+        try {
+          // Resize automatico a max 1024px
+          const resized = await resizeImage(f, 1024, 1024, 0.8);
+          draftPhotos.push(resized);
+        } catch(e) {
+          console.error(e);
+        }
+      }
+      photosInput.value = '';
+      renderPhotos();
+    }
+
+    function resizeImage(file, maxWidth, maxHeight, quality) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+             let width = img.width;
+             let height = img.height;
+             if (width > maxWidth || height > maxHeight) {
+               const ratio = Math.min(maxWidth / width, maxHeight / height);
+               width = Math.round(width * ratio);
+               height = Math.round(height * ratio);
+             }
+             const canvas = document.createElement('canvas');
+             canvas.width = width;
+             canvas.height = height;
+             const ctx = canvas.getContext('2d');
+             ctx.drawImage(img, 0, 0, width, height);
+             resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.onerror = reject;
+          img.src = event.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function renderPhotos() {
+      photosPreview.innerHTML = '';
+      if (draftPhotos.length === 0) {
+        photosPreview.innerHTML = '<div class="hint" style="grid-column:1/-1">Nessuna foto.</div>';
+        return;
+      }
+      draftPhotos.forEach((src, idx) => {
+        const box = document.createElement('div');
+        box.className = 'photo';
+        const img = document.createElement('img');
+        img.src = src;
+        const rm = document.createElement('button');
+        rm.type = 'button';
+        rm.textContent = '×';
+        rm.title = 'Rimuovi';
+        rm.addEventListener('click', (e) => {
+          e.stopPropagation();
+          draftPhotos = draftPhotos.filter((_, i) => i !== idx);
+          renderPhotos();
+        });
+        box.appendChild(img);
+        box.appendChild(rm);
+        photosPreview.appendChild(box);
+      });
+    }
+
+    // --- Form Submit ---
+    newForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const marca = String(marcaEl.value || '').trim();
+      const modello = String(modelloEl.value || '').trim();
+      const prezzo = Number(prezzoEl.value);
+      const anno = Number(annoEl.value);
+
+      if (!marca || !modello || !Number.isFinite(prezzo) || !Number.isFinite(anno)) {
+        formMsg.hidden = false;
+        formMsg.textContent = 'Campi obbligatori mancanti.';
+        return;
+      }
+
+      const payload = { 
+        marca, 
+        modello, 
+        versione: toNullIfEmpty(versioneEl.value),
+        stato: statoEl.value, 
+        categoryId: categoryIdEl.value,
+        prezzo, 
+        anno, 
+        tipologiaMezzo: toNullIfEmpty(tipologiaMezzoEl.value),
+        disponibilitaProntaConsegna: !!prontaConsegnaEl.checked,
+        permuta: toNullIfEmpty(getRadioValue('permuta')),
+
+        condizioneGenerale: toNullIfEmpty(condizioneGeneraleEl.value),
+        statoInterni: toNullIfEmpty(statoInterniEl.value),
+        statoEsterni: toNullIfEmpty(statoEsterniEl.value),
+        infiltrazioni: toNullIfEmpty(infiltrazioniEl.value),
+        odori: toNullIfEmpty(odoriEl.value),
+        provenienza: toNullIfEmpty(provenienzaEl.value),
+
+        targata: toNullIfEmpty(targataEl.value),
+        librettoCircolazione: toNullIfEmpty(librettoCircolazioneEl.value),
+        omologataCircolazione: toNullIfEmpty(omologataCircolazioneEl.value),
+        numeroTelaio: toNullIfEmpty(numeroTelaioEl.value),
+        numeroAssi: toNullIfEmpty(numeroAssiEl.value),
+        timone: toNullIfEmpty(timoneEl.value),
+        frenoRepulsione: toNullIfEmpty(frenoRepulsioneEl.value),
+        pesoVuoto: toNullIfEmptyNumber(pesoVuotoEl.value),
+
+        lunghezzaTotale: toNullIfEmptyNumber(lunghezzaEl.value),
+        lunghezzaInterna: toNullIfEmptyNumber(lunghezzaInternaEl.value),
+        larghezza: toNullIfEmptyNumber(larghezzaEl.value),
+        altezza: toNullIfEmptyNumber(altezzaEl.value),
+        postiLetto: toNullIfEmptyNumber(postiEl.value),
+        massa: toNullIfEmptyNumber(massaEl.value),
+        documenti: toNullIfEmpty(documentiEl.value),
+        tipologia: toNullIfEmpty(tipologiaEl.value),
+        disposizioneLetti: getCheckedValues('disposizioneLetti'),
+        lettoFisso: toNullIfEmpty(lettoFissoEl.value),
+        idealePer: getCheckedValues('idealePer'),
+
+        tipoDinette: toNullIfEmpty(tipoDinetteEl.value),
+        cucina: toNullIfEmpty(cucinaEl.value),
+        bagno: toNullIfEmpty(bagnoEl.value),
+        docciaSeparata: toNullIfEmpty(docciaSeparataEl.value),
+        armadi: toNullIfEmpty(armadiEl.value),
+        gavoniInterni: toNullIfEmpty(gavoniInterniEl.value),
+
+        presa220Esterna: toNullIfEmpty(presa220EsternaEl.value),
+        impianto12V: toNullIfEmpty(impianto12VEl.value),
+        batteriaServizi: toNullIfEmpty(batteriaServiziEl.value),
+        illuminazioneLed: toNullIfEmpty(illuminazioneLedEl.value),
+        impiantoGas: toNullIfEmpty(impiantoGasEl.value),
+        numeroBombole: toNullIfEmptyNumber(numeroBomboleEl.value),
+        scadenzaImpiantoGas: toNullIfEmpty(scadenzaImpiantoGasEl.value),
+        serbatoioAcquaPulita: toNullIfEmpty(serbatoioAcquaPulitaEl.value),
+        serbatoioAcqueGrigie: toNullIfEmpty(serbatoioAcqueGrigieEl.value),
+        riscaldamento: toNullIfEmpty(riscaldamentoEl.value),
+        tipoRiscaldamento: toNullIfEmpty(tipoRiscaldamentoEl.value),
+        climatizzatore: toNullIfEmpty(climatizzatoreEl.value),
+        predisposizioneClima: toNullIfEmpty(predisposizioneClimaEl.value),
+        verandaTendalino: toNullIfEmpty(verandaTendalinoEl.value),
+        portabici: toNullIfEmpty(portabiciEl.value),
+
+        contattoTelefono: toNullIfEmpty(contattoTelefonoEl.value),
+        contattoWhatsapp: toNullIfEmpty(contattoWhatsappEl.value),
+        contattoEmail: toNullIfEmpty(contattoEmailEl.value),
+        localita: toNullIfEmpty(localitaEl.value),
+        orariContatto: toNullIfEmpty(orariContattoEl.value),
+        videoUrl: toNullIfEmpty(videoUrlEl.value),
+        planimetriaUrl: toNullIfEmpty(planimetriaUrlEl.value),
+
+        photos: draftPhotos, 
+        note: noteEl.value 
+      };
+      
+      const editId = editIdEl.value;
+      if (editId) {
+        payload.id = editId;
+        window.RoulotteStore.updateRoulotte(payload);
+      } else {
+        window.RoulotteStore.addRoulotte(payload);
+      }
+      
+      formMsg.hidden = true;
+      clearForm();
+      refreshAll();
+      switchSection('list');
+    });
+
+    function clearForm() {
+      newForm.reset();
+      editIdEl.value = '';
+      formTitle.textContent = 'Crea nuova scheda';
+      clearFormBtn.textContent = 'Nuova Scheda';
+      editor.innerHTML = '';
+      draftPhotos = [];
+      renderPhotos();
+      sessionStorage.removeItem('roulotte_draft');
+    }
+    clearFormBtn.addEventListener('click', () => {
+       clearForm();
+       switchSection('new');
+    });
+    goListBtn.addEventListener('click', () => { switchSection('list'); renderList(); });
+
+    // --- Settings: Security ---
+    securityForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const u = newAuthUser.value.trim();
+      const p = newAuthPass.value;
+      if(u && p) {
+        window.RoulotteStore.updateAdmin(u, p);
+        secMsg.hidden = false;
+        secMsg.textContent = 'Credenziali aggiornate con successo.';
+        setTimeout(() => secMsg.hidden = true, 3000);
+        newAuthUser.value = '';
+        newAuthPass.value = '';
+      }
+    });
+
+    // --- Elenco ---
+    function statusClass(stato) {
+      if (stato === 'Da sistemare') return 'status warn';
+      if (stato === 'Buono') return 'status ok';
+      if (stato === 'Venduto') return 'status danger';
+      return 'status ok';
+    }
+
+    function renderList() {
+      const db = window.RoulotteStore.getDB();
+      const items = db.roulottes || [];
+      const categoriesById = Object.fromEntries((db.categories || []).map(c => [c.id, c.name]));
+      const q = normalize(listQ.value);
+      const category = listCategory ? listCategory.value : '';
+      const stato = listStato.value;
+      
+      const filtered = items.filter(r => {
+          const hay = [r.id, r.marca, r.modello, r.anno, r.stato].map(normalize).join(' ');
+          return q ? hay.includes(q) : true;
+        })
+        .filter(r => (category ? r.categoryId === category : true))
+        .filter(r => (stato ? r.stato === stato : true))
+        .sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+
+      listMeta.textContent = `${filtered.length} risultati su ${items.length}`;
+      tableBody.innerHTML = '';
+      
+      filtered.forEach(r => {
+        const categoryLabel = categoriesById[r.categoryId] || '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <div style="display:grid;gap:2px;cursor:pointer" onclick="viewItem('${r.id}')" title="Apri scheda">
+              <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
+                <div style="font-weight:900">${r.marca} ${r.modello}</div>
+                <div style="font-size:0.85rem;color:var(--muted)">${r.id}</div>
+              </div>
+              <div class="sub-value">${categoryLabel}</div>
+            </div>
+          </td>
+          <td>${r.anno}</td>
+          <td>${formatPrice(r.prezzo)}</td>
+          <td><span class="${statusClass(r.stato)}">${r.stato}</span></td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <button class="btn" style="padding:6px 10px;font-size:0.8rem" onclick="viewItem('${r.id}')">Dettaglio</button>
+              <button class="btn" style="padding:6px 10px;font-size:0.8rem" onclick="editItem('${r.id}')">Modifica</button>
+              <button class="btn" style="padding:6px 10px;font-size:0.8rem" onclick="duplicateItem('${r.id}')">Duplica</button>
+              <button class="btn" style="padding:6px 10px;font-size:0.8rem" onclick="markSold('${r.id}')">Venduto</button>
+              <button class="btn btn-danger" style="padding:6px 10px;font-size:0.8rem" onclick="deleteItem('${r.id}')">Elimina</button>
+            </div>
+          </td>
+        `;
+        tableBody.appendChild(tr);
+      });
+    }
+
+    function setDetailInfoRow(label, value) {
+      const row = document.createElement('div');
+      row.style.display = 'grid';
+      row.style.gridTemplateColumns = '140px 1fr';
+      row.style.gap = '10px';
+      const k = document.createElement('div');
+      k.style.color = 'var(--muted)';
+      k.style.fontWeight = '700';
+      k.textContent = label;
+      const v = document.createElement('div');
+      v.style.color = 'var(--text)';
+      v.textContent = value;
+      row.appendChild(k);
+      row.appendChild(v);
+      detailInfo.appendChild(row);
+    }
+
+    function renderDetail(id) {
+      const db = window.RoulotteStore.getDB();
+      const r = (db.roulottes || []).find(x => x.id === id);
+      if (!r) return;
+      currentDetailId = id;
+
+      const cats = db.categories || [];
+      const categoryName = cats.find(c => c.id === r.categoryId)?.name || '—';
+
+      detailTitle.textContent = `${r.marca || ''} ${r.modello || ''}`.trim() || 'Dettaglio';
+      detailMeta.textContent = `${r.id || ''}${r.anno ? ` • Anno ${r.anno}` : ''} • ${categoryName} • ${formatPrice(r.prezzo)}`;
+      if (detailSoldBtn) {
+        detailSoldBtn.disabled = r.stato === 'Venduto';
+        detailSoldBtn.textContent = r.stato === 'Venduto' ? 'Già venduto' : 'Segna venduto';
+      }
+
+      detailInfo.innerHTML = '';
+      setDetailInfoRow('Stato', r.stato || '—');
+      setDetailInfoRow('Tipologia', r.tipologiaMezzo || '—');
+      setDetailInfoRow('Versione', r.versione || '—');
+      setDetailInfoRow('Pronta consegna', boolLabel(r.disponibilitaProntaConsegna));
+      setDetailInfoRow('Permuta', boolLabel(r.permuta));
+
+      const dims = [];
+      if (r.lunghezzaTotale) dims.push(`Lunghezza totale ${r.lunghezzaTotale} m`);
+      if (r.lunghezzaInterna) dims.push(`Lunghezza interna ${r.lunghezzaInterna} m`);
+      if (r.larghezza) dims.push(`Larghezza ${r.larghezza} m`);
+      if (r.altezza) dims.push(`Altezza ${r.altezza} m`);
+      if (dims.length) setDetailInfoRow('Dimensioni', dims.join(' • '));
+
+      if (r.postiLetto || r.posti) setDetailInfoRow('Posti letto', String(r.postiLetto ?? r.posti));
+      if (r.massa) setDetailInfoRow('Massa', `${r.massa} kg`);
+      if (r.pesoVuoto) setDetailInfoRow('Peso a vuoto', `${r.pesoVuoto} kg`);
+
+      if (r.documenti) setDetailInfoRow('Documenti', String(r.documenti));
+      if (r.tipologia) setDetailInfoRow('Tipologia interna', String(r.tipologia));
+      if (Array.isArray(r.disposizioneLetti) && r.disposizioneLetti.length) setDetailInfoRow('Disposizione letti', r.disposizioneLetti.join(', '));
+      if (Array.isArray(r.idealePer) && r.idealePer.length) setDetailInfoRow('Ideale per', r.idealePer.join(', '));
+
+      if (r.localita) setDetailInfoRow('Località', r.localita);
+      if (r.contattoTelefono) setDetailInfoRow('Telefono', r.contattoTelefono);
+      if (r.contattoWhatsapp) setDetailInfoRow('WhatsApp', r.contattoWhatsapp);
+      if (r.contattoEmail) setDetailInfoRow('Email', r.contattoEmail);
+
+      detailNote.innerHTML = r.note ? r.note : '<div class="hint">Nessuna descrizione.</div>';
+
+      detailPhotos.innerHTML = '';
+      if (Array.isArray(r.photos) && r.photos.length) {
+        r.photos.slice(0, 9).forEach(src => {
+          const box = document.createElement('div');
+          box.className = 'photo';
+          const img = document.createElement('img');
+          img.src = src;
+          box.appendChild(img);
+          detailPhotos.appendChild(box);
+        });
+      } else {
+        detailPhotos.innerHTML = '<div class="hint" style="grid-column:1/-1">Nessuna foto.</div>';
+      }
+    }
+
+    window.viewItem = function(id) {
+      renderDetail(id);
+      switchSection('detail');
+    };
+
+    if (detailBackBtn) {
+      detailBackBtn.addEventListener('click', () => {
+        switchSection('list');
+        renderList();
+      });
+    }
+    if (detailEditBtn) {
+      detailEditBtn.addEventListener('click', () => {
+        if (currentDetailId) editItem(currentDetailId);
+      });
+    }
+    if (detailOpenPublicBtn) {
+      detailOpenPublicBtn.addEventListener('click', () => {
+        if (currentDetailId) openPublic(currentDetailId);
+      });
+    }
+    if (detailDuplicateBtn) {
+      detailDuplicateBtn.addEventListener('click', () => {
+        if (currentDetailId) duplicateItem(currentDetailId);
+      });
+    }
+    if (detailSoldBtn) {
+      detailSoldBtn.addEventListener('click', () => {
+        if (currentDetailId) markSold(currentDetailId);
+      });
+    }
+
+    window.deleteItem = function(id) {
+       if(confirm('Sei sicuro di voler eliminare definitivamente questa scheda?')) {
+         window.RoulotteStore.deleteRoulotte(id);
+         refreshAll();
+       }
+    };
+
+    window.editItem = function(id) {
+       const db = window.RoulotteStore.getDB();
+       const r = db.roulottes.find(x => x.id === id);
+       if(!r) return;
+       
+       clearForm();
+       switchSection('new');
+       
+       formTitle.textContent = `Modifica ${r.id}`;
+       editIdEl.value = r.id;
+       marcaEl.value = r.marca;
+       modelloEl.value = r.modello;
+       versioneEl.value = r.versione || '';
+       statoEl.value = r.stato;
+       categoryIdEl.value = r.categoryId || '';
+       prezzoEl.value = r.prezzo;
+       annoEl.value = r.anno;
+
+       tipologiaMezzoEl.value = r.tipologiaMezzo || '';
+       prontaConsegnaEl.checked = !!r.disponibilitaProntaConsegna;
+       setRadioValue('permuta', r.permuta === true ? 'Sì' : (r.permuta === false ? 'No' : ''));
+
+       condizioneGeneraleEl.value = r.condizioneGenerale || '';
+       statoInterniEl.value = r.statoInterni || '';
+       statoEsterniEl.value = r.statoEsterni || '';
+       infiltrazioniEl.value = r.infiltrazioni || '';
+       odoriEl.value = r.odori || '';
+       provenienzaEl.value = r.provenienza || '';
+
+       setBoolSelect(targataEl, r.targata);
+       setBoolSelect(librettoCircolazioneEl, r.librettoCircolazione);
+       setBoolSelect(omologataCircolazioneEl, r.omologataCircolazione);
+       numeroTelaioEl.value = r.numeroTelaio || '';
+       numeroAssiEl.value = r.numeroAssi || '';
+       timoneEl.value = r.timone === true ? 'Presente' : (r.timone === false ? 'Assente' : '');
+       setBoolSelect(frenoRepulsioneEl, r.frenoRepulsione);
+       pesoVuotoEl.value = r.pesoVuoto || '';
+       
+       lunghezzaEl.value = r.lunghezzaTotale ?? r.lunghezza ?? '';
+       lunghezzaInternaEl.value = r.lunghezzaInterna ?? '';
+       larghezzaEl.value = r.larghezza || '';
+       altezzaEl.value = r.altezza || '';
+       postiEl.value = r.postiLetto ?? r.posti ?? '';
+       massaEl.value = r.massa || '';
+       documentiEl.value = r.documenti || '';
+       tipologiaEl.value = r.tipologia || '';
+       setCheckedValues('disposizioneLetti', r.disposizioneLetti || []);
+       setBoolSelect(lettoFissoEl, r.lettoFisso);
+       setCheckedValues('idealePer', r.idealePer || []);
+
+       tipoDinetteEl.value = r.tipoDinette || '';
+       cucinaEl.value = r.cucina || '';
+       bagnoEl.value = r.bagno || '';
+       setBoolSelect(docciaSeparataEl, r.docciaSeparata);
+       setBoolSelect(armadiEl, r.armadi);
+       setBoolSelect(gavoniInterniEl, r.gavoniInterni);
+
+       setBoolSelect(presa220EsternaEl, r.presa220Esterna);
+       setBoolSelect(impianto12VEl, r.impianto12V);
+       setBoolSelect(batteriaServiziEl, r.batteriaServizi);
+       setBoolSelect(illuminazioneLedEl, r.illuminazioneLed);
+       impiantoGasEl.value = r.impiantoGas || '';
+       numeroBomboleEl.value = r.numeroBombole || '';
+       scadenzaImpiantoGasEl.value = r.scadenzaImpiantoGas || '';
+       setBoolSelect(serbatoioAcquaPulitaEl, r.serbatoioAcquaPulita);
+       setBoolSelect(serbatoioAcqueGrigieEl, r.serbatoioAcqueGrigie);
+       setBoolSelect(riscaldamentoEl, r.riscaldamento);
+       tipoRiscaldamentoEl.value = r.tipoRiscaldamento || '';
+       setBoolSelect(climatizzatoreEl, r.climatizzatore);
+       setBoolSelect(predisposizioneClimaEl, r.predisposizioneClima);
+       setBoolSelect(verandaTendalinoEl, r.verandaTendalino);
+       setBoolSelect(portabiciEl, r.portabici);
+
+       contattoTelefonoEl.value = r.contattoTelefono || '';
+       contattoWhatsappEl.value = r.contattoWhatsapp || '';
+       contattoEmailEl.value = r.contattoEmail || '';
+       localitaEl.value = r.localita || '';
+       orariContattoEl.value = r.orariContatto || '';
+       videoUrlEl.value = r.videoUrl || '';
+       planimetriaUrlEl.value = r.planimetriaUrl || '';
+
+       if(r.note) {
+         editor.innerHTML = r.note;
+         noteEl.value = r.note;
+       }
+       
+       if(Array.isArray(r.photos)) {
+         draftPhotos = [...r.photos];
+         renderPhotos();
+       }
+    };
+
+    window.openPublic = function(id) {
+      const safeId = encodeURIComponent(String(id || '').trim());
+      if (!safeId) return;
+      window.open(`index.html?id=${safeId}`, '_blank', 'noopener');
+    };
+
+    window.duplicateItem = function(id) {
+      editItem(id);
+      const srcId = editIdEl.value;
+      editIdEl.value = '';
+      formTitle.textContent = `Duplica ${srcId}`;
+      clearFormBtn.textContent = 'Nuova Scheda';
+    };
+
+    window.markSold = function(id) {
+      const safeId = String(id || '').trim();
+      if (!safeId) return;
+      if (!confirm('Impostare lo stato su "Venduto"?')) return;
+      window.RoulotteStore.updateRoulotte({ id: safeId, stato: 'Venduto' });
+      refreshAll();
+      if (currentDetailId === safeId) renderDetail(safeId);
+    };
+
+    let listTimer = null;
+    listQ.addEventListener('input', () => { clearTimeout(listTimer); listTimer = setTimeout(renderList, 150); });
+    listStato.addEventListener('change', renderList);
+    if (listCategory) listCategory.addEventListener('change', renderList);
+    listReset.addEventListener('click', () => { listQ.value=''; if (listCategory) listCategory.value=''; listStato.value=''; renderList(); });
+
+    // --- Export/Import/Wipe ---
+    exportBtn.addEventListener('click', () => {
+      const db = window.RoulotteStore.getDB();
+      const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup-${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    importBtn.addEventListener('click', async () => {
+      const file = (importInput.files || [])[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const obj = JSON.parse(text);
+        window.RoulotteStore.replaceAll(obj);
+        importInput.value = '';
+        refreshAll();
+        alert('Import completato');
+      } catch { alert('File non valido'); }
+    });
+
+    function setSyncStatus(text, ok) {
+      if (!syncMsg) return;
+      syncMsg.hidden = false;
+      syncMsg.textContent = text;
+      if (ok) {
+        syncMsg.style.background = 'rgba(16,185,129,.16)';
+        syncMsg.style.borderColor = 'rgba(16,185,129,.35)';
+        syncMsg.style.color = '#a7f3d0';
+      } else {
+        syncMsg.style.background = 'rgba(220,38,38,.14)';
+        syncMsg.style.borderColor = 'rgba(220,38,38,.35)';
+        syncMsg.style.color = 'var(--text)';
+      }
+    }
+
+    if (syncNowBtn) syncNowBtn.addEventListener('click', async () => {
+      try {
+        setSyncStatus('Sincronizzazione in corso…', true);
+        const res = await window.RoulotteStore.syncNow();
+        if (res && res.ok) {
+          refreshAll();
+          setSyncStatus(`Sync OK (${res.mode})`, true);
+        } else {
+          setSyncStatus('Server non disponibile', false);
+        }
+      } catch {
+        setSyncStatus('Sync fallita', false);
+      }
+    });
+
+    if (pullServerBtn) pullServerBtn.addEventListener('click', async () => {
+      try {
+        setSyncStatus('Scaricamento in corso…', true);
+        const res = await window.RoulotteStore.pullFromServer();
+        if (res && res.ok) {
+          refreshAll();
+          setSyncStatus('Scaricato dal server', true);
+        } else {
+          setSyncStatus('Nessun database sul server', false);
+        }
+      } catch {
+        setSyncStatus('Scaricamento fallito', false);
+      }
+    });
+
+    if (pushServerBtn) pushServerBtn.addEventListener('click', async () => {
+      try {
+        setSyncStatus('Caricamento in corso…', true);
+        const res = await window.RoulotteStore.pushToServer();
+        if (res && res.ok) setSyncStatus('Caricato sul server', true);
+        else setSyncStatus('Caricamento fallito', false);
+      } catch {
+        setSyncStatus('Caricamento fallito', false);
+      }
+    });
+
+    wipeBtn.addEventListener('click', () => {
+      if(confirm('Eliminare TUTTO?')) {
+        localStorage.removeItem(window.RoulotteStore.storageKey);
+        location.reload();
+      }
+    });
+
+    // --- Init ---
+    function refreshAll() {
+      refreshStats();
+      renderCategories();
+      renderList();
+    }
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === window.RoulotteStore.storageKey) refreshAll();
+    });
+
+    async function bootAuthed() {
+      showApp();
+      try {
+        const res = await window.RoulotteStore.syncNow();
+        if (res && syncMsg) {
+          if (res.ok) setSyncStatus(`Sync OK (${res.mode})`, true);
+          else setSyncStatus('Server non disponibile', false);
+        }
+      } catch {
+        if (syncMsg) setSyncStatus('Server non disponibile', false);
+      }
+      refreshAll();
+      loadDraft(); // Recupera bozza
+      switchSection('dashboard');
+    }
+    if (isAuthed()) bootAuthed();
+    else showLogin();
+  </script>
+</body>
+</html>

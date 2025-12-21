@@ -1,0 +1,80 @@
+{
+    "version":  2,
+    "updatedAt":  "2025-12-21T18:12:11.869Z",
+    "admin":  {
+                  "username":  "admin",
+                  "password":  "admin",
+                  "lastLogin":  null,
+                  "failedAttempts":  0,
+                  "lockedUntil":  null
+              },
+    "logs":  [
+                 {
+                     "id":  "L-INIT",
+                     "action":  "Inizializzazione Sistema",
+                     "timestamp":  "2025-12-21T18:12:11.869Z",
+                     "user":  "system"
+                 }
+             ],
+    "categories":  [
+                       {
+                           "id":  "cat-1",
+                           "name":  "Caravan Nuove",
+                           "parentId":  null
+                       },
+                       {
+                           "id":  "cat-2",
+                           "name":  "Caravan Usate",
+                           "parentId":  null
+                       },
+                       {
+                           "id":  "cat-3",
+                           "name":  "Camper",
+                           "parentId":  null
+                       }
+                   ],
+    "roulottes":  [
+                      {
+                          "id":  "R-0001",
+                          "marca":  "Knaus",
+                          "modello":  "Sport 400",
+                          "anno":  2019,
+                          "prezzo":  18500,
+                          "stato":  "Ottimo",
+                          "categoryId":  "cat-2",
+                          "photos":  [
+
+                                     ],
+                          "note":  "",
+                          "createdAt":  "2025-12-21T18:12:11.869Z"
+                      },
+                      {
+                          "id":  "R-0002",
+                          "marca":  "Hobby",
+                          "modello":  "De Luxe",
+                          "anno":  2015,
+                          "prezzo":  14200,
+                          "stato":  "Da sistemare",
+                          "categoryId":  "cat-2",
+                          "photos":  [
+
+                                     ],
+                          "note":  "",
+                          "createdAt":  "2025-12-21T18:12:11.869Z"
+                      },
+                      {
+                          "id":  "R-0003",
+                          "marca":  "Fendt",
+                          "modello":  "Bianco",
+                          "anno":  2021,
+                          "prezzo":  24000,
+                          "stato":  "Nuovo",
+                          "categoryId":  "cat-1",
+                          "photos":  [
+
+                                     ],
+                          "note":  "",
+                          "createdAt":  "2025-12-21T18:12:11.869Z"
+                      }
+                  ]
+}

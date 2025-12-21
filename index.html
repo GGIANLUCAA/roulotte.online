@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Toulotte Online</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --primary:#2563eb;
+      --primary-hover:#1d4ed8;
+      --bg:#f5f7fb;
+      --panel:#ffffff;
+      --surface:#111b33;
+      --text:#0f172a;
+      --muted:#475569;
+      --border:rgba(15,23,42,.12);
+      --shadow: 0 12px 26px rgba(15,23,42,.08);
+      --radius: 14px;
+    }
+    :root[data-theme="dark"]{
+      --primary:#2563eb;
+      --primary-hover:#1d4ed8;
+      --bg:#0b1220;
+      --panel:#0f172a;
+      --surface:#111b33;
+      --text:#e5e7eb;
+      --muted:#a7b0c0;
+      --border:rgba(255,255,255,.10);
+      --shadow: 0 12px 30px rgba(0,0,0,.35);
+      --radius: 14px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{
+      font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:
+        radial-gradient(900px 620px at 20% 0%, rgba(37,99,235,.16) 0%, transparent 60%),
+        radial-gradient(900px 620px at 90% 10%, rgba(16,185,129,.10) 0%, transparent 60%),
+                  var(--bg);
+      color:var(--text);
+      line-height:1.45;
+    }
+    :root[data-theme="dark"] body{
+      background:
+        radial-gradient(1100px 700px at 20% 0%, rgba(37,99,235,.25) 0%, transparent 55%),
+        radial-gradient(900px 600px at 90% 20%, rgba(16,185,129,.16) 0%, transparent 55%),
+        var(--bg);
+    }
+    a{color:inherit}
+    .skip-link{
+      position:absolute;
+      left:-9999px;
+      top:0;
+      background:#fff;
+      color:#000;
+      padding:.75rem 1rem;
+      border-radius:10px;
+      z-index:9999;
+    }
+    .skip-link:focus{left:12px;top:12px;outline:3px solid #000}
+    .container{max-width:1150px;margin:0 auto;padding:20px}
+    header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      padding:18px 0;
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      text-decoration:none;
+    }
+    .logo{
+      width:38px;height:38px;
+      display:grid;place-items:center;
+      border-radius:12px;
+      background:linear-gradient(135deg, rgba(37,99,235,.9), rgba(16,185,129,.75));
+      box-shadow:0 10px 24px rgba(0,0,0,.35);
+      flex:0 0 auto;
+    }
+    .brand h1{font-size:1.05rem;font-weight:800;letter-spacing:.2px}
+    .brand p{font-size:.85rem;color:var(--muted)}
+    .actions{display:flex;align-items:center;gap:10px}
+    .btn{
+      appearance:none;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.65);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:800;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      text-decoration:none;
+    }
+    :root[data-theme="dark"] .btn{background:rgba(255,255,255,.06)}
+    .btn:hover{background:rgba(255,255,255,.80)}
+    :root[data-theme="dark"] .btn:hover{background:rgba(255,255,255,.10)}
+    .btn-primary{background:var(--primary);border-color:transparent;color:#fff}
+    .btn-primary:hover{background:var(--primary-hover)}
+    .btn:focus-visible{outline:3px solid rgba(37,99,235,.45);outline-offset:3px}
+    :root[data-theme="dark"] .btn:focus-visible{outline:3px solid rgba(255,255,255,.85)}
+    .hero{
+      padding:22px 0 12px;
+      display:grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap:18px;
+      align-items:start;
+    }
+    .hero-card{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.62);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:18px;
+    }
+    :root[data-theme="dark"] .hero-card{background:rgba(255,255,255,.04)}
+    .hero h2{font-size:1.6rem;letter-spacing:-.3px}
+    .hero p{color:var(--muted);margin-top:8px}
+    .controls{
+      display:grid;
+      grid-template-columns: 1fr 190px 190px 190px 240px 180px;
+      gap:10px;
+      margin-top:14px;
+    }
+    .price-range{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    .check-pill{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-height:46px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.65);
+      border-radius:12px;
+      padding:10px 12px;
+      font-weight:800;
+      cursor:pointer;
+      user-select:none;
+    }
+    :root[data-theme="dark"] .check-pill{background:rgba(255,255,255,.06)}
+    .check-pill input{width:auto}
+    .field{
+      display:grid;
+      gap:6px;
+    }
+    label{font-size:.9rem;color:var(--muted)}
+    input,select{
+      width:100%;
+      padding:12px 12px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.65);
+      color:var(--text);
+      outline:none;
+    }
+    :root[data-theme="dark"] input,:root[data-theme="dark"] select{background:rgba(255,255,255,.06)}
+    input::placeholder{color:rgba(231,234,240,.55)}
+    input:focus,select:focus{border-color:rgba(37,99,235,.75);box-shadow:0 0 0 3px rgba(37,99,235,.25)}
+    .meta-card{
+      display:grid;
+      gap:10px;
+    }
+    .pill{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.55);
+      border-radius:999px;
+      padding:10px 12px;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      font-weight:600;
+    }
+    :root[data-theme="dark"] .pill{background:rgba(255,255,255,.04)}
+    .pill span{color:var(--muted);font-weight:600}
+    main{padding:10px 0 30px}
+    .results-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin:10px 0 14px;
+    }
+    .results-head h3{font-size:1.05rem}
+    .sr-only{
+      position:absolute;
+      width:1px;height:1px;
+      padding:0;margin:-1px;
+      overflow:hidden;
+      clip:rect(0,0,0,0);
+      white-space:nowrap;
+      border:0;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap:14px;
+    }
+    .card{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.62);
+      border-radius:var(--radius);
+      overflow:hidden;
+      box-shadow:0 10px 24px rgba(0,0,0,.25);
+      display:flex;
+      flex-direction:column;
+      min-height: 260px;
+    }
+    :root[data-theme="dark"] .card{background:rgba(255,255,255,.04)}
+    .card-media{
+      height:150px;
+      background:linear-gradient(135deg, rgba(37,99,235,.18), rgba(16,185,129,.14));
+      display:grid;
+      place-items:center;
+      color:rgba(229,231,235,.85);
+      border-bottom:1px solid var(--border);
+    }
+    .card-media img{width:100%;height:100%;object-fit:cover;display:block}
+    .card-body{padding:12px;display:grid;gap:10px}
+    .card-title{font-size:1.05rem;font-weight:800;letter-spacing:-.2px}
+    .card-sub{color:var(--muted);font-size:.92rem;display:flex;flex-wrap:wrap;gap:8px}
+    .tag{
+      display:inline-flex;align-items:center;gap:8px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.55);
+      border-radius:999px;
+      padding:6px 10px;
+      font-weight:700;
+      font-size:.78rem;
+    }
+    :root[data-theme="dark"] .tag{background:rgba(255,255,255,.04)}
+    .card-actions{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:auto}
+    .price{font-weight:900;letter-spacing:-.2px}
+    dialog{
+      border:none;
+      border-radius:18px;
+      padding:0;
+      width:min(780px, calc(100vw - 24px));
+      background:var(--panel);
+      color:var(--text);
+      box-shadow:0 30px 70px rgba(0,0,0,.55);
+    }
+    :root[data-theme="dark"] dialog{background:var(--panel)}
+    dialog::backdrop{background:rgba(0,0,0,.6)}
+    .dialog-head{
+      display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+      padding:16px 16px 10px;
+      border-bottom:1px solid var(--border);
+    }
+    .dialog-head h4{font-size:1.15rem;font-weight:900}
+    .dialog-body{padding:16px;display:grid;gap:12px}
+    .gallery{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap:10px;
+    }
+    .gallery img{width:100%;height:150px;object-fit:cover;border-radius:14px;border:1px solid var(--border)}
+    .empty{
+      border:1px dashed var(--border);
+      background:rgba(255,255,255,.62);
+      border-radius:var(--radius);
+      padding:18px;
+      color:var(--muted);
+    }
+    :root[data-theme="dark"] .empty{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.2)}
+    footer{padding:18px 0 26px;color:var(--muted);font-size:.9rem}
+    @media (max-width: 980px){
+      .hero{grid-template-columns:1fr;gap:14px}
+      .grid{grid-template-columns: repeat(2, minmax(0, 1fr))}
+      .controls{grid-template-columns:1fr 1fr}
+      .price-range{grid-template-columns:1fr 1fr}
+    }
+    @media (max-width: 640px){
+      .actions{gap:8px}
+      .btn{padding:10px 10px}
+      .controls{grid-template-columns:1fr}
+      .grid{grid-template-columns:1fr}
+      .gallery{grid-template-columns:1fr 1fr}
+    }
+    @media (prefers-reduced-motion: reduce){
+      *{scroll-behavior:auto;transition:none !important;animation:none !important}
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#contenuto">Vai al contenuto</a>
+  <div class="container">
+    <header role="banner" aria-label="Intestazione">
+      <a class="brand" href="index.html" aria-label="Toulotte Online, home">
+        <div class="logo" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9L2.2 10.8A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/>
+            <circle cx="7" cy="17" r="2"/>
+            <circle cx="17" cy="17" r="2"/>
+          </svg>
+        </div>
+        <div>
+          <h1>Toulotte Online</h1>
+          <p>Ricerca semplice, veloce e leggibile</p>
+        </div>
+      </a>
+      <div class="actions" aria-label="Azioni rapide">
+        <a class="btn" href="admin.html">Area Admin</a>
+        <button class="btn" type="button" id="themeToggle">Tema: Chiaro</button>
+        <button class="btn btn-primary" type="button" id="resetFilters">Reset filtri</button>
+      </div>
+    </header>
+
+    <section class="hero" aria-label="Ricerca">
+      <div class="hero-card">
+        <h2>Trova la roulotte giusta</h2>
+        <p>Filtra per marca, modello, anno e stato. I risultati si aggiornano in tempo reale.</p>
+        <div class="controls" role="search" aria-label="Ricerca e filtri">
+          <div class="field">
+            <label for="q">Cerca</label>
+            <input id="q" name="q" type="search" autocomplete="off" placeholder="Es. Adria, Hobby, 2021..." />
+          </div>
+          <div class="field">
+            <label for="categoryFilter">Categoria</label>
+            <select id="categoryFilter" name="categoryFilter">
+              <option value="">Tutte</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="statoFilter">Stato</label>
+            <select id="statoFilter" name="statoFilter">
+              <option value="">Tutti</option>
+              <option value="Ottimo">Ottimo</option>
+              <option value="Buono">Buono</option>
+              <option value="Da sistemare">Da sistemare</option>
+              <option value="Nuovo">Nuovo</option>
+              <option value="Venduto">Venduto</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="sort">Ordina</label>
+            <select id="sort" name="sort">
+              <option value="newest">Più recenti</option>
+              <option value="priceAsc">Prezzo crescente</option>
+              <option value="priceDesc">Prezzo decrescente</option>
+              <option value="yearDesc">Anno più nuovo</option>
+              <option value="yearAsc">Anno più vecchio</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Prezzo</label>
+            <div class="price-range" aria-label="Filtro prezzo">
+              <input id="priceMin" inputmode="numeric" placeholder="Min" />
+              <input id="priceMax" inputmode="numeric" placeholder="Max" />
+            </div>
+          </div>
+          <div class="field" style="align-content:end">
+            <label class="sr-only" for="hasPhoto">Solo con foto</label>
+            <label class="check-pill" for="hasPhoto">
+              <input id="hasPhoto" type="checkbox" />
+              Solo con foto
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="meta-card">
+        <div class="hero-card" aria-label="Informazioni">
+          <div class="pill"><span>Totale schede</span><strong id="totalCount">0</strong></div>
+          <div class="pill"><span>Risultati</span><strong id="resultCount">0</strong></div>
+          <div class="pill"><span>Aggiornamento</span><strong id="lastUpdated">—</strong></div>
+        </div>
+        <div class="hero-card">
+          <h3 style="font-size:1.02rem;font-weight:900">Accessibilità</h3>
+          <p style="margin-top:8px;color:var(--muted)">Navigazione da tastiera, focus visibile, contrasti alti e layout mobile ottimizzato.</p>
+        </div>
+      </div>
+    </section>
+
+    <main id="contenuto" role="main" aria-label="Elenco roulotte">
+      <div class="results-head">
+        <h3>Disponibilità</h3>
+        <div class="sr-only" aria-live="polite" id="liveStatus"></div>
+      </div>
+      <div id="emptyState" class="empty" hidden>
+        Nessun risultato. Prova a cambiare filtri o aggiungi nuove schede dall'area admin.
+      </div>
+      <section id="cards" class="grid" aria-label="Risultati"></section>
+    </main>
+
+    <footer role="contentinfo">
+      Dati salvati nel browser (localmente). Per pubblicazione online serve un backend o un database.
+    </footer>
+  </div>
+
+  <dialog id="detailDialog" aria-label="Dettagli roulotte">
+    <div class="dialog-head">
+      <div>
+        <h4 id="detailTitle"></h4>
+        <div id="detailMeta" style="color:var(--muted);margin-top:6px"></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+        <button class="btn" type="button" id="copyLinkBtn">Copia link</button>
+        <button class="btn" type="button" id="closeDialog">Chiudi</button>
+      </div>
+    </div>
+    <div class="dialog-body">
+      <div id="detailPrice" class="price" style="font-size:1.15rem"></div>
+      <div id="detailNote" class="empty" hidden></div>
+      <div id="detailGallery" class="gallery" aria-label="Galleria foto"></div>
+    </div>
+  </dialog>
+
+  <script src="roulotte-store.js"></script>
+  <script>
+    const qEl = document.getElementById('q');
+    const statoEl = document.getElementById('statoFilter');
+    const sortEl = document.getElementById('sort');
+    const categoryEl = document.getElementById('categoryFilter');
+    const priceMinEl = document.getElementById('priceMin');
+    const priceMaxEl = document.getElementById('priceMax');
+    const hasPhotoEl = document.getElementById('hasPhoto');
+    const cardsEl = document.getElementById('cards');
+    const emptyEl = document.getElementById('emptyState');
+    const totalCountEl = document.getElementById('totalCount');
+    const resultCountEl = document.getElementById('resultCount');
+    const lastUpdatedEl = document.getElementById('lastUpdated');
+    const liveStatusEl = document.getElementById('liveStatus');
+    const resetFiltersEl = document.getElementById('resetFilters');
+    const themeToggleEl = document.getElementById('themeToggle');
+
+    const dialog = document.getElementById('detailDialog');
+    const copyLinkBtn = document.getElementById('copyLinkBtn');
+    const closeDialog = document.getElementById('closeDialog');
+    const detailTitle = document.getElementById('detailTitle');
+    const detailMeta = document.getElementById('detailMeta');
+    const detailPrice = document.getElementById('detailPrice');
+    const detailNote = document.getElementById('detailNote');
+    const detailGallery = document.getElementById('detailGallery');
+    let currentDetailId = null;
+
+    function formatPrice(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return '€ —';
+      return '€ ' + n.toLocaleString('it-IT');
+    }
+
+    function normalize(s) {
+      return String(s ?? '').trim().toLowerCase();
+    }
+    
+    function parseNumberOrNull(v) {
+      const s = String(v ?? '').trim();
+      if (s === '') return null;
+      const n = Number(s.replace(',', '.'));
+      return Number.isFinite(n) ? n : null;
+    }
+    
+    function getFilterState() {
+      return {
+        q: String(qEl?.value || ''),
+        category: String(categoryEl?.value || ''),
+        stato: String(statoEl?.value || ''),
+        sort: String(sortEl?.value || 'newest'),
+        priceMin: String(priceMinEl?.value || ''),
+        priceMax: String(priceMaxEl?.value || ''),
+        hasPhoto: !!hasPhotoEl?.checked
+      };
+    }
+
+    function applyFilterState(state) {
+      if (!state || typeof state !== 'object') return;
+      if (qEl && state.q !== undefined) qEl.value = String(state.q || '');
+      if (statoEl && state.stato !== undefined) statoEl.value = String(state.stato || '');
+      if (sortEl && state.sort !== undefined) sortEl.value = String(state.sort || 'newest');
+      if (categoryEl && state.category !== undefined) categoryEl.value = String(state.category || '');
+      if (priceMinEl && state.priceMin !== undefined) priceMinEl.value = String(state.priceMin || '');
+      if (priceMaxEl && state.priceMax !== undefined) priceMaxEl.value = String(state.priceMax || '');
+      if (hasPhotoEl && state.hasPhoto !== undefined) hasPhotoEl.checked = !!state.hasPhoto;
+    }
+
+    function getUrlState() {
+      const p = new URLSearchParams(location.search);
+      return {
+        q: p.get('q') || '',
+        category: p.get('category') || '',
+        stato: p.get('stato') || '',
+        sort: p.get('sort') || '',
+        priceMin: p.get('min') || '',
+        priceMax: p.get('max') || '',
+        hasPhoto: p.get('photo') === '1',
+        id: p.get('id') || ''
+      };
+    }
+
+    function setUrlState(state) {
+      const url = new URL(location.href);
+      const next = new URLSearchParams(url.search);
+      const setOrDel = (k, v) => {
+        const s = String(v ?? '').trim();
+        if (s) next.set(k, s);
+        else next.delete(k);
+      };
+      setOrDel('q', state.q);
+      setOrDel('category', state.category);
+      setOrDel('stato', state.stato);
+      if (state.sort && state.sort !== 'newest') next.set('sort', state.sort);
+      else next.delete('sort');
+      setOrDel('min', state.priceMin);
+      setOrDel('max', state.priceMax);
+      if (state.hasPhoto) next.set('photo', '1');
+      else next.delete('photo');
+      if (state.id) next.set('id', state.id);
+      else next.delete('id');
+      url.search = next.toString();
+      history.replaceState(null, '', url.toString());
+    }
+
+    function persistFilters() {
+      const state = getFilterState();
+      try { localStorage.setItem('public_filters_v1', JSON.stringify(state)); } catch {}
+      setUrlState({ ...state, id: currentDetailId || '' });
+    }
+
+    function restoreFilters() {
+      const urlState = getUrlState();
+      const fromUrl = {
+        q: urlState.q,
+        category: urlState.category,
+        stato: urlState.stato,
+        sort: urlState.sort || 'newest',
+        priceMin: urlState.priceMin,
+        priceMax: urlState.priceMax,
+        hasPhoto: urlState.hasPhoto
+      };
+      const hasAnyUrl = Object.values(fromUrl).some(v => (typeof v === 'boolean' ? v : String(v || '').trim() !== ''));
+      if (hasAnyUrl) {
+        applyFilterState(fromUrl);
+        return;
+      }
+      try {
+        const raw = localStorage.getItem('public_filters_v1');
+        const saved = raw ? JSON.parse(raw) : null;
+        if (saved) applyFilterState(saved);
+      } catch {}
+    }
+
+    async function copyText(text) {
+      const t = String(text || '');
+      if (!t) return false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(t);
+          return true;
+        }
+      } catch {}
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = t;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        return ok;
+      } catch {
+        return false;
+      }
+    }
+
+    function matchQuery(r, q, categoriesById) {
+      if (!q) return true;
+      const hay = [
+        r.marca,
+        r.modello,
+        r.stato,
+        r.anno,
+        r.id,
+        categoriesById?.[r.categoryId],
+        r.tipologiaMezzo
+      ].map(normalize).join(' ');
+      return hay.includes(q);
+    }
+
+    function applySort(items, sort) {
+      const arr = [...items];
+      if (sort === 'priceAsc') arr.sort((a,b) => (Number(a.prezzo)||0) - (Number(b.prezzo)||0));
+      else if (sort === 'priceDesc') arr.sort((a,b) => (Number(b.prezzo)||0) - (Number(a.prezzo)||0));
+      else if (sort === 'yearDesc') arr.sort((a,b) => (Number(b.anno)||0) - (Number(a.anno)||0));
+      else if (sort === 'yearAsc') arr.sort((a,b) => (Number(a.anno)||0) - (Number(b.anno)||0));
+      else arr.sort((a,b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      return arr;
+    }
+
+    function openDetails(r) {
+      const db = window.RoulotteStore.getDB();
+      const categoriesById = Object.fromEntries((db.categories || []).map(c => [c.id, c.name]));
+      detailTitle.textContent = `${r.marca || ''} ${r.modello || ''}`.trim() || 'Roulotte';
+      const categoryName = categoriesById[r.categoryId] || '—';
+      detailMeta.textContent = `ID ${r.id || '—'} • ${categoryName} • Anno ${r.anno || '—'} • Stato ${r.stato || '—'}`;
+      detailPrice.textContent = formatPrice(r.prezzo);
+      currentDetailId = r.id || null;
+      const note = String(r.note || '').trim();
+      if (note) {
+        detailNote.hidden = false;
+        detailNote.innerHTML = note;
+      } else {
+        detailNote.hidden = true;
+        detailNote.innerHTML = '';
+      }
+      detailGallery.innerHTML = '';
+      const photos = Array.isArray(r.photos) ? r.photos : [];
+      if (photos.length === 0) {
+        const ph = document.createElement('div');
+        ph.className = 'empty';
+        ph.textContent = 'Nessuna foto disponibile.';
+        detailGallery.appendChild(ph);
+      } else {
+        photos.slice(0, 9).forEach(src => {
+          const img = document.createElement('img');
+          img.alt = `Foto di ${detailTitle.textContent}`;
+          img.src = src;
+          detailGallery.appendChild(img);
+        });
+      }
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', 'open');
+      closeDialog.focus();
+      persistFilters();
+    }
+
+    if (copyLinkBtn) {
+      copyLinkBtn.addEventListener('click', async () => {
+        const url = location.href;
+        const ok = await copyText(url);
+        if (ok) {
+          copyLinkBtn.textContent = 'Copiato';
+          setTimeout(() => (copyLinkBtn.textContent = 'Copia link'), 900);
+        } else {
+          alert('Impossibile copiare il link.');
+        }
+      });
+    }
+
+    closeDialog.addEventListener('click', () => {
+      if (typeof dialog.close === 'function') dialog.close();
+      else dialog.removeAttribute('open');
+      currentDetailId = null;
+      persistFilters();
+    });
+    dialog.addEventListener('click', (e) => {
+      const rect = dialog.getBoundingClientRect();
+      const inDialog = rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+                       rect.left <= e.clientX && e.clientX <= rect.left + rect.width;
+      if (!inDialog) {
+        if (typeof dialog.close === 'function') dialog.close();
+        else dialog.removeAttribute('open');
+        currentDetailId = null;
+        persistFilters();
+      }
+    });
+
+    function applyTheme(theme) {
+      const next = theme === 'dark' ? 'dark' : 'light';
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem('public_theme', next);
+      if (themeToggleEl) themeToggleEl.textContent = next === 'dark' ? 'Tema: Scuro' : 'Tema: Chiaro';
+    }
+
+    function initTheme() {
+      const saved = localStorage.getItem('public_theme');
+      if (saved) applyTheme(saved);
+      else {
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        applyTheme(prefersDark ? 'dark' : 'light');
+      }
+      if (themeToggleEl) themeToggleEl.addEventListener('click', () => {
+        applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+      });
+    }
+
+    function syncCategoryOptions(categories, selectedId) {
+      if (!categoryEl) return;
+      const current = selectedId !== undefined ? String(selectedId || '') : categoryEl.value;
+      const cats = Array.isArray(categories) ? categories : [];
+      categoryEl.innerHTML = '<option value="">Tutte</option>';
+      cats.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        categoryEl.appendChild(opt);
+      });
+      if (current) categoryEl.value = current;
+    }
+
+    function render() {
+      const db = window.RoulotteStore.getDB();
+      const all = db.roulottes || [];
+      syncCategoryOptions(db.categories || [], categoryEl ? categoryEl.value : '');
+      const categoriesById = Object.fromEntries((db.categories || []).map(c => [c.id, c.name]));
+      totalCountEl.textContent = String(all.length);
+      lastUpdatedEl.textContent = db.updatedAt ? new Date(db.updatedAt).toLocaleString('it-IT') : '—';
+
+      const q = normalize(qEl.value);
+      const stato = statoEl.value;
+      const category = categoryEl ? categoryEl.value : '';
+      const minPrice = parseNumberOrNull(priceMinEl?.value);
+      const maxPrice = parseNumberOrNull(priceMaxEl?.value);
+      const hasPhoto = !!hasPhotoEl?.checked;
+      const filtered = all
+        .filter(r => matchQuery(r, q, categoriesById))
+        .filter(r => (category ? r.categoryId === category : true))
+        .filter(r => (stato ? r.stato === stato : true))
+        .filter(r => (minPrice !== null ? (Number(r.prezzo) || 0) >= minPrice : true))
+        .filter(r => (maxPrice !== null ? (Number(r.prezzo) || 0) <= maxPrice : true))
+        .filter(r => (hasPhoto ? (Array.isArray(r.photos) && r.photos.length > 0) : true));
+      const sorted = applySort(filtered, sortEl.value);
+
+      cardsEl.innerHTML = '';
+      resultCountEl.textContent = String(sorted.length);
+      liveStatusEl.textContent = `${sorted.length} risultati`;
+
+      emptyEl.hidden = sorted.length !== 0;
+      sorted.forEach(r => {
+        const card = document.createElement('article');
+        card.className = 'card';
+        const media = document.createElement('div');
+        media.className = 'card-media';
+        const firstPhoto = Array.isArray(r.photos) ? r.photos[0] : null;
+        if (firstPhoto) {
+          const img = document.createElement('img');
+          img.alt = `${r.marca || ''} ${r.modello || ''}`.trim() || 'Roulotte';
+          img.src = firstPhoto;
+          media.appendChild(img);
+        } else {
+          media.innerHTML = '<div style="font-weight:800">Nessuna foto</div>';
+        }
+
+        const body = document.createElement('div');
+        body.className = 'card-body';
+        const title = document.createElement('div');
+        title.className = 'card-title';
+        title.textContent = `${r.marca || ''} ${r.modello || ''}`.trim() || 'Roulotte';
+
+        const sub = document.createElement('div');
+        sub.className = 'card-sub';
+        const tagYear = document.createElement('span');
+        tagYear.className = 'tag';
+        tagYear.textContent = `Anno ${r.anno || '—'}`;
+        const tagState = document.createElement('span');
+        tagState.className = 'tag';
+        tagState.textContent = r.stato || '—';
+        const tagCategory = document.createElement('span');
+        tagCategory.className = 'tag';
+        tagCategory.textContent = categoriesById[r.categoryId] || '—';
+        sub.appendChild(tagYear);
+        sub.appendChild(tagState);
+        sub.appendChild(tagCategory);
+
+        const actions = document.createElement('div');
+        actions.className = 'card-actions';
+        const price = document.createElement('div');
+        price.className = 'price';
+        price.textContent = formatPrice(r.prezzo);
+        const detailsBtn = document.createElement('button');
+        detailsBtn.type = 'button';
+        detailsBtn.className = 'btn';
+        detailsBtn.textContent = 'Dettagli';
+        detailsBtn.addEventListener('click', () => openDetails(r));
+        actions.appendChild(price);
+        actions.appendChild(detailsBtn);
+
+        body.appendChild(title);
+        body.appendChild(sub);
+        body.appendChild(actions);
+        card.appendChild(media);
+        card.appendChild(body);
+        cardsEl.appendChild(card);
+      });
+      
+      persistFilters();
+    }
+
+    let t = null;
+    function scheduleRender() {
+      if (t) clearTimeout(t);
+      t = setTimeout(render, 100);
+    }
+
+    qEl.addEventListener('input', scheduleRender);
+    statoEl.addEventListener('change', render);
+    sortEl.addEventListener('change', render);
+    if (categoryEl) categoryEl.addEventListener('change', render);
+    if (priceMinEl) priceMinEl.addEventListener('input', scheduleRender);
+    if (priceMaxEl) priceMaxEl.addEventListener('input', scheduleRender);
+    if (hasPhotoEl) hasPhotoEl.addEventListener('change', render);
+    resetFiltersEl.addEventListener('click', () => {
+      qEl.value = '';
+      if (categoryEl) categoryEl.value = '';
+      statoEl.value = '';
+      sortEl.value = 'newest';
+      if (priceMinEl) priceMinEl.value = '';
+      if (priceMaxEl) priceMaxEl.value = '';
+      if (hasPhotoEl) hasPhotoEl.checked = false;
+      render();
+      qEl.focus();
+    });
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === window.RoulotteStore.storageKey) render();
+    });
+
+    async function boot() {
+      initTheme();
+      restoreFilters();
+      try { if (window.RoulotteStore.syncNow) await window.RoulotteStore.syncNow(); } catch {}
+      render();
+      const initialId = getUrlState().id;
+      if (initialId) {
+        const db = window.RoulotteStore.getDB();
+        const r = (db.roulottes || []).find(x => x.id === initialId);
+        if (r) openDetails(r);
+      }
+    }
+    boot();
+  </script>
+</body>
+</html>
