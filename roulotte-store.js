@@ -400,7 +400,7 @@
       localita: String(input.localita || '').trim(),
       orariContatto: String(input.orariContatto || '').trim(),
 
-      photos: Array.isArray(input.photos) ? input.photos.slice(0, 9) : [],
+      photos: Array.isArray(input.photos) ? input.photos : [],
       note: String(input.note || '').trim(),
       createdAt
     };

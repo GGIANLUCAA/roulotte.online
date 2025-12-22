@@ -1,9 +1,13 @@
 <!DOCTYPE html>
 <html lang="it" data-theme="light">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Toulotte Online</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Cerca e filtra roulotte per marca, modello, anno e stato. Schede con foto e dettagli, con tema chiaro/scuro e accessibilità curata.">
+    <meta name="theme-color" content="#2563eb">
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <title>Roulotte online</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root{
@@ -294,7 +298,7 @@
   <a class="skip-link" href="#contenuto">Vai al contenuto</a>
   <div class="container">
     <header role="banner" aria-label="Intestazione">
-      <a class="brand" href="index.html" aria-label="Toulotte Online, home">
+      <a class="brand" href="index.html" aria-label="Roulotte online, home">
         <div class="logo" aria-hidden="true">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9L2.2 10.8A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/>
@@ -303,8 +307,7 @@
           </svg>
         </div>
         <div>
-          <h1>Toulotte Online</h1>
-          <p>Ricerca semplice, veloce e leggibile</p>
+          <h1>Roulotte online</h1>
         </div>
       </a>
       <div class="actions" aria-label="Azioni rapide">
@@ -372,10 +375,7 @@
           <div class="pill"><span>Risultati</span><strong id="resultCount">0</strong></div>
           <div class="pill"><span>Aggiornamento</span><strong id="lastUpdated">—</strong></div>
         </div>
-        <div class="hero-card">
-          <h3 style="font-size:1.02rem;font-weight:900">Accessibilità</h3>
-          <p style="margin-top:8px;color:var(--muted)">Navigazione da tastiera, focus visibile, contrasti alti e layout mobile ottimizzato.</p>
-        </div>
+        
       </div>
     </section>
 
@@ -390,12 +390,10 @@
       <section id="cards" class="grid" aria-label="Risultati"></section>
     </main>
 
-    <footer role="contentinfo">
-      Dati salvati nel browser (localmente). Per pubblicazione online serve un backend o un database.
-    </footer>
+    <footer role="contentinfo"></footer>
   </div>
 
-  <dialog id="detailDialog" aria-label="Dettagli roulotte">
+  <dialog id="detailDialog" role="dialog" aria-modal="true" aria-labelledby="detailTitle" aria-label="Dettagli roulotte">
     <div class="dialog-head">
       <div>
         <h4 id="detailTitle"></h4>
@@ -410,8 +408,18 @@
       <div id="detailPrice" class="price" style="font-size:1.15rem"></div>
       <div id="detailNote" class="empty" hidden></div>
       <div id="detailGallery" class="gallery" aria-label="Galleria foto"></div>
+      <div id="detailPlanimetria" style="display:none"></div>
+      <div id="detailVideo" style="display:none"></div>
     </div>
   </dialog>
+  <div id="imgLightbox" style="position:fixed;inset:0;display:none;background:rgba(0,0,0,.9);z-index:99999;align-items:center;justify-content:center">
+    <button type="button" id="lbClose" style="position:absolute;top:14px;right:14px;border:1px solid var(--border);background:#fff;color:#000;border-radius:10px;padding:8px 10px;font-weight:900">Chiudi</button>
+    <button type="button" id="lbPrev" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);border:1px solid var(--border);background:#fff;color:#000;border-radius:10px;padding:8px 10px;font-weight:900">‹</button>
+    <button type="button" id="lbNext" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);border:1px solid var(--border);background:#fff;color:#000;border-radius:10px;padding:8px 10px;font-weight:900">›</button>
+    <img id="lbImg" alt="" style="max-width:90vw;max-height:90vh;border-radius:14px;object-fit:contain" />
+    <div id="lbCounter" style="position:absolute;bottom:20px;left:20px;color:#fff;font-weight:900"></div>
+    <div id="lbCaption" style="position:absolute;bottom:20px;right:20px;color:#fff;max-width:50vw;text-align:right"></div>
+  </div>
 
   <script src="roulotte-store.js"></script>
   <script>
@@ -439,7 +447,121 @@
     const detailPrice = document.getElementById('detailPrice');
     const detailNote = document.getElementById('detailNote');
     const detailGallery = document.getElementById('detailGallery');
+    const detailPlanimetria = document.getElementById('detailPlanimetria');
+    const detailVideo = document.getElementById('detailVideo');
     let currentDetailId = null;
+    const defaultTitle = 'Roulotte online';
+    const imgLightbox = document.getElementById('imgLightbox');
+    const lbImg = document.getElementById('lbImg');
+    const lbClose = document.getElementById('lbClose');
+    const lbPrev = document.getElementById('lbPrev');
+    const lbNext = document.getElementById('lbNext');
+    let currentGalleryPhotos = [];
+    let currentGalleryCaptions = [];
+    let lightboxIndex = 0;
+
+    function setCanonicalAndMeta() {
+      const baseUrl = location.origin + (location.pathname.endsWith('/') ? '' : location.pathname.replace(/[^/]+$/, '')) + 'index.html';
+      let link = document.querySelector('link[rel="canonical"]');
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'canonical';
+        document.head.appendChild(link);
+      }
+      link.href = baseUrl;
+      let ogUrl = document.querySelector('meta[property="og:url"]');
+      if (!ogUrl) {
+        ogUrl = document.createElement('meta');
+        ogUrl.setAttribute('property', 'og:url');
+        document.head.appendChild(ogUrl);
+      }
+      ogUrl.setAttribute('content', baseUrl);
+    }
+
+    function injectJsonLdWebSite() {
+      const base = location.origin + '/index.html';
+      const target = location.origin + '/index.html?q={search_term_string}';
+      const data = {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "url": base,
+        "name": "Roulotte online",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": target,
+          "query-input": "required name=search_term_string"
+        }
+      };
+      const s = document.createElement('script');
+      s.type = 'application/ld+json';
+      s.textContent = JSON.stringify(data);
+      document.head.appendChild(s);
+    }
+    function getPhotoUrl(ph, variant) {
+      if (!ph) return '';
+      if (typeof ph === 'string') return ph;
+      if (variant === 'thumb') return String(ph.thumb || ph.src || '');
+      return String(ph.src || ph.thumb || '');
+    }
+    function stripHtml(html) {
+      const div = document.createElement('div');
+      div.innerHTML = String(html || '');
+      return div.textContent || div.innerText || '';
+    }
+    function truncate(s, n) {
+      const t = String(s || '');
+      if (t.length <= n) return t;
+      return t.slice(0, n - 1) + '…';
+    }
+    function getEmbedUrl(u) {
+      const s = String(u || '').trim();
+      if (!s) return null;
+      if (s.includes('youtube.com/watch')) {
+        const p = new URL(s);
+        const id = p.searchParams.get('v');
+        if (id) return 'https://www.youtube.com/embed/' + id;
+      }
+      if (s.includes('youtu.be/')) {
+        const id = s.split('youtu.be/')[1].split(/[?&]/)[0];
+        if (id) return 'https://www.youtube.com/embed/' + id;
+      }
+      if (s.includes('vimeo.com/')) {
+        const id = s.split('vimeo.com/')[1].split(/[?&]/)[0];
+        if (id) return 'https://player.vimeo.com/video/' + id;
+      }
+      return null;
+    }
+    function openLightbox(idx) {
+      if (!Array.isArray(currentGalleryPhotos) || !currentGalleryPhotos.length) return;
+      lightboxIndex = Math.max(0, Math.min(idx, currentGalleryPhotos.length - 1));
+      lbImg.src = currentGalleryPhotos[lightboxIndex];
+      const cap = currentGalleryCaptions[lightboxIndex] || '';
+      const lbC = document.getElementById('lbCaption');
+      const lbN = document.getElementById('lbCounter');
+      if (lbC) lbC.textContent = cap;
+      if (lbN) lbN.textContent = `${lightboxIndex + 1}/${currentGalleryPhotos.length}`;
+      imgLightbox.style.display = 'flex';
+      lbClose.focus();
+    }
+    function closeLightbox() {
+      imgLightbox.style.display = 'none';
+      lbImg.src = '';
+    }
+    lbClose.addEventListener('click', closeLightbox);
+    lbPrev.addEventListener('click', () => openLightbox(lightboxIndex - 1 < 0 ? currentGalleryPhotos.length - 1 : lightboxIndex - 1));
+    lbNext.addEventListener('click', () => openLightbox((lightboxIndex + 1) % currentGalleryPhotos.length));
+    imgLightbox.addEventListener('click', (e) => {
+      const r = imgLightbox.getBoundingClientRect();
+      const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      if (inside && e.target === imgLightbox) closeLightbox();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (imgLightbox.style.display === 'flex') {
+        if (e.key === 'Escape') closeLightbox();
+        else if (e.key === 'ArrowLeft') lbPrev.click();
+        else if (e.key === 'ArrowRight') lbNext.click();
+      }
+    });
 
     function formatPrice(value) {
       const n = Number(value);
@@ -604,6 +726,17 @@
       detailMeta.textContent = `ID ${r.id || '—'} • ${categoryName} • Anno ${r.anno || '—'} • Stato ${r.stato || '—'}`;
       detailPrice.textContent = formatPrice(r.prezzo);
       currentDetailId = r.id || null;
+      document.title = `${defaultTitle} – ${detailTitle.textContent}`;
+      const firstPhotoForOg = Array.isArray(r.photos) && r.photos.length ? getPhotoUrl(r.photos[0], 'src') : '';
+      let ogImg = document.querySelector('meta[property="og:image"]');
+      if (!ogImg) { ogImg = document.createElement('meta'); ogImg.setAttribute('property','og:image'); document.head.appendChild(ogImg); }
+      ogImg.setAttribute('content', firstPhotoForOg || '');
+      let ogTitle = document.querySelector('meta[property="og:title"]');
+      if (!ogTitle) { ogTitle = document.createElement('meta'); ogTitle.setAttribute('property','og:title'); document.head.appendChild(ogTitle); }
+      ogTitle.setAttribute('content', detailTitle.textContent);
+      let ogDesc = document.querySelector('meta[property="og:description"]');
+      if (!ogDesc) { ogDesc = document.createElement('meta'); ogDesc.setAttribute('property','og:description'); document.head.appendChild(ogDesc); }
+      ogDesc.setAttribute('content', truncate(stripHtml(r.note || ''), 160));
       const note = String(r.note || '').trim();
       if (note) {
         detailNote.hidden = false;
@@ -613,6 +746,8 @@
         detailNote.innerHTML = '';
       }
       detailGallery.innerHTML = '';
+      detailPlanimetria.style.display = 'none';
+      detailVideo.style.display = 'none';
       const photos = Array.isArray(r.photos) ? r.photos : [];
       if (photos.length === 0) {
         const ph = document.createElement('div');
@@ -620,12 +755,78 @@
         ph.textContent = 'Nessuna foto disponibile.';
         detailGallery.appendChild(ph);
       } else {
-        photos.slice(0, 9).forEach(src => {
-          const img = document.createElement('img');
-          img.alt = `Foto di ${detailTitle.textContent}`;
-          img.src = src;
-          detailGallery.appendChild(img);
+        currentGalleryPhotos = photos.map(p => getPhotoUrl(p, 'src'));
+        currentGalleryCaptions = photos.map(p => {
+          if (typeof p === 'object' && p.alt) return p.alt;
+          return '';
         });
+        photos.forEach((item, i) => {
+          const wrap = document.createElement('div');
+          wrap.style.position = 'relative';
+          wrap.style.borderRadius = '14px';
+          wrap.style.overflow = 'hidden';
+          wrap.style.border = '1px solid var(--border)';
+          wrap.style.height = '150px';
+          const url = getPhotoUrl(item, 'src');
+          const ph = typeof item === 'object' ? String(item.placeholder || '') : '';
+          if (ph) {
+            wrap.style.backgroundImage = `url(${ph})`;
+            wrap.style.backgroundSize = 'cover';
+            wrap.style.backgroundPosition = 'center';
+            wrap.style.filter = 'blur(6px)';
+          }
+          const img = document.createElement('img');
+          const alt = (typeof item === 'object' && item.alt) ? item.alt : `Foto di ${detailTitle.textContent}`;
+          img.alt = alt;
+          img.src = url;
+          img.loading = 'lazy';
+          img.decoding = 'async';
+          img.style.width = '100%';
+          img.style.height = '100%';
+          img.style.objectFit = 'cover';
+          img.addEventListener('load', () => { wrap.style.filter = 'none'; });
+          img.addEventListener('click', () => openLightbox(i));
+          wrap.appendChild(img);
+          detailGallery.appendChild(wrap);
+        });
+      }
+      if (r.planimetriaUrl) {
+        detailPlanimetria.style.display = '';
+        const img = document.createElement('img');
+        img.alt = 'Planimetria';
+        img.src = r.planimetriaUrl;
+        img.loading = 'lazy';
+        img.decoding = 'async';
+        img.style.width = '100%';
+        img.style.border = '1px solid var(--border)';
+        img.style.borderRadius = '14px';
+        img.style.marginTop = '10px';
+        detailPlanimetria.innerHTML = '';
+        detailPlanimetria.appendChild(img);
+      }
+      if (r.videoUrl) {
+        const embed = getEmbedUrl(r.videoUrl);
+        if (embed) {
+          detailVideo.style.display = '';
+          const iframe = document.createElement('iframe');
+          iframe.src = embed;
+          iframe.width = '100%';
+          iframe.height = '320';
+          iframe.style.border = 'none';
+          iframe.style.borderRadius = '14px';
+          iframe.loading = 'lazy';
+          detailVideo.innerHTML = '';
+          detailVideo.appendChild(iframe);
+        } else {
+          detailVideo.style.display = '';
+          const a = document.createElement('a');
+          a.href = r.videoUrl;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.textContent = 'Apri video';
+          detailVideo.innerHTML = '';
+          detailVideo.appendChild(a);
+        }
       }
       if (typeof dialog.showModal === 'function') dialog.showModal();
       else dialog.setAttribute('open', 'open');
@@ -650,6 +851,7 @@
       if (typeof dialog.close === 'function') dialog.close();
       else dialog.removeAttribute('open');
       currentDetailId = null;
+      document.title = defaultTitle;
       persistFilters();
     });
     dialog.addEventListener('click', (e) => {
@@ -660,6 +862,16 @@
         if (typeof dialog.close === 'function') dialog.close();
         else dialog.removeAttribute('open');
         currentDetailId = null;
+        document.title = defaultTitle;
+        persistFilters();
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && (dialog.hasAttribute('open') || (typeof dialog.open === 'boolean' && dialog.open))) {
+        if (typeof dialog.close === 'function') dialog.close();
+        else dialog.removeAttribute('open');
+        currentDetailId = null;
+        document.title = defaultTitle;
         persistFilters();
       }
     });
@@ -732,9 +944,20 @@
         media.className = 'card-media';
         const firstPhoto = Array.isArray(r.photos) ? r.photos[0] : null;
         if (firstPhoto) {
+          const ph = typeof firstPhoto === 'object' ? String(firstPhoto.placeholder || '') : '';
+          if (ph) {
+            media.style.backgroundImage = `url(${ph})`;
+            media.style.backgroundSize = 'cover';
+            media.style.backgroundPosition = 'center';
+            media.style.filter = 'blur(6px)';
+          }
           const img = document.createElement('img');
-          img.alt = `${r.marca || ''} ${r.modello || ''}`.trim() || 'Roulotte';
-          img.src = firstPhoto;
+          const alt = (typeof firstPhoto === 'object' && firstPhoto.alt) ? firstPhoto.alt : (`${r.marca || ''} ${r.modello || ''}`.trim() || 'Roulotte');
+          img.alt = alt;
+          img.src = getPhotoUrl(firstPhoto, 'thumb');
+          img.loading = 'lazy';
+          img.decoding = 'async';
+          img.addEventListener('load', () => { media.style.filter = 'none'; });
           media.appendChild(img);
         } else {
           media.innerHTML = '<div style="font-weight:800">Nessuna foto</div>';
@@ -817,6 +1040,8 @@
     async function boot() {
       initTheme();
       restoreFilters();
+      setCanonicalAndMeta();
+      injectJsonLdWebSite();
       try { if (window.RoulotteStore.syncNow) await window.RoulotteStore.syncNow(); } catch {}
       render();
       const initialId = getUrlState().id;

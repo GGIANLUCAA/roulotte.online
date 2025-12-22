@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin - Toulotte Online</title>
+  <title>Admin - Roulotte online</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root{
@@ -582,7 +582,7 @@
           </svg>
         </div>
         <div>
-          <div class="brand-title">Toulotte Online</div>
+          <div class="brand-title">Roulotte online</div>
           <div class="brand-sub">Dashboard Admin</div>
         </div>
       </a>
@@ -1183,6 +1183,7 @@
                 <div class="field">
                   <label for="videoUrl">Video (URL)</label>
                   <input id="videoUrl" name="videoUrl" type="url" autocomplete="off" placeholder="https://..." />
+                  <div id="videoPreview" class="hint" style="margin-top:6px"></div>
                 </div>
                 <div class="field">
                   <label for="planimetriaUrl">Planimetria (URL)</label>
@@ -1220,18 +1221,22 @@
               <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
                 <div>
                   <div style="font-weight:900">Foto</div>
-                  <div class="hint">Trascina qui le immagini o clicca per selezionare (Max 9).</div>
+                  <div class="hint">Trascina qui le immagini o clicca per selezionare.</div>
                 </div>
-              </div>
-              
-              <div id="dropzone" class="dropzone" style="margin-top:10px">
-                <p style="color:var(--muted);pointer-events:none">Trascina le foto qui o clicca per aprire</p>
-                <input id="photosInput" name="photosInput" type="file" accept="image/*" multiple style="display:none" />
-              </div>
-              
-              <div id="photosPreview" class="photos" aria-label="Anteprima foto"></div>
-              <div id="photoHint" class="hint" style="margin-top:8px"></div>
             </div>
+            <div class="inline-row" style="margin-top:8px">
+              <input id="photoUrlInput" type="url" placeholder="Incolla URL immagine https://..." />
+              <button class="btn" type="button" id="addPhotoUrlBtn">Aggiungi URL</button>
+              <button class="btn btn-danger" type="button" id="clearPhotosBtn">Svuota foto</button>
+            </div>
+            <div id="dropzone" class="dropzone" style="margin-top:10px">
+              <p style="color:var(--muted);pointer-events:none">Trascina le foto qui o clicca per aprire</p>
+              <input id="photosInput" name="photosInput" type="file" accept="image/*" multiple style="display:none" />
+            </div>
+            
+            <div id="photosPreview" class="photos" aria-label="Anteprima foto"></div>
+            <div id="photoHint" class="hint" style="margin-top:8px"></div>
+          </div>
 
             <div class="row-actions sticky">
               <button class="btn" type="button" id="goListBtn">Vai all'elenco</button>
@@ -2168,55 +2173,130 @@
     dropzone.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files));
     dropzone.addEventListener('click', () => photosInput.click());
     photosInput.addEventListener('change', () => handleFiles(photosInput.files));
+    function canUseWebp() {
+      try {
+        const c = document.createElement('canvas');
+        return c.toDataURL('image/webp').startsWith('data:image/webp');
+      } catch { return false; }
+    }
+    const USE_WEBP = canUseWebp();
+    async function processImageFromBlob(blob) {
+      let bmp = null;
+      try { bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' }); } catch {}
+      const img = await new Promise((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = reject;
+        el.src = URL.createObjectURL(blob);
+      });
+      const w = bmp ? bmp.width : img.naturalWidth || img.width;
+      const h = bmp ? bmp.height : img.naturalHeight || img.height;
+      const sizes = [{w:320,h:320,q:0.82},{w:1024,h:1024,q:0.82}];
+      const out = {};
+      for (const s of sizes) {
+        const ratio = Math.min(s.w / w, s.h / h, 1);
+        const tw = Math.round(w * ratio);
+        const th = Math.round(h * ratio);
+        const c = document.createElement('canvas');
+        c.width = tw; c.height = th;
+        const ctx = c.getContext('2d');
+        if (bmp) ctx.drawImage(bmp, 0, 0, tw, th);
+        else ctx.drawImage(img, 0, 0, tw, th);
+        const type = USE_WEBP ? 'image/webp' : 'image/jpeg';
+        const url = c.toDataURL(type, s.q);
+        if (s.w === 320) out.thumb = url;
+        else out.src = url;
+        out.type = type;
+      }
+      const pC = document.createElement('canvas');
+      const pr = Math.min(24 / w, 24 / h, 1);
+      pC.width = Math.round(w * pr);
+      pC.height = Math.round(h * pr);
+      const pctx = pC.getContext('2d');
+      if (bmp) pctx.drawImage(bmp, 0, 0, pC.width, pC.height);
+      else pctx.drawImage(img, 0, 0, pC.width, pC.height);
+      const placeholder = pC.toDataURL('image/jpeg', 0.6);
+      return { src: out.src, thumb: out.thumb, placeholder, w, h, type: out.type };
+    }
+    dropzone.addEventListener('paste', (e) => {
+      const files = [];
+      if (e.clipboardData && e.clipboardData.items) {
+        for (const it of e.clipboardData.items) {
+          if (it.type && it.type.startsWith('image/')) files.push(it.getAsFile());
+        }
+      }
+      if (files.length) handleFiles(files);
+    });
+    addPhotoUrlBtn.addEventListener('click', async () => {
+      const url = photoUrlInput.value.trim();
+      if (!url) return;
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        if (!blob.type.startsWith('image/')) return;
+        const obj = await processImageFromBlob(blob);
+        draftPhotos.push(obj);
+        photoUrlInput.value = '';
+        renderPhotos();
+      } catch {}
+    });
 
+    async function processVideoFromBlob(file) {
+      if (file.size > (8 * 1024 * 1024)) {
+        photoHint.textContent = 'Video troppo pesante. Usa un URL (YouTube/Vimeo) o un file < 8MB.';
+        return null;
+      }
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.src = url;
+      video.muted = true;
+      await new Promise((resolve) => {
+        video.addEventListener('loadeddata', resolve, { once: true });
+        video.addEventListener('error', resolve, { once: true });
+      });
+      const w = video.videoWidth || 640;
+      const h = video.videoHeight || 360;
+      const c = document.createElement('canvas');
+      const maxW = 1024, maxH = 1024;
+      const ratio = Math.min(maxW / w, maxH / h, 1);
+      c.width = Math.round(w * ratio);
+      c.height = Math.round(h * ratio);
+      const ctx = c.getContext('2d');
+      try { ctx.drawImage(video, 0, 0, c.width, c.height); } catch {}
+      const poster = c.toDataURL('image/jpeg', 0.82);
+      const reader = new FileReader();
+      const dataUrl = await new Promise((res, rej) => {
+        reader.onload = () => res(reader.result);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      URL.revokeObjectURL(url);
+      return { videoUrl: String(dataUrl || ''), poster };
+    }
     async function handleFiles(files) {
       const fileList = Array.from(files || []);
-      const left = Math.max(0, 9 - draftPhotos.length);
-      const toTake = fileList.slice(0, left);
-      
-      if (fileList.length > left) photoHint.textContent = 'Limite 9 foto raggiunto.';
-      else photoHint.textContent = '';
+      const toTake = fileList;
+      photoHint.textContent = 'Elaborazione…';
 
       for (const f of toTake) {
-        if (!f.type.startsWith('image/')) continue;
         try {
-          // Resize automatico a max 1024px
-          const resized = await resizeImage(f, 1024, 1024, 0.8);
-          draftPhotos.push(resized);
-        } catch(e) {
-          console.error(e);
-        }
+          if (f.type.startsWith('image/')) {
+            const obj = await processImageFromBlob(f);
+            draftPhotos.push(obj);
+          } else if (f.type.startsWith('video/')) {
+            const v = await processVideoFromBlob(f);
+            if (v && v.videoUrl) {
+              videoUrlEl.value = v.videoUrl;
+              if (v.poster) {
+                draftPhotos.push({ src: v.poster, thumb: v.poster, placeholder: v.poster, type: 'image/jpeg', alt: 'Poster video' });
+              }
+            }
+          }
+        } catch(e) { photoHint.textContent = 'Errore elaborazione file.'; }
       }
       photosInput.value = '';
       renderPhotos();
-    }
-
-    function resizeImage(file, maxWidth, maxHeight, quality) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const img = new Image();
-          img.onload = () => {
-             let width = img.width;
-             let height = img.height;
-             if (width > maxWidth || height > maxHeight) {
-               const ratio = Math.min(maxWidth / width, maxHeight / height);
-               width = Math.round(width * ratio);
-               height = Math.round(height * ratio);
-             }
-             const canvas = document.createElement('canvas');
-             canvas.width = width;
-             canvas.height = height;
-             const ctx = canvas.getContext('2d');
-             ctx.drawImage(img, 0, 0, width, height);
-             resolve(canvas.toDataURL('image/jpeg', quality));
-          };
-          img.onerror = reject;
-          img.src = event.target.result;
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      photoHint.textContent = '';
     }
 
     function renderPhotos() {
@@ -2225,11 +2305,28 @@
         photosPreview.innerHTML = '<div class="hint" style="grid-column:1/-1">Nessuna foto.</div>';
         return;
       }
-      draftPhotos.forEach((src, idx) => {
+      draftPhotos.forEach((ph, idx) => {
         const box = document.createElement('div');
         box.className = 'photo';
+        box.draggable = true;
+        box.dataset.index = String(idx);
         const img = document.createElement('img');
-        img.src = src;
+        img.src = ph.thumb || ph.src || '';
+        img.alt = ph.alt || '';
+        if (idx === 0) {
+          const badge = document.createElement('div');
+          badge.textContent = 'Copertina';
+          badge.style.position = 'absolute';
+          badge.style.left = '6px';
+          badge.style.top = '6px';
+          badge.style.background = 'rgba(37,99,235,.85)';
+          badge.style.color = '#fff';
+          badge.style.fontWeight = '900';
+          badge.style.fontSize = '.78rem';
+          badge.style.padding = '4px 6px';
+          badge.style.borderRadius = '8px';
+          box.appendChild(badge);
+        }
         const rm = document.createElement('button');
         rm.type = 'button';
         rm.textContent = '×';
@@ -2239,11 +2336,83 @@
           draftPhotos = draftPhotos.filter((_, i) => i !== idx);
           renderPhotos();
         });
+        box.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', String(idx)); });
+        box.addEventListener('dragover', (e) => { e.preventDefault(); });
+        box.addEventListener('drop', (e) => {
+          e.preventDefault();
+          const from = Number(e.dataTransfer.getData('text/plain'));
+          const to = Number(box.dataset.index || '0');
+          if (!Number.isFinite(from) || !Number.isFinite(to) || from === to) return;
+          const arr = [...draftPhotos];
+          const [item] = arr.splice(from, 1);
+          arr.splice(to, 0, item);
+          draftPhotos = arr;
+          renderPhotos();
+        });
         box.appendChild(img);
         box.appendChild(rm);
         photosPreview.appendChild(box);
+        const caption = document.createElement('input');
+        caption.type = 'text';
+        caption.placeholder = 'Didascalia/alt';
+        caption.value = ph.alt || '';
+        caption.style.marginTop = '6px';
+        caption.addEventListener('input', () => {
+          draftPhotos[idx] = { ...draftPhotos[idx], alt: caption.value };
+        });
+        const setCover = document.createElement('button');
+        setCover.type = 'button';
+        setCover.textContent = idx === 0 ? 'Copertina ✓' : 'Imposta copertina';
+        setCover.className = 'btn';
+        setCover.style.marginTop = '6px';
+        setCover.addEventListener('click', () => {
+          const arr = [...draftPhotos];
+          const [item] = arr.splice(idx, 1);
+          arr.unshift(item);
+          draftPhotos = arr;
+          renderPhotos();
+        });
+        const upBtn = document.createElement('button');
+        upBtn.type = 'button';
+        upBtn.textContent = 'Su';
+        upBtn.className = 'btn';
+        upBtn.style.marginTop = '6px';
+        upBtn.addEventListener('click', () => {
+          if (idx <= 0) return;
+          const arr = [...draftPhotos];
+          const [item] = arr.splice(idx, 1);
+          arr.splice(idx - 1, 0, item);
+          draftPhotos = arr;
+          renderPhotos();
+        });
+        const downBtn = document.createElement('button');
+        downBtn.type = 'button';
+        downBtn.textContent = 'Giù';
+        downBtn.className = 'btn';
+        downBtn.style.marginTop = '6px';
+        downBtn.addEventListener('click', () => {
+          if (idx >= draftPhotos.length - 1) return;
+          const arr = [...draftPhotos];
+          const [item] = arr.splice(idx, 1);
+          arr.splice(idx + 1, 0, item);
+          draftPhotos = arr;
+          renderPhotos();
+        });
+        const wrap = document.createElement('div');
+        wrap.style.display = 'grid';
+        wrap.style.gridTemplateRows = '1fr auto auto auto auto';
+        wrap.appendChild(box);
+        wrap.appendChild(caption);
+        wrap.appendChild(setCover);
+        wrap.appendChild(upBtn);
+        wrap.appendChild(downBtn);
+        photosPreview.appendChild(wrap);
       });
     }
+    clearPhotosBtn.addEventListener('click', () => {
+      draftPhotos = [];
+      renderPhotos();
+    });
 
     // --- Form Submit ---
     newForm.addEventListener('submit', (e) => {
@@ -2501,11 +2670,11 @@
 
       detailPhotos.innerHTML = '';
       if (Array.isArray(r.photos) && r.photos.length) {
-        r.photos.slice(0, 9).forEach(src => {
+        r.photos.forEach(item => {
           const box = document.createElement('div');
           box.className = 'photo';
           const img = document.createElement('img');
-          img.src = src;
+          img.src = (typeof item === 'object') ? (item.thumb || item.src || '') : item;
           box.appendChild(img);
           detailPhotos.appendChild(box);
         });
@@ -2759,6 +2928,39 @@
         localStorage.removeItem(window.RoulotteStore.storageKey);
         location.reload();
       }
+    });
+
+    function getEmbedUrl(u) {
+      const s = String(u || '').trim();
+      if (!s) return null;
+      if (s.includes('youtube.com/watch')) {
+        const p = new URL(s);
+        const id = p.searchParams.get('v');
+        if (id) return 'https://www.youtube.com/embed/' + id;
+      }
+      if (s.includes('youtu.be/')) {
+        const id = s.split('youtu.be/')[1].split(/[?&]/)[0];
+        if (id) return 'https://www.youtube.com/embed/' + id;
+      }
+      if (s.includes('vimeo.com/')) {
+        const id = s.split('vimeo.com/')[1].split(/[?&]/)[0];
+        if (id) return 'https://player.vimeo.com/video/' + id;
+      }
+      return null;
+    }
+    videoUrlEl.addEventListener('input', () => {
+      const embed = getEmbedUrl(videoUrlEl.value);
+      const container = document.getElementById('videoPreview');
+      if (!container) return;
+      if (!embed) { container.innerHTML = ''; return; }
+      const iframe = document.createElement('iframe');
+      iframe.src = embed;
+      iframe.width = '100%';
+      iframe.height = '240';
+      iframe.style.border = 'none';
+      iframe.loading = 'lazy';
+      container.innerHTML = '';
+      container.appendChild(iframe);
     });
 
     // --- Init ---
