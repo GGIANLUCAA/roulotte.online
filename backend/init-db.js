@@ -1,6 +1,6 @@
-const { query } = require('./db');
+const db = require('./db');
 
-const createTables = async () => {
+async function createTables() {
   const createRoulotteTable = `
     CREATE TABLE IF NOT EXISTS roulottes (
       id SERIAL PRIMARY KEY,
@@ -11,6 +11,10 @@ const createTables = async () => {
       weight INTEGER,
       length INTEGER,
       beds INTEGER,
+      public_id TEXT UNIQUE,
+      data JSONB NOT NULL DEFAULT '{}'::jsonb,
+      visibile BOOLEAN DEFAULT TRUE,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
   `;
@@ -27,20 +31,76 @@ const createTables = async () => {
     );
   `;
 
-  try {
-    console.log('Creazione tabella roulottes...');
-    await query(createRoulotteTable);
-    console.log('Tabella roulottes creata con successo (o già esistente).');
+  await db.query(createRoulotteTable);
+  await db.query(createPhotoTable);
 
-    console.log('Creazione tabella photos...');
-    await query(createPhotoTable);
-    console.log('Tabella photos creata con successo (o già esistente).');
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS title VARCHAR(255);`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS description TEXT;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS price NUMERIC(10, 2);`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS year INTEGER;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS weight INTEGER;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS length INTEGER;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS beds INTEGER;`);
 
-  } catch (err) {
-    console.error('Errore durante la creazione delle tabelle:', err.stack);
-  } finally {
-    // Poiché usiamo un pool, non è necessario chiudere la connessione manualmente qui.
-  }
-};
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS public_id TEXT;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}'::jsonb;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS visibile BOOLEAN DEFAULT TRUE;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;`);
 
-createTables();
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS nome TEXT;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS descrizione TEXT;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS prezzo NUMERIC(10, 2);`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS anno INTEGER;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS peso INTEGER;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS posti_letto INTEGER;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS dimensioni TEXT;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS condizioni TEXT;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS accessori TEXT;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS telefono TEXT;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS email TEXT;`);
+
+  await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_roulottes_public_id ON roulottes(public_id);`);
+
+  await db.query(`
+    UPDATE roulottes
+    SET public_id = 'R-' || LPAD(id::text, 4, '0')
+    WHERE public_id IS NULL;
+  `);
+
+  await db.query(`
+    UPDATE roulottes
+    SET data = COALESCE(NULLIF(data, '{}'::jsonb), '{}'::jsonb)
+      || jsonb_strip_nulls(
+        jsonb_build_object(
+          'nome', nome,
+          'descrizione', descrizione,
+          'prezzo', prezzo,
+          'anno', anno,
+          'peso', peso,
+          'posti_letto', posti_letto,
+          'dimensioni', dimensioni,
+          'condizioni', condizioni,
+          'accessori', accessori,
+          'telefono', telefono,
+          'email', email
+        )
+      )
+    WHERE data = '{}'::jsonb;
+  `);
+
+  await db.query(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS url_full TEXT;`);
+  await db.query(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS url_thumb TEXT;`);
+  await db.query(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS blur_hash TEXT;`);
+  await db.query(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS is_cover BOOLEAN DEFAULT FALSE;`);
+  await db.query(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;`);
+
+  await db.query(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS url TEXT;`);
+  await db.query(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS ordine INTEGER DEFAULT 0;`);
+
+  await db.query(`UPDATE photos SET url_full = COALESCE(url_full, url) WHERE url_full IS NULL AND url IS NOT NULL;`);
+  await db.query(`UPDATE photos SET url_thumb = COALESCE(url_thumb, url_full, url) WHERE url_thumb IS NULL;`);
+  await db.query(`UPDATE photos SET sort_order = COALESCE(sort_order, ordine, 0) WHERE sort_order IS NULL;`);
+}
+
+module.exports = { createTables };

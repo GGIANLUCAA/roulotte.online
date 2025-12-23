@@ -14,6 +14,7 @@ const s3Client = require('./s3-client'); // Importiamo il client S3 per R2
 const { PutObjectCommand } = require('@aws-sdk/client-s3');
 const multer = require('multer');
 const crypto = require('crypto');
+const { createTables } = require('./init-db');
 
 // Configurazione di Multer per gestire l'upload di file in memoria
 const storage = multer.memoryStorage();
@@ -27,27 +28,23 @@ app.get('/', (req, res) => {
   res.send('Backend di Roulotte.online attivo e funzionante!');
 });
 
+createTables()
+  .then(() => console.log('Tabelle database pronte.'))
+  .catch((err) => console.error('Errore durante la preparazione delle tabelle:', err));
+
 // Rotta per ottenere tutte le roulotte con le loro foto
 app.get('/api/roulottes', async (req, res) => {
   try {
     const query = `
       SELECT 
-        r.id, 
-        r.nome, 
-        r.descrizione, 
-        r.prezzo, 
-        r.anno, 
-        r.peso, 
-        r.posti_letto, 
-        r.dimensioni, 
-        r.condizioni, 
-        r.accessori, 
-        r.telefono, 
-        r.email,
-        r.visibile,
+        r.public_id AS id,
+        r.data AS data,
+        r.visibile AS visibile,
+        r.created_at AS created_at,
+        r.updated_at AS updated_at,
         COALESCE(
           (
-            SELECT json_agg(p.url ORDER BY p.ordine)
+            SELECT json_agg(p.url_full ORDER BY p.sort_order)
             FROM photos p 
             WHERE p.roulotte_id = r.id
           ), '[]'::json
@@ -57,7 +54,16 @@ app.get('/api/roulottes', async (req, res) => {
     `;
 
     const result = await pool.query(query);
-    res.json(result.rows);
+    res.json(
+      result.rows.map((row) => ({
+        ...(row.data || {}),
+        id: row.id,
+        photos: row.photos || [],
+        visibile: row.visibile !== undefined && row.visibile !== null ? row.visibile : true,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }))
+    );
 
   } catch (err) {
     console.error('Errore durante il recupero delle roulotte:', err);
@@ -65,24 +71,84 @@ app.get('/api/roulottes', async (req, res) => {
   }
 });
 
+function parseBooleanLike(v, fallback) {
+  if (v === undefined || v === null || v === '') return fallback;
+  if (v === true || v === false) return v;
+  const s = String(v).trim().toLowerCase();
+  if (s === 'true' || s === '1' || s === 'on' || s === 'si' || s === 'sì' || s === 'yes') return true;
+  if (s === 'false' || s === '0' || s === 'off' || s === 'no') return false;
+  return fallback;
+}
+
+function parseNumberLike(v) {
+  if (v === undefined || v === null) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function generateNextPublicId(client) {
+  const { rows } = await client.query(`
+    SELECT
+      MAX(
+        CASE
+          WHEN public_id ~ '^R-[0-9]+$' THEN (SUBSTRING(public_id FROM 3))::int
+          ELSE NULL
+        END
+      ) AS n
+    FROM roulottes;
+  `);
+  const n = Number(rows[0]?.n || 0);
+  return 'R-' + String(n + 1).padStart(4, '0');
+}
+
 // Rotta per creare una nuova roulotte con foto
 app.post('/api/roulottes', upload.array('photos'), async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN'); // Inizia la transazione
 
-    const { nome, descrizione, prezzo, anno, peso, posti_letto, dimensioni, condizioni, accessori, telefono, email } = req.body;
-    const visibile = req.body.visibile === 'true' || req.body.visibile === 'on';
+    const raw = req.body || {};
+    const visibile = parseBooleanLike(raw.visibile, true);
 
+    const publicIdFromClient = String(raw.id || '').trim();
+    const publicId = publicIdFromClient || (await generateNextPublicId(client));
+
+    const marca = String(raw.marca || '').trim();
+    const modello = String(raw.modello || '').trim();
+    const title = `${marca} ${modello}`.trim() || String(raw.title || '').trim() || 'Senza titolo';
+
+    const description = String(raw.note || raw.descrizione || raw.description || '').trim() || null;
+    const price = parseNumberLike(raw.prezzo ?? raw.price);
+    const year = parseNumberLike(raw.anno ?? raw.year);
+    const weight = parseNumberLike(raw.pesoVuoto ?? raw.weight);
+    const length = parseNumberLike(raw.lunghezzaTotale ?? raw.length);
+    const beds = parseNumberLike(raw.postiLetto ?? raw.beds);
+
+    const data = { ...raw };
+    delete data.photos;
 
     // 1. Inserisci la roulotte nel database
     const roulotteQuery = `
-      INSERT INTO roulottes (nome, descrizione, prezzo, anno, peso, posti_letto, dimensioni, condizioni, accessori, telefono, email, visibile)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      RETURNING id;
+      INSERT INTO roulottes (title, description, price, year, weight, length, beds, public_id, data, visibile, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, CURRENT_TIMESTAMP)
+      RETURNING id, public_id;
     `;
-    const roulotteResult = await client.query(roulotteQuery, [nome, descrizione, prezzo, anno, peso, posti_letto, dimensioni, condizioni, accessori, telefono, email, visibile]);
-    const roulotteId = roulotteResult.rows[0].id;
+    const roulotteResult = await client.query(roulotteQuery, [
+      title,
+      description,
+      price,
+      year,
+      weight,
+      length,
+      beds,
+      publicId,
+      JSON.stringify(data),
+      visibile,
+    ]);
+    const roulotteDbId = roulotteResult.rows[0].id;
+    const savedPublicId = roulotteResult.rows[0].public_id;
 
     // 2. Carica le foto su R2 e inserisci i riferimenti nel database
     if (req.files) {
@@ -99,15 +165,15 @@ app.post('/api/roulottes', upload.array('photos'), async (req, res) => {
         
         const photoUrl = `${process.env.R2_PUBLIC_URL}/${fileName}`;
         const photoQuery = `
-          INSERT INTO photos (roulotte_id, url, ordine)
-          VALUES ($1, $2, $3);
+          INSERT INTO photos (roulotte_id, url_full, url_thumb, sort_order, is_cover)
+          VALUES ($1, $2, $3, $4, $5);
         `;
-        await client.query(photoQuery, [roulotteId, photoUrl, index]);
+        await client.query(photoQuery, [roulotteDbId, photoUrl, photoUrl, index, index === 0]);
       }
     }
 
     await client.query('COMMIT'); // Conferma la transazione
-    res.status(201).json({ message: 'Roulotte creata con successo!', roulotteId: roulotteId });
+    res.status(201).json({ message: 'Roulotte creata con successo!', id: savedPublicId });
 
   } catch (err) {
     await client.query('ROLLBACK'); // Annulla la transazione in caso di errore
