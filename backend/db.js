@@ -16,11 +16,23 @@ function getSslConfig() {
   return { rejectUnauthorized: false };
 }
 
-const pool = new Pool({
-  connectionString,
-  ssl: getSslConfig(),
-});
+let pool = null;
 
-pool.query = pool.query.bind(pool);
+function ensurePool() {
+  if (pool) return pool;
+  if (!process.env.DATABASE_URL) {
+    const err = new Error('DATABASE_URL mancante: configura la variabile su Render.');
+    err.code = 'DB_NOT_CONFIGURED';
+    throw err;
+  }
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: getSslConfig(),
+  });
+  return pool;
+}
 
-module.exports = pool;
+module.exports = {
+  query: (text, params) => ensurePool().query(text, params),
+  connect: () => ensurePool().connect(),
+};

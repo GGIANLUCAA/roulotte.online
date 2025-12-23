@@ -205,18 +205,10 @@ app.post('/api/roulottes', upload.array('photos'), async (req, res) => {
 
 const PORT = process.env.PORT || 3001; // Render userà la variabile d'ambiente PORT
 
-async function startServer() {
-  try {
-    await createTables();
-    console.log('Tabelle database pronte.');
-  } catch (err) {
-    console.error('Errore durante la preparazione delle tabelle:', err);
-    process.exit(1);
-  }
+createTables()
+  .then(() => console.log('Tabelle database pronte.'))
+  .catch((err) => console.error('Errore durante la preparazione delle tabelle:', err));
 
-  app.listen(PORT, () => {
-    console.log(`Server in ascolto sulla porta ${PORT}`);
-  });
-}
-
-startServer();
+app.listen(PORT, () => {
+  console.log(`Server in ascolto sulla porta ${PORT}`);
+});
