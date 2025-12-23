@@ -1,24 +1,18 @@
 {
     "version":  2,
-    "updatedAt":  "2025-12-22T18:25:35.055Z",
+    "updatedAt":  "2025-12-23T23:00:30.973Z",
     "admin":  {
                   "username":  "admin",
                   "password":  "admin",
-                  "lastLogin":  "2025-12-22T18:25:35.055Z",
+                  "lastLogin":  null,
                   "failedAttempts":  0,
                   "lockedUntil":  null
               },
     "logs":  [
                  {
-                     "id":  "L-1766427935055",
-                     "action":  "Login effettuato",
-                     "timestamp":  "2025-12-22T18:25:35.055Z",
-                     "user":  "admin"
-                 },
-                 {
                      "id":  "L-INIT",
                      "action":  "Inizializzazione Sistema",
-                     "timestamp":  "2025-12-22T18:15:21.092Z",
+                     "timestamp":  "2025-12-23T23:00:30.973Z",
                      "user":  "system"
                  }
              ],
@@ -52,7 +46,7 @@
 
                                      ],
                           "note":  "",
-                          "createdAt":  "2025-12-22T18:15:21.092Z"
+                          "createdAt":  "2025-12-23T23:00:30.973Z"
                       },
                       {
                           "id":  "R-0002",
@@ -66,7 +60,7 @@
 
                                      ],
                           "note":  "",
-                          "createdAt":  "2025-12-22T18:15:21.092Z"
+                          "createdAt":  "2025-12-23T23:00:30.973Z"
                       },
                       {
                           "id":  "R-0003",
@@ -80,7 +74,7 @@
 
                                      ],
                           "note":  "",
-                          "createdAt":  "2025-12-22T18:15:21.092Z"
+                          "createdAt":  "2025-12-23T23:00:30.973Z"
                       }
                   ]
 }

@@ -12,27 +12,35 @@
   <style>
     :root{
       --primary:#2563eb;
-      --primary-hover:#1d4ed8;
-      --bg:#f5f7fb;
+      --primary-600:#1d4ed8;
+      --accent:#10b981;
+      --bg:#f6f7fb;
       --panel:#ffffff;
-      --surface:#111b33;
+      --surface:#0f172a;
       --text:#0f172a;
       --muted:#475569;
       --border:rgba(15,23,42,.12);
-      --shadow: 0 12px 26px rgba(15,23,42,.08);
-      --radius: 14px;
+      --shadow-xs:0 4px 10px rgba(15,23,42,.06);
+      --shadow-sm:0 8px 18px rgba(15,23,42,.08);
+      --shadow:0 12px 26px rgba(15,23,42,.10);
+      --radius:14px;
+      --space-1:6px; --space-2:10px; --space-3:14px; --space-4:18px;
+      --font-xs:.78rem; --font-sm:.9rem; --font-md:1.05rem; --font-lg:1.6rem;
+      --transition: all .25s ease;
     }
     :root[data-theme="dark"]{
       --primary:#2563eb;
-      --primary-hover:#1d4ed8;
+      --primary-600:#1d4ed8;
+      --accent:#10b981;
       --bg:#0b1220;
       --panel:#0f172a;
-      --surface:#111b33;
+      --surface:#0f172a;
       --text:#e5e7eb;
       --muted:#a7b0c0;
       --border:rgba(255,255,255,.10);
-      --shadow: 0 12px 30px rgba(0,0,0,.35);
-      --radius: 14px;
+      --shadow-xs:0 4px 10px rgba(0,0,0,.15);
+      --shadow-sm:0 8px 20px rgba(0,0,0,.25);
+      --shadow:0 12px 30px rgba(0,0,0,.35);
     }
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{height:100%}
@@ -44,6 +52,7 @@
                   var(--bg);
       color:var(--text);
       line-height:1.45;
+      transition:var(--transition);
     }
     :root[data-theme="dark"] body{
       background:
@@ -63,13 +72,13 @@
       z-index:9999;
     }
     .skip-link:focus{left:12px;top:12px;outline:3px solid #000}
-    .container{max-width:1150px;margin:0 auto;padding:20px}
+    .container{max-width:1150px;margin:0 auto;padding:var(--space-4)}
     header{
       display:flex;
       align-items:center;
       justify-content:space-between;
-      gap:16px;
-      padding:18px 0;
+      gap:var(--space-3);
+      padding:var(--space-3) 0;
     }
     .brand{
       display:flex;
@@ -78,16 +87,32 @@
       text-decoration:none;
     }
     .logo{
-      width:38px;height:38px;
+      width:40px;height:40px;
       display:grid;place-items:center;
       border-radius:12px;
       background:linear-gradient(135deg, rgba(37,99,235,.9), rgba(16,185,129,.75));
-      box-shadow:0 10px 24px rgba(0,0,0,.35);
+      box-shadow:var(--shadow-sm);
       flex:0 0 auto;
     }
-    .brand h1{font-size:1.05rem;font-weight:800;letter-spacing:.2px}
-    .brand p{font-size:.85rem;color:var(--muted)}
-    .actions{display:flex;align-items:center;gap:10px}
+    .brand h1{font-size:var(--font-md);font-weight:800;letter-spacing:.2px}
+    .brand p{font-size:var(--font-sm);color:var(--muted)}
+    nav{display:flex;align-items:center;gap:var(--space-2)}
+    .nav-toggle{display:none;border:1px solid var(--border);background:rgba(255,255,255,.55);border-radius:10px;padding:8px 10px;font-weight:800}
+    @media (max-width: 640px){
+      nav{display:none}
+      nav.open{display:flex;flex-direction:column;gap:8px}
+      .nav-toggle{display:inline-flex}
+    }
+    .nav-link{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:8px 10px;border-radius:10px;border:1px solid var(--border);
+      background:rgba(255,255,255,.55);text-decoration:none;color:var(--text);font-weight:700;
+      transition:var(--transition);
+    }
+    .nav-link:hover{background:rgba(255,255,255,.75)}
+    :root[data-theme="dark"] .nav-link{background:rgba(255,255,255,.06)}
+    :root[data-theme="dark"] .nav-link:hover{background:rgba(255,255,255,.10)}
+    .actions{display:flex;align-items:center;gap:var(--space-2)}
     .btn{
       appearance:none;
       border:1px solid var(--border);
@@ -101,19 +126,20 @@
       align-items:center;
       gap:8px;
       text-decoration:none;
+      transition:var(--transition);
     }
     :root[data-theme="dark"] .btn{background:rgba(255,255,255,.06)}
     .btn:hover{background:rgba(255,255,255,.80)}
     :root[data-theme="dark"] .btn:hover{background:rgba(255,255,255,.10)}
-    .btn-primary{background:var(--primary);border-color:transparent;color:#fff}
-    .btn-primary:hover{background:var(--primary-hover)}
+    .btn-primary{background:var(--primary);border-color:transparent;color:#fff;box-shadow:var(--shadow-xs)}
+    .btn-primary:hover{background:var(--primary-600)}
     .btn:focus-visible{outline:3px solid rgba(37,99,235,.45);outline-offset:3px}
     :root[data-theme="dark"] .btn:focus-visible{outline:3px solid rgba(255,255,255,.85)}
     .hero{
-      padding:22px 0 12px;
+      padding:var(--space-3) 0 var(--space-2);
       display:grid;
       grid-template-columns: 1.2fr .8fr;
-      gap:18px;
+      gap:var(--space-3);
       align-items:start;
     }
     .hero-card{
@@ -121,16 +147,17 @@
       background:rgba(255,255,255,.62);
       border-radius:var(--radius);
       box-shadow:var(--shadow);
-      padding:18px;
+      padding:var(--space-3);
+      transition:var(--transition);
     }
     :root[data-theme="dark"] .hero-card{background:rgba(255,255,255,.04)}
-    .hero h2{font-size:1.6rem;letter-spacing:-.3px}
+    .hero h2{font-size:var(--font-lg);letter-spacing:-.3px}
     .hero p{color:var(--muted);margin-top:8px}
     .controls{
       display:grid;
       grid-template-columns: 1fr 190px 190px 190px 240px 180px;
-      gap:10px;
-      margin-top:14px;
+      gap:var(--space-2);
+      margin-top:var(--space-2);
     }
     .price-range{
       display:grid;
@@ -206,7 +233,7 @@
     .grid{
       display:grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap:14px;
+      gap:var(--space-3);
     }
     .card{
       border:1px solid var(--border);
@@ -217,19 +244,21 @@
       display:flex;
       flex-direction:column;
       min-height: 260px;
+      transition:var(--transition);
     }
     :root[data-theme="dark"] .card{background:rgba(255,255,255,.04)}
     .card-media{
-      height:150px;
+      aspect-ratio:16/9;
       background:linear-gradient(135deg, rgba(37,99,235,.18), rgba(16,185,129,.14));
       display:grid;
       place-items:center;
       color:rgba(229,231,235,.85);
       border-bottom:1px solid var(--border);
     }
-    .card-media img{width:100%;height:100%;object-fit:cover;display:block}
-    .card-body{padding:12px;display:grid;gap:10px}
-    .card-title{font-size:1.05rem;font-weight:800;letter-spacing:-.2px}
+    .card-media img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .3s ease}
+    .card-media img.loaded{opacity:1}
+    .card-body{padding:var(--space-2);display:grid;gap:var(--space-2)}
+    .card-title{font-size:var(--font-md);font-weight:800;letter-spacing:-.2px}
     .card-sub{color:var(--muted);font-size:.92rem;display:flex;flex-wrap:wrap;gap:8px}
     .tag{
       display:inline-flex;align-items:center;gap:8px;
@@ -241,7 +270,7 @@
       font-size:.78rem;
     }
     :root[data-theme="dark"] .tag{background:rgba(255,255,255,.04)}
-    .card-actions{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:auto}
+    .card-actions{display:flex;justify-content:space-between;gap:var(--space-2);align-items:center;margin-top:auto}
     .price{font-weight:900;letter-spacing:-.2px}
     dialog{
       border:none;
@@ -264,9 +293,10 @@
     .gallery{
       display:grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap:10px;
+      gap:var(--space-2);
     }
-    .gallery img{width:100%;height:150px;object-fit:cover;border-radius:14px;border:1px solid var(--border)}
+    .gallery img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:14px;border:1px solid var(--border);opacity:0;transition:opacity .3s ease}
+    .gallery img.loaded{opacity:1}
     .empty{
       border:1px dashed var(--border);
       background:rgba(255,255,255,.62);
@@ -310,6 +340,11 @@
           <h1>Roulotte online</h1>
         </div>
       </a>
+      <button class="nav-toggle" type="button" id="navToggle" aria-expanded="false">Menu</button>
+      <nav id="mainNav" aria-label="Navigazione">
+        <a class="nav-link" href="index.html">Catalogo</a>
+        <a class="nav-link" href="admin.html">Admin</a>
+      </nav>
       <div class="actions" aria-label="Azioni rapide">
         <a class="btn" href="admin.html">Area Admin</a>
         <button class="btn" type="button" id="themeToggle">Tema: Chiaro</button>
@@ -319,8 +354,8 @@
 
     <section class="hero" aria-label="Ricerca">
       <div class="hero-card">
-        <h2>Trova la roulotte giusta</h2>
-        <p>Filtra per marca, modello, anno e stato. I risultati si aggiornano in tempo reale.</p>
+        <h2 id="heroTitle">Trova la roulotte giusta</h2>
+        <p id="heroText">Filtra per marca, modello, anno e stato. I risultati si aggiornano in tempo reale.</p>
         <div class="controls" role="search" aria-label="Ricerca e filtri">
           <div class="field">
             <label for="q">Cerca</label>
@@ -422,6 +457,7 @@
   </div>
 
   <script src="roulotte-store.js"></script>
+  <script src="live-reload.js"></script>
   <script>
     const qEl = document.getElementById('q');
     const statoEl = document.getElementById('statoFilter');
@@ -778,13 +814,18 @@
           const img = document.createElement('img');
           const alt = (typeof item === 'object' && item.alt) ? item.alt : `Foto di ${detailTitle.textContent}`;
           img.alt = alt;
-          img.src = url;
+          img.src = getPhotoUrl(item, 'thumb');
+          img.srcset = [
+            getPhotoUrl(item, 'thumb') + ' 480w',
+            getPhotoUrl(item, 'src') + ' 1280w'
+          ].join(', ');
+          img.sizes = '(max-width:640px) 100vw, 33vw';
           img.loading = 'lazy';
           img.decoding = 'async';
           img.style.width = '100%';
           img.style.height = '100%';
           img.style.objectFit = 'cover';
-          img.addEventListener('load', () => { wrap.style.filter = 'none'; });
+          img.addEventListener('load', () => { wrap.style.filter = 'none'; img.classList.add('loaded'); });
           img.addEventListener('click', () => openLightbox(i));
           wrap.appendChild(img);
           detailGallery.appendChild(wrap);
@@ -937,6 +978,7 @@
       liveStatusEl.textContent = `${sorted.length} risultati`;
 
       emptyEl.hidden = sorted.length !== 0;
+      const frag = document.createDocumentFragment();
       sorted.forEach(r => {
         const card = document.createElement('article');
         card.className = 'card';
@@ -955,9 +997,14 @@
           const alt = (typeof firstPhoto === 'object' && firstPhoto.alt) ? firstPhoto.alt : (`${r.marca || ''} ${r.modello || ''}`.trim() || 'Roulotte');
           img.alt = alt;
           img.src = getPhotoUrl(firstPhoto, 'thumb');
+          img.srcset = [
+            getPhotoUrl(firstPhoto, 'thumb') + ' 480w',
+            getPhotoUrl(firstPhoto, 'src') + ' 1280w'
+          ].join(', ');
+          img.sizes = '(max-width:640px) 100vw, (max-width:980px) 50vw, 33vw';
           img.loading = 'lazy';
           img.decoding = 'async';
-          img.addEventListener('load', () => { media.style.filter = 'none'; });
+          img.addEventListener('load', () => { media.style.filter = 'none'; img.classList.add('loaded'); });
           media.appendChild(img);
         } else {
           media.innerHTML = '<div style="font-weight:800">Nessuna foto</div>';
@@ -1002,8 +1049,9 @@
         body.appendChild(actions);
         card.appendChild(media);
         card.appendChild(body);
-        cardsEl.appendChild(card);
+        frag.appendChild(card);
       });
+      cardsEl.appendChild(frag);
       
       persistFilters();
     }
@@ -1042,13 +1090,69 @@
       restoreFilters();
       setCanonicalAndMeta();
       injectJsonLdWebSite();
-      try { if (window.RoulotteStore.syncNow) await window.RoulotteStore.syncNow(); } catch {}
-      render();
-      const initialId = getUrlState().id;
-      if (initialId) {
-        const db = window.RoulotteStore.getDB();
-        const r = (db.roulottes || []).find(x => x.id === initialId);
-        if (r) openDetails(r);
+      const navToggle = document.getElementById('navToggle');
+      const mainNav = document.getElementById('mainNav');
+      if (navToggle && mainNav) {
+        navToggle.addEventListener('click', () => {
+          const open = mainNav.classList.toggle('open');
+          navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+      }
+      try {
+        const r1 = await fetch('https://roulotte-online-foto.onrender.com/api/content/home_hero_title', { headers: { 'Accept': 'application/json' } });
+        if (r1.ok) {
+          const j1 = await r1.json();
+          const t1 = String(j1.data || '').trim();
+          if (t1) { const el = document.getElementById('heroTitle'); if (el) el.textContent = t1; }
+        }
+      } catch {}
+      try {
+        const r2 = await fetch('https://roulotte-online-foto.onrender.com/api/content/home_hero_text', { headers: { 'Accept': 'application/json' } });
+        if (r2.ok) {
+          const j2 = await r2.json();
+          const t2 = String(j2.data || '').trim();
+          if (t2) { const el2 = document.getElementById('heroText'); if (el2) el2.textContent = t2; }
+        }
+      } catch {}
+
+      const skeleton = document.createElement('div');
+      skeleton.className = 'grid';
+      for (let i = 0; i < 6; i++) {
+        const c = document.createElement('div');
+        c.className = 'card';
+        const m = document.createElement('div'); m.className = 'card-media';
+        const b = document.createElement('div'); b.className = 'card-body';
+        b.innerHTML = '<div style="height:14px;background:rgba(0,0,0,.06);border-radius:8px"></div><div style="height:12px;margin-top:8px;background:rgba(0,0,0,.05);border-radius:8px"></div>';
+        c.appendChild(m); c.appendChild(b);
+        skeleton.appendChild(c);
+      }
+      cardsEl.before(skeleton);
+      emptyEl.hidden = true;
+      cardsEl.hidden = true;
+
+      try {
+        if (window.RoulotteStore.initializeStore) {
+          await window.RoulotteStore.initializeStore();
+        } else if (window.RoulotteStore.syncNow) {
+          await window.RoulotteStore.syncNow();
+        }
+        
+        render();
+        cardsEl.hidden = false;
+        
+        const initialId = getUrlState().id;
+        if (initialId) {
+          const db = window.RoulotteStore.getDB();
+          const r = (db.roulottes || []).find(x => x.id === initialId);
+          if (r) openDetails(r);
+        }
+
+      } catch (error) {
+        console.error("Errore durante l'inizializzazione dello store:", error);
+        emptyEl.textContent = "Si è verificato un errore nel caricamento dei dati. Riprova più tardi.";
+        emptyEl.hidden = false;
+      } finally {
+        skeleton.remove();
       }
     }
     boot();

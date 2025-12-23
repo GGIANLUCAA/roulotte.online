@@ -101,6 +101,53 @@ async function createTables() {
   await db.query(`UPDATE photos SET url_full = COALESCE(url_full, url) WHERE url_full IS NULL AND url IS NOT NULL;`);
   await db.query(`UPDATE photos SET url_thumb = COALESCE(url_thumb, url_full, url) WHERE url_thumb IS NULL;`);
   await db.query(`UPDATE photos SET sort_order = COALESCE(sort_order, ordine, 0) WHERE sort_order IS NULL;`);
+
+  const createAdminLogs = `
+    CREATE TABLE IF NOT EXISTS admin_logs (
+      id SERIAL PRIMARY KEY,
+      action TEXT NOT NULL,
+      username TEXT,
+      details JSONB,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+  await db.query(createAdminLogs);
+
+  const createContents = `
+    CREATE TABLE IF NOT EXISTS contents (
+      id SERIAL PRIMARY KEY,
+      content_key TEXT UNIQUE NOT NULL,
+      content_type TEXT NOT NULL,
+      published_data TEXT,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+  await db.query(createContents);
+
+  const createContentRevisions = `
+    CREATE TABLE IF NOT EXISTS content_revisions (
+      id SERIAL PRIMARY KEY,
+      content_key TEXT NOT NULL,
+      data TEXT NOT NULL,
+      content_type TEXT NOT NULL,
+      username TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_content_rev_key ON content_revisions(content_key);
+  `;
+  await db.query(createContentRevisions);
+
+  const createMedia = `
+    CREATE TABLE IF NOT EXISTS media (
+      id SERIAL PRIMARY KEY,
+      url_full TEXT NOT NULL,
+      url_thumb TEXT NOT NULL,
+      title TEXT,
+      alt TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+  await db.query(createMedia);
 }
 
 module.exports = { createTables };

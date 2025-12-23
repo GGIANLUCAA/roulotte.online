@@ -399,8 +399,13 @@ try {
 
       $fileBytes = [System.IO.File]::ReadAllBytes($candidate)
       $ctype = Get-ContentType $candidate
-      if ($method -eq 'HEAD') { Send-Response $stream 200 'OK' $ctype ([byte[]]@()) $null }
-      else { Send-Response $stream 200 'OK' $ctype $fileBytes $null }
+      $lastWrite = [System.IO.File]::GetLastWriteTimeUtc($candidate).ToString("R")
+      $cache = 'no-cache'
+      $low = $candidate.ToLower()
+      if ($low.EndsWith('.js') -or $low.EndsWith('.css') -or $low.EndsWith('.html')) { $cache = 'no-store' }
+      $extra = @{ 'Cache-Control' = $cache; 'Last-Modified' = $lastWrite }
+      if ($method -eq 'HEAD') { Send-Response $stream 200 'OK' $ctype ([byte[]]@()) $extra }
+      else { Send-Response $stream 200 'OK' $ctype $fileBytes $extra }
       $client.Close()
     } catch {
       try {

@@ -1,5 +1,6 @@
 (function () {
   const storageKey = 'roulotte_db_v1';
+  const API_BASE_URL = 'https://roulotte-online-foto.onrender.com';
 
   function nowIso() {
     return new Date().toISOString();
@@ -63,29 +64,31 @@
     };
   }
 
+  let store = null;
+  let authToken = null;
+
+  async function initializeStore() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/roulottes`);
+      if (!response.ok) {
+        throw new Error(`Errore nel caricamento dati: ${response.status}`);
+      }
+      const roulottesFromServer = await response.json();
+      
+      const db = seed();
+      db.roulottes = roulottesFromServer;
+      store = db;
+      
+    } catch (error) {
+      console.error("Impossibile caricare i dati dal server.", error);
+      store = seed();
+    }
+    return store;
+  }
+
   function getDB() {
-    const raw = localStorage.getItem(storageKey);
-    const parsed = safeJsonParse(raw);
-    
-    // Se non esiste o è corrotto o è versione vecchia (1), rigenera o migra
-    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.roulottes)) {
-      const s = seed();
-      localStorage.setItem(storageKey, JSON.stringify(s));
-      return s;
-    }
-
-    // Migrazione v1 -> v2
-    if (!parsed.admin) {
-       const s = seed();
-       // Mantieni le roulotte esistenti se possibile
-       if (Array.isArray(parsed.roulottes)) {
-          s.roulottes = parsed.roulottes.map(r => ({...r, categoryId: r.categoryId || 'cat-2'}));
-       }
-       saveDB(s);
-       return s;
-    }
-
-    return parsed;
+    if (!store) store = seed();
+    return store;
   }
 
   let serverPushTimer = null;
@@ -293,123 +296,41 @@
     return 'R-' + String(max + 1).padStart(4, '0');
   }
 
-  function addRoulotte(input) {
-    const db = getDB();
-    const id = makeId(db);
-    const createdAt = nowIso();
-    const roulotte = {
-      id,
-      marca: String(input.marca || '').trim(),
-      modello: String(input.modello || '').trim(),
-      versione: String(input.versione || '').trim(),
-      anno: Number(input.anno || 0) || null,
-      prezzo: Number(input.prezzo || 0) || null,
-      stato: String(input.stato || '').trim(),
-      categoryId: String(input.categoryId || 'cat-2'),
-      disponibilitaProntaConsegna: parseOptionalBool(input.disponibilitaProntaConsegna),
-      permuta: parseOptionalBool(input.permuta),
-      tipologiaMezzo: String(input.tipologiaMezzo || '').trim(),
+  async function saveRoulotteToServer(input, photos = [], onProgress) {
+    const formData = new FormData();
+    for (const key in input) {
+      if (input[key] !== null && input[key] !== undefined) {
+        formData.append(key, input[key]);
+      }
+    }
+    for (const photo of photos) {
+      if (photo && photo.file) formData.append('photos', photo.file, photo.name);
+    }
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_BASE_URL}/api/roulottes`);
+      if (authToken) xhr.setRequestHeader('Authorization', 'Bearer ' + authToken);
+      xhr.upload.onprogress = function(e){
+        if (onProgress && e && e.lengthComputable) {
+          try { onProgress(Math.round((e.loaded / e.total) * 100)); } catch {}
+        }
+      };
+      xhr.onreadystatechange = function(){
+        if (xhr.readyState === 4) {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); } catch { resolve({}); }
+          } else {
+            reject(new Error('Errore dal server: ' + xhr.status));
+          }
+        }
+      };
+      xhr.onerror = function(){ reject(new Error('network_error')); };
+      xhr.send(formData);
+    });
+  }
 
-      condizioneGenerale: String(input.condizioneGenerale || '').trim(),
-      statoInterni: String(input.statoInterni || '').trim(),
-      statoEsterni: String(input.statoEsterni || '').trim(),
-      infiltrazioni: String(input.infiltrazioni || '').trim(),
-      odori: String(input.odori || '').trim(),
-      provenienza: String(input.provenienza || '').trim(),
-
-      targata: parseOptionalBool(input.targata),
-      librettoCircolazione: parseOptionalBool(input.librettoCircolazione),
-      omologataCircolazione: parseOptionalBool(input.omologataCircolazione),
-      numeroTelaio: String(input.numeroTelaio || '').trim(),
-      numeroAssi: String(input.numeroAssi || '').trim(),
-      timone: parseOptionalBool(input.timone),
-      frenoRepulsione: parseOptionalBool(input.frenoRepulsione),
-
-      massa: parseOptionalNumber(input.massa),
-      pesoVuoto: parseOptionalNumber(input.pesoVuoto),
-
-      lunghezzaTotale: parseOptionalNumber(input.lunghezzaTotale ?? input.lunghezza),
-      lunghezzaInterna: parseOptionalNumber(input.lunghezzaInterna),
-      larghezza: parseOptionalNumber(input.larghezza),
-      altezza: parseOptionalNumber(input.altezza),
-
-      postiLetto: parseOptionalNumber(input.postiLetto ?? input.posti),
-      disposizioneLetti: normalizeStringList(input.disposizioneLetti),
-      lettoFisso: parseOptionalBool(input.lettoFisso),
-      idealePer: normalizeStringList(input.idealePer),
-
-      tipoDinette: String(input.tipoDinette || '').trim(),
-      cucina: String(input.cucina || '').trim(),
-      bagno: String(input.bagno || '').trim(),
-      docciaSeparata: parseOptionalBool(input.docciaSeparata),
-      armadi: parseOptionalBool(input.armadi),
-      gavoniInterni: parseOptionalBool(input.gavoniInterni),
-
-      fornelli: parseOptionalNumber(input.fornelli),
-      frigorifero: parseOptionalBool(input.frigorifero),
-      tipoFrigorifero: String(input.tipoFrigorifero || '').trim(),
-      forno: parseOptionalBool(input.forno),
-      lavello: parseOptionalBool(input.lavello),
-      cappaAspirante: parseOptionalBool(input.cappaAspirante),
-
-      wc: String(input.wc || '').trim(),
-      doccia: parseOptionalBool(input.doccia),
-      lavabo: parseOptionalBool(input.lavabo),
-      finestraBagno: parseOptionalBool(input.finestraBagno),
-
-      presa220Esterna: parseOptionalBool(input.presa220Esterna),
-      impianto12V: parseOptionalBool(input.impianto12V),
-      batteriaServizi: parseOptionalBool(input.batteriaServizi),
-      illuminazioneLed: parseOptionalBool(input.illuminazioneLed),
-
-      impiantoGas: String(input.impiantoGas || '').trim(),
-      numeroBombole: parseOptionalNumber(input.numeroBombole),
-      scadenzaImpiantoGas: String(input.scadenzaImpiantoGas || '').trim(),
-
-      serbatoioAcquaPulita: parseOptionalBool(input.serbatoioAcquaPulita),
-      serbatoioAcqueGrigie: parseOptionalBool(input.serbatoioAcqueGrigie),
-      pompaAcqua: parseOptionalBool(input.pompaAcqua),
-      boilerAcquaCalda: parseOptionalBool(input.boilerAcquaCalda),
-
-      riscaldamento: parseOptionalBool(input.riscaldamento),
-      tipoRiscaldamento: String(input.tipoRiscaldamento || '').trim(),
-      boilerIntegrato: parseOptionalBool(input.boilerIntegrato),
-      climatizzatore: parseOptionalBool(input.climatizzatore),
-      predisposizioneClima: parseOptionalBool(input.predisposizioneClima),
-
-      numeroFinestre: parseOptionalNumber(input.numeroFinestre),
-      oblo: parseOptionalBool(input.oblo),
-      zanzariere: parseOptionalBool(input.zanzariere),
-      oscuranti: parseOptionalBool(input.oscuranti),
-      verandaTendalino: parseOptionalBool(input.verandaTendalino),
-      stabilizzatori: parseOptionalBool(input.stabilizzatori),
-      ruotaScorta: parseOptionalBool(input.ruotaScorta),
-      portabici: parseOptionalBool(input.portabici),
-
-      documenti: String(input.documenti ?? ''),
-      tipologia: String(input.tipologia ?? ''),
-      lunghezza: parseOptionalNumber(input.lunghezza),
-      posti: parseOptionalNumber(input.posti),
-
-      videoUrl: String(input.videoUrl || '').trim(),
-      planimetriaUrl: String(input.planimetriaUrl || '').trim(),
-
-      contattoTelefono: String(input.contattoTelefono || '').trim(),
-      contattoWhatsapp: String(input.contattoWhatsapp || '').trim(),
-      contattoEmail: String(input.contattoEmail || '').trim(),
-      localita: String(input.localita || '').trim(),
-      orariContatto: String(input.orariContatto || '').trim(),
-
-      photos: Array.isArray(input.photos) ? input.photos : [],
-      note: String(input.note || '').trim(),
-      createdAt
-    };
-    const next = {
-      ...db,
-      roulottes: [...db.roulottes, roulotte]
-    };
-    addLog(`Aggiunta roulotte: ${input.marca} ${input.modello}`);
-    return saveDB(next);
+  async function addRoulotte(input, photos = [], onProgress) {
+    return saveRoulotteToServer(input, photos, onProgress);
   }
 
   function updateRoulotte(input) {
@@ -567,6 +488,8 @@
     updateAdmin,
     addCategory,
     deleteCategory,
-    addLog
+    addLog,
+    setAuthToken: function(t){ authToken = String(t || ''); },
+    getAuthToken: function(){ return authToken; }
   };
 })();
