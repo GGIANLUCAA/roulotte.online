@@ -568,6 +568,25 @@
         </div>
         <div id="loginError" class="error" hidden>Credenziali non valide.</div>
       </form>
+      <form id="recoveryForm" style="margin-top:14px">
+        <div class="field">
+          <label for="resetCode">Codice reset</label>
+          <input id="resetCode" name="resetCode" autocomplete="off" />
+        </div>
+        <div class="field" style="margin-top:10px">
+          <label for="newUser">Nuovo username</label>
+          <input id="newUser" name="newUser" autocomplete="username" />
+        </div>
+        <div class="field" style="margin-top:10px">
+          <label for="newPass">Nuova password</label>
+          <input id="newPass" name="newPass" type="password" autocomplete="new-password" />
+        </div>
+        <div class="login-actions">
+          <button class="btn" type="button" id="toggleRecoveryBtn">Recupero accesso</button>
+          <button class="btn btn-primary" type="submit">Imposta credenziali</button>
+        </div>
+        <div id="recoveryMsg" class="error ok" hidden></div>
+      </form>
     </div>
   </div>
 
@@ -1717,8 +1736,19 @@
           body: JSON.stringify({ username: userEl.value, password: passEl.value })
         });
         if (!response.ok) {
+          const isLocal = (location.hostname === '127.0.0.1' || location.hostname === 'localhost');
+          if (isLocal) {
+            const resLocal = window.RoulotteStore.checkLogin(userEl.value, passEl.value);
+            if (resLocal.success) {
+              setAuthed(true);
+              showApp();
+              switchSection('dashboard');
+              refreshAll();
+              return;
+            }
+          }
           loginError.hidden = false;
-          loginError.textContent = 'Credenziali non valide.';
+          loginError.textContent = 'Credenziali non valide o server non configurato.';
           passEl.value = '';
           passEl.focus();
           return;
@@ -1735,10 +1765,71 @@
           loginError.textContent = 'Errore di autenticazione.';
         }
       } catch {
+        const isLocal = (location.hostname === '127.0.0.1' || location.hostname === 'localhost');
+        if (isLocal) {
+          const resLocal = window.RoulotteStore.checkLogin(userEl.value, passEl.value);
+          if (resLocal.success) {
+            setAuthed(true);
+            showApp();
+            switchSection('dashboard');
+            refreshAll();
+            return;
+          }
+        }
         loginError.hidden = false;
-        loginError.textContent = 'Errore di rete.';
+        loginError.textContent = 'Errore di rete o server non raggiungibile.';
       }
     });
+    const recoveryForm = document.getElementById('recoveryForm');
+    const toggleRecoveryBtn = document.getElementById('toggleRecoveryBtn');
+    const recoveryMsg = document.getElementById('recoveryMsg');
+    if (toggleRecoveryBtn) {
+      toggleRecoveryBtn.addEventListener('click', async () => {
+        const token = window.RoulotteStore.getAuthToken();
+        try {
+          const r = await fetch('https://roulotte-online-foto.onrender.com/api/auth/setup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: 'admin', password: 'admin' })
+          });
+          recoveryMsg.hidden = false;
+          recoveryMsg.textContent = r.ok ? 'Credenziali iniziali impostate: admin/admin' : 'Setup non disponibile';
+        } catch {
+          recoveryMsg.hidden = false;
+          recoveryMsg.textContent = 'Setup non disponibile';
+        }
+      });
+    }
+    if (recoveryForm) {
+      recoveryForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const code = document.getElementById('resetCode').value.trim();
+        const nu = document.getElementById('newUser').value.trim();
+        const np = document.getElementById('newPass').value;
+        if (!code || !nu || !np) {
+          recoveryMsg.hidden = false;
+          recoveryMsg.textContent = 'Inserisci codice e nuove credenziali.';
+          return;
+        }
+        try {
+          const r = await fetch('https://roulotte-online-foto.onrender.com/api/auth/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Admin-Reset': code },
+            body: JSON.stringify({ username: nu, password: np })
+          });
+          if (r.ok) {
+            recoveryMsg.hidden = false;
+            recoveryMsg.textContent = 'Credenziali aggiornate. Accedi ora.';
+          } else {
+            recoveryMsg.hidden = false;
+            recoveryMsg.textContent = 'Codice non valido o errore server.';
+          }
+        } catch {
+          recoveryMsg.hidden = false;
+          recoveryMsg.textContent = 'Errore di rete.';
+        }
+      });
+    }
 
     // --- Navigazione ---
     function switchSection(sectionId) {

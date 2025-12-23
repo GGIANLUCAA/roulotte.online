@@ -148,6 +148,17 @@ async function createTables() {
     );
   `;
   await db.query(createMedia);
+
+  const createAdminUsers = `
+    CREATE TABLE IF NOT EXISTS admin_users (
+      id SERIAL PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+  await db.query(createAdminUsers);
 }
 
 module.exports = { createTables };

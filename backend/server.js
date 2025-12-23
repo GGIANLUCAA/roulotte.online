@@ -110,12 +110,24 @@ app.get('/', (req, res) => {
   res.send('Backend di Roulotte.online attivo e funzionante!');
 });
 
+function hashPassword(pw) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(pw, salt, 64).toString('hex');
+  return `scrypt$${salt}$${hash}`;
+}
+function verifyPassword(pw, stored) {
+  const parts = String(stored || '').split('$');
+  if (parts.length !== 3 || parts[0] !== 'scrypt') return false;
+  const salt = parts[1];
+  const expected = Buffer.from(parts[2], 'hex');
+  const calc = Buffer.from(crypto.scryptSync(pw, salt, 64).toString('hex'), 'hex');
+  if (expected.length !== calc.length) return false;
+  return crypto.timingSafeEqual(expected, calc);
+}
+
 app.post('/api/auth/login', async (req, res) => {
   const u = String(req.body.username || '').trim();
   const p = String(req.body.password || '');
-  const okU = String(process.env.ADMIN_USER || '');
-  const okP = String(process.env.ADMIN_PASS || '');
-  if (!okU || !okP) return res.status(500).json({ error: 'CONFIG' });
   const key = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown') + '|' + u;
   const limit = Number(process.env.LOGIN_RATE_LIMIT || 20);
   const windowMs = Number(process.env.LOGIN_RATE_WINDOW_MS || 10 * 60 * 1000);
@@ -124,9 +136,60 @@ app.post('/api/auth/login', async (req, res) => {
   const rec = global.__loginAttempts.get(key) || { count: 0, resetAt: now + windowMs };
   if (now > rec.resetAt) { rec.count = 0; rec.resetAt = now + windowMs; }
   if (rec.count >= limit) return res.status(429).json({ error: 'TOO_MANY_ATTEMPTS' });
+
+  try {
+    const { rows } = await pool.query('SELECT username, password_hash FROM admin_users LIMIT 1;');
+    if (rows.length) {
+      const row = rows.find(r => String(r.username) === u) || rows[0];
+      const ok = (String(row.username) === u) && verifyPassword(p, String(row.password_hash));
+      if (!ok) { rec.count++; global.__loginAttempts.set(key, rec); return res.status(401).json({ error: 'INVALID_CREDENTIALS' }); }
+      const token = jwt.sign({ user: u }, String(process.env.JWT_SECRET || ''), { expiresIn: '12h' });
+      return res.json({ token });
+    }
+  } catch {}
+
+  const okU = String(process.env.ADMIN_USER || '');
+  const okP = String(process.env.ADMIN_PASS || '');
+  if (!okU || !okP) return res.status(500).json({ error: 'CONFIG' });
   if (u !== okU || p !== okP) { rec.count++; global.__loginAttempts.set(key, rec); return res.status(401).json({ error: 'INVALID_CREDENTIALS' }); }
   const token = jwt.sign({ user: u }, String(process.env.JWT_SECRET || ''), { expiresIn: '12h' });
   res.json({ token });
+});
+
+app.post('/api/auth/setup', async (req, res) => {
+  const u = String(req.body.username || '').trim();
+  const p = String(req.body.password || '');
+  if (!u || !p) return res.status(400).json({ error: 'BAD_REQUEST' });
+  try {
+    const { rows } = await pool.query('SELECT COUNT(1) AS c FROM admin_users;');
+    if (Number(rows[0]?.c || 0) > 0) return res.status(403).json({ error: 'EXISTS' });
+    const h = hashPassword(p);
+    await pool.query('INSERT INTO admin_users (username, password_hash) VALUES ($1, $2);', [u, h]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+app.post('/api/auth/reset', async (req, res) => {
+  const code = String(req.headers['x-admin-reset'] || '');
+  const tokenOk = code && (code === String(process.env.ADMIN_RESET_TOKEN || '') || code === String(process.env.JWT_SECRET || ''));
+  if (!tokenOk) return res.status(401).json({ error: 'UNAUTHORIZED' });
+  const u = String(req.body.username || '').trim();
+  const p = String(req.body.password || '');
+  if (!u || !p) return res.status(400).json({ error: 'BAD_REQUEST' });
+  try {
+    const h = hashPassword(p);
+    const up = `
+      INSERT INTO admin_users (username, password_hash)
+      VALUES ($1, $2)
+      ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, updated_at = CURRENT_TIMESTAMP;
+    `;
+    await pool.query(up, [u, h]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
 });
 
 app.get('/api/content/:key', async (req, res) => {
