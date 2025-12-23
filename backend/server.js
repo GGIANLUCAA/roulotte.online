@@ -28,10 +28,6 @@ app.get('/', (req, res) => {
   res.send('Backend di Roulotte.online attivo e funzionante!');
 });
 
-createTables()
-  .then(() => console.log('Tabelle database pronte.'))
-  .catch((err) => console.error('Errore durante la preparazione delle tabelle:', err));
-
 // Rotta per ottenere tutte le roulotte con le loro foto
 app.get('/api/roulottes', async (req, res) => {
   try {
@@ -190,6 +186,18 @@ app.post('/api/roulottes', upload.array('photos'), async (req, res) => {
 
 const PORT = process.env.PORT || 3001; // Render userà la variabile d'ambiente PORT
 
-app.listen(PORT, () => {
-  console.log(`Server in ascolto sulla porta ${PORT}`);
-});
+async function startServer() {
+  try {
+    await createTables();
+    console.log('Tabelle database pronte.');
+  } catch (err) {
+    console.error('Errore durante la preparazione delle tabelle:', err);
+    process.exit(1);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Server in ascolto sulla porta ${PORT}`);
+  });
+}
+
+startServer();
