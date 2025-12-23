@@ -63,7 +63,26 @@ app.get('/api/roulottes', async (req, res) => {
 
   } catch (err) {
     console.error('Errore durante il recupero delle roulotte:', err);
-    res.status(500).json({ error: 'Errore interno del server' });
+    res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
+  }
+});
+
+app.get('/api/health', async (req, res) => {
+  try {
+    const dbPing = await pool.query('SELECT 1 AS ok;');
+    const tables = await pool.query(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      ORDER BY table_name;
+    `);
+    res.json({
+      ok: true,
+      db: dbPing.rows && dbPing.rows[0] ? dbPing.rows[0].ok === 1 : false,
+      tables: (tables.rows || []).map((r) => r.table_name),
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err && err.message ? err.message : err) });
   }
 });
 
@@ -174,7 +193,7 @@ app.post('/api/roulottes', upload.array('photos'), async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK'); // Annulla la transazione in caso di errore
     console.error('Errore durante la creazione della roulotte:', err);
-    res.status(500).json({ error: 'Errore interno del server' });
+    res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
   } finally {
     client.release(); // Rilascia la connessione al pool
   }
