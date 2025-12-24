@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin - Roulotte online</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     :root{
       --primary:#2563eb;
@@ -1810,7 +1811,8 @@
       try {
         const cfg = await fetch('https://roulotte-online-foto.onrender.com/api/config').then(r => r.json()).catch(() => ({}));
         const cid = String(cfg && cfg.google_client_id || '');
-        if (!cid || typeof google === 'undefined' || !google.accounts || !google.accounts.id) return;
+        if (!cid) { console.warn('Google Client ID non trovato in /api/config'); return; }
+        if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) { console.warn('Google Library non caricata'); return; }
         const googleWrap = document.createElement('div');
         googleWrap.style.marginTop = '10px';
         const googleBtn = document.createElement('div');
