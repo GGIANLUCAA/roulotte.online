@@ -2970,6 +2970,43 @@
         newAuthPass.value = '';
       }
     });
+    (function(){
+      const settingsSection = document.getElementById('settings');
+      if (settingsSection) {
+        const deployWrap = document.createElement('div');
+        deployWrap.style.marginTop = '10px';
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.textContent = 'Aggiorna sito (Render)';
+        const msg = document.createElement('div');
+        msg.className = 'hint';
+        msg.style.marginTop = '6px';
+        msg.hidden = true;
+        btn.addEventListener('click', async () => {
+          msg.hidden = false;
+          msg.textContent = 'Richiesta di aggiornamento inviata…';
+          try {
+            const token = window.RoulotteStore.getAuthToken();
+            const r = await fetch('https://roulotte-online-foto.onrender.com/api/deploy/trigger', { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
+            if (r.ok) {
+              msg.textContent = 'Aggiornamento avviato su Render.';
+            } else {
+              try {
+                const j = await r.json();
+                msg.textContent = 'Errore aggiornamento: ' + (j && j.error ? j.error : r.status);
+              } catch {
+                msg.textContent = 'Errore aggiornamento.';
+              }
+            }
+          } catch {
+            msg.textContent = 'Errore di rete.';
+          }
+        });
+        deployWrap.appendChild(btn);
+        deployWrap.appendChild(msg);
+        settingsSection.appendChild(deployWrap);
+      }
+    })();
 
     // --- Elenco ---
     function statusClass(stato) {

@@ -52,6 +52,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'roulotte_secret_fallback_2025';
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'admin';
 const ADMIN_RESET_TOKEN = process.env.ADMIN_RESET_TOKEN || 'reset_token_fallback_2025';
+const RENDER_API_KEY = process.env.RENDER_API_KEY || '';
+const RENDER_SERVICE_ID = process.env.RENDER_SERVICE_ID || 'srv-d54pt6i4d50c739h8ob0';
 
 // Configurazione di Multer per gestire l'upload di file in memoria
 const storage = multer.memoryStorage();
@@ -281,6 +283,19 @@ app.post('/api/content/:key/publish', requireAdmin, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+app.post('/api/deploy/trigger', requireAdmin, async (req, res) => {
+  try {
+    if (!RENDER_API_KEY || !RENDER_SERVICE_ID) return res.status(500).json({ error: 'RENDER_CONFIG' });
+    const url = `https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys`;
+    const r = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${RENDER_API_KEY}` } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return res.status(r.status).json({ error: 'RENDER_ERROR', detail: j });
+    res.json({ ok: true, deploy: j });
+  } catch (err) {
+    res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
   }
 });
 
