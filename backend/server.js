@@ -567,11 +567,11 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
     const savedPublicId = roulotteResult.rows[0].public_id;
 
     // 2. Carica le foto su R2 e inserisci i riferimenti nel database
-    if (!process.env.R2_BUCKET_NAME || !process.env.R2_PUBLIC_URL) {
-      await client.query('ROLLBACK');
-      return res.status(500).json({ error: 'STORAGE_CONFIG' });
-    }
     if (req.files && req.files.length > 0) {
+      if (!process.env.R2_BUCKET_NAME || !process.env.R2_PUBLIC_URL) {
+        await client.query('ROLLBACK');
+        return res.status(500).json({ error: 'STORAGE_CONFIG_MISSING', detail: 'Mancano le variabili R2_BUCKET_NAME o R2_PUBLIC_URL su Render.' });
+      }
       for (const [index, file] of req.files.entries()) {
         const mt = String(file.mimetype || '').toLowerCase();
         const sz = Number(file.size || 0);
