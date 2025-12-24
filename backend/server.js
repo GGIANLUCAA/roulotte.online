@@ -241,6 +241,14 @@ app.post('/api/auth/google', async (req, res) => {
     const emailVerified = String(info && info.email_verified || '') === 'true';
     if (!GOOGLE_CLIENT_ID || aud !== GOOGLE_CLIENT_ID) return res.status(401).json({ error: 'UNAUTHORIZED' });
     if (!email || !emailVerified) return res.status(401).json({ error: 'UNAUTHORIZED' });
+
+    // Sicurezza: Whitelist email
+    const allowed = String(process.env.ALLOWED_GOOGLE_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    if (allowed.length > 0 && !allowed.includes(email.toLowerCase())) {
+      console.warn(`Tentativo di login Google bloccato per email non autorizzata: ${email}`);
+      return res.status(403).json({ error: 'FORBIDDEN_EMAIL' });
+    }
+
     const token = jwt.sign({ user: email, provider: 'google' }, JWT_SECRET, { expiresIn: '12h' });
     res.json({ token, email });
   } catch (err) {

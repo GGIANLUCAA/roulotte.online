@@ -1827,7 +1827,16 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id_token: response.credential })
               });
-              if (!r.ok) { loginError.hidden = false; loginError.textContent = 'Login Google non riuscito.'; return; }
+              if (!r.ok) {
+                const errJson = await r.json().catch(() => ({}));
+                loginError.hidden = false;
+                if (r.status === 403 && errJson.error === 'FORBIDDEN_EMAIL') {
+                  loginError.textContent = 'Email Google non autorizzata.';
+                } else {
+                  loginError.textContent = 'Login Google non riuscito.';
+                }
+                return;
+              }
               const data = await r.json();
               if (data && data.token) {
                 window.RoulotteStore.setAuthToken(data.token);
