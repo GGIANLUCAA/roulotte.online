@@ -76,7 +76,14 @@ const upload = multer({
 const generateFileName = (bytes = 32) => crypto.randomBytes(bytes).toString('hex');
 
 function joinUrl(base, path) {
-  const b = String(base || '').trim().replace(/\/+$/, '');
+  // Pulizia aggressiva dell'URL base per rimuovere backticks e spazi accidentali
+  let b = String(base || '').trim().replace(/^['"`]+|['"`]+$/g, '');
+  // Aggiungi https:// se manca
+  if (b && !b.startsWith('http://') && !b.startsWith('https://')) {
+    b = 'https://' + b;
+  }
+  b = b.replace(/\/+$/, '');
+  
   const p = String(path || '').trim().replace(/^\/+/, '');
   if (!b) return p;
   if (!p) return b;
