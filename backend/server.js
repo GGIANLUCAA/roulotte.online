@@ -3,6 +3,7 @@ const cors = require('cors');
 const compression = require('compression');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
+const path = require('path');
 
 const app = express();
 
@@ -32,6 +33,9 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Static files (serve admin UI e asset dal root del progetto)
+app.use(express.static(path.join(__dirname, '..')));
 
 const pool = require('./db'); // Importiamo la configurazione del database
 const s3Client = require('./s3-client'); // Importiamo il client S3 per R2
