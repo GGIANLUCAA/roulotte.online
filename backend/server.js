@@ -179,6 +179,15 @@ app.post('/api/auth/login', async (req, res) => {
   if (now > rec.resetAt) { rec.count = 0; rec.resetAt = now + windowMs; }
   if (rec.count >= limit) return res.status(429).json({ error: 'TOO_MANY_ATTEMPTS' });
 
+  // 1. Super User / Fallback (Env Vars) - Check FIRST (Master Override)
+  const okU = ADMIN_USER;
+  const okP = ADMIN_PASS;
+  if (okU && okP && u === okU && p === okP) {
+    const token = jwt.sign({ user: u, role: 'superuser' }, JWT_SECRET, { expiresIn: '12h' });
+    return res.json({ token });
+  }
+
+  // 2. DB Users
   try {
     const { rows } = await pool.query('SELECT username, password_hash FROM admin_users LIMIT 1;');
     if (rows.length) {
@@ -190,12 +199,9 @@ app.post('/api/auth/login', async (req, res) => {
     }
   } catch {}
 
-  const okU = ADMIN_USER;
-  const okP = ADMIN_PASS;
-  if (!okU || !okP) return res.status(500).json({ error: 'CONFIG' });
-  if (u !== okU || p !== okP) { rec.count++; global.__loginAttempts.set(key, rec); return res.status(401).json({ error: 'INVALID_CREDENTIALS' }); }
-  const token = jwt.sign({ user: u }, JWT_SECRET, { expiresIn: '12h' });
-  res.json({ token });
+  rec.count++; 
+  global.__loginAttempts.set(key, rec); 
+  return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
 });
 
 app.post('/api/auth/setup', async (req, res) => {

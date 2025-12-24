@@ -1,6 +1,8 @@
 (function () {
   const storageKey = 'roulotte_db_v1';
-  const API_BASE_URL = 'https://roulotte-online-foto.onrender.com';
+  // Rileva automaticamente se siamo in locale o in produzione
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const API_BASE_URL = isLocal ? 'http://localhost:3001' : 'https://roulotte-online-foto.onrender.com';
 
   function nowIso() {
     return new Date().toISOString();
