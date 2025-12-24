@@ -1937,6 +1937,7 @@
       try {
         const token = window.RoulotteStore.getAuthToken();
         const r = await fetch('https://roulotte-online-foto.onrender.com/api/media', { headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
+        if (r.status === 401) { mediaGrid.innerHTML = '<div class="hint">Sessione scaduta. Accedi di nuovo.</div>'; logout(); return; }
         if (!r.ok) { mediaGrid.innerHTML = '<div class="hint">Impossibile caricare media.</div>'; return; }
         const arr = await r.json();
         mediaGrid.innerHTML = '';
@@ -2012,6 +2013,7 @@
             } else {
               let msg = 'Errore caricamento immagini.';
               try { const j = JSON.parse(xhr.responseText); if (j && j.error) msg = String(j.error); } catch {}
+              if (xhr.status === 401) { msg = 'Sessione scaduta. Accedi di nuovo.'; logout(); }
               if (mediaGrid) mediaGrid.innerHTML = '<div class="hint">'+msg+'</div>';
               resolve([]);
             }
@@ -2802,6 +2804,8 @@
     // --- Form Submit ---
     newForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const tokenCheck = window.RoulotteStore.getAuthToken();
+      if (!tokenCheck) { formMsg.hidden = false; formMsg.textContent = 'Sessione scaduta. Accedi di nuovo.'; logout(); return; }
       const marca = String(marcaEl.value || '').trim();
       const modello = String(modelloEl.value || '').trim();
       const prezzo = Number(prezzoEl.value);
@@ -2929,7 +2933,9 @@
           } catch {}
         } catch (err) {
           formMsg.hidden = false;
-          formMsg.textContent = String((err && err.message) ? err.message : 'Errore durante il salvataggio. Riprova.');
+          const msg = String((err && err.message) ? err.message : 'Errore durante il salvataggio. Riprova.');
+          formMsg.textContent = msg;
+          if (msg.includes('UNAUTHORIZED') || msg.includes('401')) { logout(); }
           return;
         }
       }

@@ -491,7 +491,15 @@
     addCategory,
     deleteCategory,
     addLog,
-    setAuthToken: function(t){ authToken = String(t || ''); },
-    getAuthToken: function(){ return authToken; }
+    setAuthToken: function(t){
+      authToken = String(t || '');
+      try { sessionStorage.setItem('admin_jwt_token', authToken); } catch {}
+    },
+    getAuthToken: function(){
+      if (!authToken) {
+        try { authToken = String(sessionStorage.getItem('admin_jwt_token') || ''); } catch {}
+      }
+      return authToken;
+    }
   };
 })();
