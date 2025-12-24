@@ -2022,7 +2022,10 @@
       });
     }
     if (mediaRefreshBtn) mediaRefreshBtn.addEventListener('click', loadMedia);
-    if (mediaInput) mediaInput.addEventListener('change', (e) => uploadMedia(e.target.files));
+    if (mediaInput) {
+      try { mediaInput.setAttribute('accept','image/jpeg,image/png,image/webp'); mediaInput.setAttribute('multiple',''); mediaInput.setAttribute('capture','environment'); } catch {}
+      mediaInput.addEventListener('change', (e) => uploadMedia(e.target.files));
+    }
 
     const contentKeyEl = document.getElementById('contentKey');
     const contentTypeEl = document.getElementById('contentType');
@@ -2181,6 +2184,17 @@
 
     // --- Generazione Automatica Descrizione ---
     window.generateDescription = function() {
+      let statusEl = document.getElementById('descStatus');
+      if (!statusEl) {
+        statusEl = document.createElement('div');
+        statusEl.id = 'descStatus';
+        statusEl.style.fontSize = '.85rem';
+        statusEl.style.color = 'var(--muted)';
+        statusEl.style.margin = '6px 0';
+        editor.parentElement.insertBefore(statusEl, editor);
+      }
+      statusEl.textContent = 'Generazione descrizione in corso…';
+      try {
       const parts = [];
       const marca = marcaEl.value.trim();
       const modello = modelloEl.value.trim();
@@ -2278,6 +2292,18 @@
       editor.innerHTML = html;
       noteEl.value = html;
       saveDraft();
+      statusEl.textContent = 'Descrizione generata';
+      } catch (err) {
+        statusEl.textContent = 'Errore durante la generazione della descrizione';
+        try {
+          const token = window.RoulotteStore.getAuthToken();
+          fetch('https://roulotte-online-foto.onrender.com/api/admin/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' },
+            body: JSON.stringify({ action: 'DESC_GENERATION_ERROR', details: { message: String(err && err.message ? err.message : err) } })
+          }).catch(() => {});
+        } catch {}
+      }
     };
 
     // Trigger auto-gen on change (opzionale, meglio manuale o al primo inserimento)
@@ -2500,6 +2526,7 @@
     
     dropzone.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files));
     dropzone.addEventListener('click', () => photosInput.click());
+    try { photosInput.setAttribute('accept','image/jpeg,image/png,image/webp'); photosInput.setAttribute('multiple',''); photosInput.setAttribute('capture','environment'); } catch {}
     photosInput.addEventListener('change', () => handleFiles(photosInput.files));
     function canUseWebp() {
       try {

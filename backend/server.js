@@ -105,6 +105,20 @@ function adminLog(client, action, username, details) {
   return client.query(q, [String(action || ''), String(username || ''), d]);
 }
 
+app.post('/api/admin/log', requireAdmin, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const action = String(req.body.action || '').trim() || 'LOG';
+    const details = req.body.details || {};
+    await adminLog(client, action, req.adminUser || 'admin', details);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Errore interno del server' });
+  } finally {
+    client.release();
+  }
+});
+
 function requireAdmin(req, res, next) {
   const auth = String(req.headers.authorization || '');
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
