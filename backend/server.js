@@ -275,13 +275,35 @@ app.get('/api/media', requireAdmin, async (req, res) => {
 app.post('/api/media', requireAdmin, upload.array('files'), async (req, res) => {
   const client = await pool.connect();
   try {
+    if (!process.env.R2_BUCKET_NAME || !process.env.R2_PUBLIC_URL) {
+      return res.status(500).json({ error: 'STORAGE_CONFIG' });
+    }
     await client.query('BEGIN');
     const out = [];
+    if (!req.files || req.files.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'NO_FILES' });
+    }
     if (req.files) {
       for (const file of req.files) {
+        const mt = String(file.mimetype || '').toLowerCase();
+        const sz = Number(file.size || 0);
+        if (!['image/jpeg','image/png','image/webp'].includes(mt)) {
+          await client.query('ROLLBACK');
+          return res.status(415).json({ error: 'UNSUPPORTED_FORMAT' });
+        }
+        if (sz > (10 * 1024 * 1024)) {
+          await client.query('ROLLBACK');
+          return res.status(413).json({ error: 'FILE_TOO_LARGE' });
+        }
         const fileName = generateFileName();
         const params = { Bucket: process.env.R2_BUCKET_NAME, Key: fileName, Body: file.buffer, ContentType: file.mimetype, CacheControl: 'public, max-age=31536000, immutable' };
-        await s3Client.send(new PutObjectCommand(params));
+        try {
+          await s3Client.send(new PutObjectCommand(params));
+        } catch (e) {
+          await client.query('ROLLBACK');
+          return res.status(502).json({ error: 'STORAGE_ERROR', detail: String(e && e.message ? e.message : e) });
+        }
         if (process.env.R2_BACKUP_BUCKET_NAME) {
           const backupParams = { Bucket: process.env.R2_BACKUP_BUCKET_NAME, Key: fileName, Body: file.buffer, ContentType: file.mimetype, CacheControl: 'public, max-age=31536000, immutable' };
           try { await s3Client.send(new PutObjectCommand(backupParams)); } catch {}
@@ -295,7 +317,7 @@ app.post('/api/media', requireAdmin, upload.array('files'), async (req, res) => 
     res.json(out);
   } catch (err) {
     await client.query('ROLLBACK');
-    res.status(500).json({ error: 'Errore interno del server' });
+    res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
   } finally {
     client.release();
   }
@@ -449,8 +471,22 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
     const savedPublicId = roulotteResult.rows[0].public_id;
 
     // 2. Carica le foto su R2 e inserisci i riferimenti nel database
-    if (req.files) {
+    if (!process.env.R2_BUCKET_NAME || !process.env.R2_PUBLIC_URL) {
+      await client.query('ROLLBACK');
+      return res.status(500).json({ error: 'STORAGE_CONFIG' });
+    }
+    if (req.files && req.files.length > 0) {
       for (const [index, file] of req.files.entries()) {
+        const mt = String(file.mimetype || '').toLowerCase();
+        const sz = Number(file.size || 0);
+        if (!['image/jpeg','image/png','image/webp'].includes(mt)) {
+          await client.query('ROLLBACK');
+          return res.status(415).json({ error: 'UNSUPPORTED_FORMAT' });
+        }
+        if (sz > (10 * 1024 * 1024)) {
+          await client.query('ROLLBACK');
+          return res.status(413).json({ error: 'FILE_TOO_LARGE' });
+        }
         const fileName = generateFileName();
         const params = {
           Bucket: process.env.R2_BUCKET_NAME,
@@ -460,7 +496,12 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
           CacheControl: 'public, max-age=31536000, immutable'
         };
 
-        await s3Client.send(new PutObjectCommand(params));
+        try {
+          await s3Client.send(new PutObjectCommand(params));
+        } catch (e) {
+          await client.query('ROLLBACK');
+          return res.status(502).json({ error: 'STORAGE_ERROR', detail: String(e && e.message ? e.message : e) });
+        }
         if (process.env.R2_BACKUP_BUCKET_NAME) {
           const backupParams = {
             Bucket: process.env.R2_BACKUP_BUCKET_NAME,
@@ -479,6 +520,10 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
         `;
         await client.query(photoQuery, [roulotteDbId, photoUrl, photoUrl, index, index === 0]);
       }
+    } else {
+      await client.query('COMMIT');
+      try { await adminLog(client, 'CREATE_ROULOTTE', req.adminUser || 'admin', { id: savedPublicId }); } catch {}
+      return res.status(201).json({ message: 'Roulotte creata con successo!', id: savedPublicId });
     }
 
     await client.query('COMMIT'); // Conferma la transazione

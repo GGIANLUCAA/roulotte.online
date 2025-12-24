@@ -1927,6 +1927,11 @@
     const mediaRefreshBtn = document.getElementById('mediaRefreshBtn');
     const mediaGrid = document.getElementById('mediaGrid');
     const mediaProg = document.getElementById('mediaProg');
+    try {
+      if (mediaInput) { mediaInput.setAttribute('accept','image/jpeg,image/png,image/webp'); mediaInput.setAttribute('multiple',''); }
+      const pi = document.getElementById('photosInput');
+      if (pi) { pi.setAttribute('accept','image/jpeg,image/png,image/webp'); pi.setAttribute('multiple',''); }
+    } catch {}
     async function loadMedia() {
       if (!mediaGrid) return;
       try {
@@ -1977,7 +1982,20 @@
         xhr.open('POST', 'https://roulotte-online-foto.onrender.com/api/media');
         if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
         xhr.upload.onprogress = function(e){ if (mediaProg && e && e.lengthComputable) { mediaProg.style.display=''; mediaProg.value = Math.round((e.loaded/e.total)*100); } };
-        xhr.onreadystatechange = function(){ if (xhr.readyState===4){ if (mediaProg){ mediaProg.style.display='none'; mediaProg.value=0; } try { resolve(JSON.parse(xhr.responseText)); } catch { resolve([]); } loadMedia(); } };
+        xhr.onreadystatechange = function(){
+          if (xhr.readyState===4){
+            if (mediaProg){ mediaProg.style.display='none'; mediaProg.value=0; }
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try { resolve(JSON.parse(xhr.responseText)); } catch { resolve([]); }
+              loadMedia();
+            } else {
+              let msg = 'Errore caricamento immagini.';
+              try { const j = JSON.parse(xhr.responseText); if (j && j.error) msg = String(j.error); } catch {}
+              if (mediaGrid) mediaGrid.innerHTML = '<div class="hint">'+msg+'</div>';
+              resolve([]);
+            }
+          }
+        };
         xhr.onerror = function(){ if (mediaProg){ mediaProg.style.display='none'; mediaProg.value=0; } resolve([]); };
         xhr.send(fd);
       });
@@ -2469,6 +2487,20 @@
       } catch { return false; }
     }
     const USE_WEBP = canUseWebp();
+    function dataURLToFile(name, dataURL) {
+      const parts = String(dataURL || '').split(',');
+      if (parts.length < 2) return null;
+      const meta = parts[0];
+      const b64 = parts[1];
+      const mime = (meta.match(/data:(.*);base64/) || [null, 'application/octet-stream'])[1];
+      try {
+        const bin = atob(b64);
+        const arr = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        const blob = new Blob([arr], { type: mime });
+        try { return new File([blob], name, { type: mime }); } catch { return blob; }
+      } catch { return null; }
+    }
     async function processImageFromBlob(blob) {
       let bmp = null;
       try { bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' }); } catch {}
@@ -2497,6 +2529,10 @@
         else out.src = url;
         out.type = type;
       }
+      const ext = out.type === 'image/webp' ? 'webp' : 'jpg';
+      const name = 'photo_' + Date.now() + '.' + ext;
+      const fileObj = dataURLToFile(name, out.src);
+      if (fileObj) { out.file = fileObj; out.name = name; }
       const pC = document.createElement('canvas');
       const pr = Math.min(24 / w, 24 / h, 1);
       pC.width = Math.round(w * pr);
@@ -2524,6 +2560,12 @@
         const blob = await res.blob();
         if (!blob.type.startsWith('image/')) return;
         const obj = await processImageFromBlob(blob);
+        if (!obj.file) {
+          const ext = obj.type === 'image/webp' ? 'webp' : 'jpg';
+          obj.name = 'photo_' + Date.now() + '.' + ext;
+          const f = dataURLToFile(obj.name, obj.src);
+          if (f) obj.file = f;
+        }
         draftPhotos.push(obj);
         photoUrlInput.value = '';
         renderPhotos();
@@ -2571,6 +2613,12 @@
         try {
           if (f.type.startsWith('image/')) {
             const obj = await processImageFromBlob(f);
+            if (!obj.file) {
+              const ext = obj.type === 'image/webp' ? 'webp' : 'jpg';
+              obj.name = (f.name && String(f.name).trim()) ? f.name : ('photo_' + Date.now() + '.' + ext);
+              const f2 = dataURLToFile(obj.name, obj.src);
+              if (f2) obj.file = f2;
+            }
             draftPhotos.push(obj);
           } else if (f.type.startsWith('video/')) {
             const v = await processVideoFromBlob(f);
@@ -2833,7 +2881,7 @@
           } catch {}
         } catch (err) {
           formMsg.hidden = false;
-          formMsg.textContent = 'Errore durante il salvataggio. Riprova.';
+          formMsg.textContent = String((err && err.message) ? err.message : 'Errore durante il salvataggio. Riprova.');
           return;
         }
       }

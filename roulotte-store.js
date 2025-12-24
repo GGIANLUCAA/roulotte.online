@@ -320,7 +320,9 @@
           if (xhr.status >= 200 && xhr.status < 300) {
             try { resolve(JSON.parse(xhr.responseText)); } catch { resolve({}); }
           } else {
-            reject(new Error('Errore dal server: ' + xhr.status));
+            let msg = 'Errore dal server: ' + xhr.status;
+            try { const j = JSON.parse(xhr.responseText); if (j && j.error) msg = String(j.error) + (j.detail ? (': ' + String(j.detail)) : ''); } catch {}
+            reject(new Error(msg));
           }
         }
       };
