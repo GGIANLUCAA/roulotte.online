@@ -1857,6 +1857,25 @@
         google.accounts.id.renderButton(googleBtn, { theme: 'outline', size: 'large' });
       } catch {}
     })();
+
+    // Mostra l'origine corrente per aiutare il debug di Google Auth
+    setTimeout(() => {
+       console.log('Origin corrente:', window.location.origin);
+       const debugOrigin = document.createElement('div');
+       debugOrigin.style.padding = '10px';
+       debugOrigin.style.background = '#fff3cd';
+       debugOrigin.style.color = '#856404';
+       debugOrigin.style.border = '1px solid #ffeeba';
+       debugOrigin.style.margin = '10px 0';
+       debugOrigin.style.borderRadius = '4px';
+       debugOrigin.style.fontSize = '14px';
+       debugOrigin.innerHTML = `<strong>Configurazione Google:</strong> Assicurati che l'URL <code>${window.location.origin}</code> sia aggiunto in "Origini JavaScript autorizzate" nella Google Cloud Console. <br><small>Se vedi "Accesso bloccato: errore di autorizzazione", copia questo URL e aggiungilo.</small>`;
+       const loginContainer = document.querySelector('.login-container');
+       if(loginContainer && !window.RoulotteStore.getAuthToken()) {
+         loginContainer.appendChild(debugOrigin);
+       }
+    }, 1000);
+
     const recoveryForm = document.getElementById('recoveryForm');
     const toggleRecoveryBtn = document.getElementById('toggleRecoveryBtn');
     const recoveryMsg = document.getElementById('recoveryMsg');
