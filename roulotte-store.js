@@ -296,7 +296,7 @@
     return 'R-' + String(max + 1).padStart(4, '0');
   }
 
-  async function saveRoulotteToServer(input, photos = [], onProgress) {
+  async function sendRoulotteData(method, url, input, photos = [], photoField = 'photos', onProgress) {
     const formData = new FormData();
     for (const key in input) {
       if (input[key] !== null && input[key] !== undefined) {
@@ -304,11 +304,11 @@
       }
     }
     for (const photo of photos) {
-      if (photo && photo.file) formData.append('photos', photo.file, photo.name);
+      if (photo && photo.file) formData.append(photoField, photo.file, photo.name);
     }
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', `${API_BASE_URL}/api/roulottes`);
+      xhr.open(method, url);
       if (authToken) xhr.setRequestHeader('Authorization', 'Bearer ' + authToken);
       xhr.upload.onprogress = function(e){
         if (onProgress && e && e.lengthComputable) {
@@ -332,142 +332,26 @@
   }
 
   async function addRoulotte(input, photos = [], onProgress) {
-    return saveRoulotteToServer(input, photos, onProgress);
+    return sendRoulotteData('POST', `${API_BASE_URL}/api/roulottes`, input, photos, 'photos', onProgress);
   }
 
-  function updateRoulotte(input) {
-    const db = getDB();
-    const existingIndex = db.roulottes.findIndex(r => r.id === input.id);
-    if (existingIndex === -1) return null;
-
-    const old = db.roulottes[existingIndex];
-    const updated = {
-      ...old,
-      marca: String(input.marca || old.marca).trim(),
-      modello: String(input.modello || old.modello).trim(),
-      versione: input.versione !== undefined ? String(input.versione || '').trim() : old.versione,
-      anno: input.anno !== undefined ? parseOptionalNumber(input.anno) : old.anno,
-      prezzo: input.prezzo !== undefined ? parseOptionalNumber(input.prezzo) : old.prezzo,
-      stato: String(input.stato || old.stato).trim(),
-      categoryId: String(input.categoryId || old.categoryId),
-      disponibilitaProntaConsegna: input.disponibilitaProntaConsegna !== undefined ? parseOptionalBool(input.disponibilitaProntaConsegna) : old.disponibilitaProntaConsegna,
-      permuta: input.permuta !== undefined ? parseOptionalBool(input.permuta) : old.permuta,
-      tipologiaMezzo: input.tipologiaMezzo !== undefined ? String(input.tipologiaMezzo || '').trim() : old.tipologiaMezzo,
-
-      condizioneGenerale: input.condizioneGenerale !== undefined ? String(input.condizioneGenerale || '').trim() : old.condizioneGenerale,
-      statoInterni: input.statoInterni !== undefined ? String(input.statoInterni || '').trim() : old.statoInterni,
-      statoEsterni: input.statoEsterni !== undefined ? String(input.statoEsterni || '').trim() : old.statoEsterni,
-      infiltrazioni: input.infiltrazioni !== undefined ? String(input.infiltrazioni || '').trim() : old.infiltrazioni,
-      odori: input.odori !== undefined ? String(input.odori || '').trim() : old.odori,
-      provenienza: input.provenienza !== undefined ? String(input.provenienza || '').trim() : old.provenienza,
-
-      targata: input.targata !== undefined ? parseOptionalBool(input.targata) : old.targata,
-      librettoCircolazione: input.librettoCircolazione !== undefined ? parseOptionalBool(input.librettoCircolazione) : old.librettoCircolazione,
-      omologataCircolazione: input.omologataCircolazione !== undefined ? parseOptionalBool(input.omologataCircolazione) : old.omologataCircolazione,
-      numeroTelaio: input.numeroTelaio !== undefined ? String(input.numeroTelaio || '').trim() : old.numeroTelaio,
-      numeroAssi: input.numeroAssi !== undefined ? String(input.numeroAssi || '').trim() : old.numeroAssi,
-      timone: input.timone !== undefined ? parseOptionalBool(input.timone) : old.timone,
-      frenoRepulsione: input.frenoRepulsione !== undefined ? parseOptionalBool(input.frenoRepulsione) : old.frenoRepulsione,
-
-      massa: input.massa !== undefined ? parseOptionalNumber(input.massa) : old.massa,
-      pesoVuoto: input.pesoVuoto !== undefined ? parseOptionalNumber(input.pesoVuoto) : old.pesoVuoto,
-
-      lunghezzaTotale: input.lunghezzaTotale !== undefined ? parseOptionalNumber(input.lunghezzaTotale) : (input.lunghezza !== undefined ? parseOptionalNumber(input.lunghezza) : old.lunghezzaTotale),
-      lunghezzaInterna: input.lunghezzaInterna !== undefined ? parseOptionalNumber(input.lunghezzaInterna) : old.lunghezzaInterna,
-      larghezza: input.larghezza !== undefined ? parseOptionalNumber(input.larghezza) : old.larghezza,
-      altezza: input.altezza !== undefined ? parseOptionalNumber(input.altezza) : old.altezza,
-
-      postiLetto: input.postiLetto !== undefined ? parseOptionalNumber(input.postiLetto) : (input.posti !== undefined ? parseOptionalNumber(input.posti) : old.postiLetto),
-      disposizioneLetti: input.disposizioneLetti !== undefined ? normalizeStringList(input.disposizioneLetti) : old.disposizioneLetti,
-      lettoFisso: input.lettoFisso !== undefined ? parseOptionalBool(input.lettoFisso) : old.lettoFisso,
-      idealePer: input.idealePer !== undefined ? normalizeStringList(input.idealePer) : old.idealePer,
-
-      tipoDinette: input.tipoDinette !== undefined ? String(input.tipoDinette || '').trim() : old.tipoDinette,
-      cucina: input.cucina !== undefined ? String(input.cucina || '').trim() : old.cucina,
-      bagno: input.bagno !== undefined ? String(input.bagno || '').trim() : old.bagno,
-      docciaSeparata: input.docciaSeparata !== undefined ? parseOptionalBool(input.docciaSeparata) : old.docciaSeparata,
-      armadi: input.armadi !== undefined ? parseOptionalBool(input.armadi) : old.armadi,
-      gavoniInterni: input.gavoniInterni !== undefined ? parseOptionalBool(input.gavoniInterni) : old.gavoniInterni,
-
-      fornelli: input.fornelli !== undefined ? parseOptionalNumber(input.fornelli) : old.fornelli,
-      frigorifero: input.frigorifero !== undefined ? parseOptionalBool(input.frigorifero) : old.frigorifero,
-      tipoFrigorifero: input.tipoFrigorifero !== undefined ? String(input.tipoFrigorifero || '').trim() : old.tipoFrigorifero,
-      forno: input.forno !== undefined ? parseOptionalBool(input.forno) : old.forno,
-      lavello: input.lavello !== undefined ? parseOptionalBool(input.lavello) : old.lavello,
-      cappaAspirante: input.cappaAspirante !== undefined ? parseOptionalBool(input.cappaAspirante) : old.cappaAspirante,
-
-      wc: input.wc !== undefined ? String(input.wc || '').trim() : old.wc,
-      doccia: input.doccia !== undefined ? parseOptionalBool(input.doccia) : old.doccia,
-      lavabo: input.lavabo !== undefined ? parseOptionalBool(input.lavabo) : old.lavabo,
-      finestraBagno: input.finestraBagno !== undefined ? parseOptionalBool(input.finestraBagno) : old.finestraBagno,
-
-      presa220Esterna: input.presa220Esterna !== undefined ? parseOptionalBool(input.presa220Esterna) : old.presa220Esterna,
-      impianto12V: input.impianto12V !== undefined ? parseOptionalBool(input.impianto12V) : old.impianto12V,
-      batteriaServizi: input.batteriaServizi !== undefined ? parseOptionalBool(input.batteriaServizi) : old.batteriaServizi,
-      illuminazioneLed: input.illuminazioneLed !== undefined ? parseOptionalBool(input.illuminazioneLed) : old.illuminazioneLed,
-
-      impiantoGas: input.impiantoGas !== undefined ? String(input.impiantoGas || '').trim() : old.impiantoGas,
-      numeroBombole: input.numeroBombole !== undefined ? parseOptionalNumber(input.numeroBombole) : old.numeroBombole,
-      scadenzaImpiantoGas: input.scadenzaImpiantoGas !== undefined ? String(input.scadenzaImpiantoGas || '').trim() : old.scadenzaImpiantoGas,
-
-      serbatoioAcquaPulita: input.serbatoioAcquaPulita !== undefined ? parseOptionalBool(input.serbatoioAcquaPulita) : old.serbatoioAcquaPulita,
-      serbatoioAcqueGrigie: input.serbatoioAcqueGrigie !== undefined ? parseOptionalBool(input.serbatoioAcqueGrigie) : old.serbatoioAcqueGrigie,
-      pompaAcqua: input.pompaAcqua !== undefined ? parseOptionalBool(input.pompaAcqua) : old.pompaAcqua,
-      boilerAcquaCalda: input.boilerAcquaCalda !== undefined ? parseOptionalBool(input.boilerAcquaCalda) : old.boilerAcquaCalda,
-
-      riscaldamento: input.riscaldamento !== undefined ? parseOptionalBool(input.riscaldamento) : old.riscaldamento,
-      tipoRiscaldamento: input.tipoRiscaldamento !== undefined ? String(input.tipoRiscaldamento || '').trim() : old.tipoRiscaldamento,
-      boilerIntegrato: input.boilerIntegrato !== undefined ? parseOptionalBool(input.boilerIntegrato) : old.boilerIntegrato,
-      climatizzatore: input.climatizzatore !== undefined ? parseOptionalBool(input.climatizzatore) : old.climatizzatore,
-      predisposizioneClima: input.predisposizioneClima !== undefined ? parseOptionalBool(input.predisposizioneClima) : old.predisposizioneClima,
-
-      numeroFinestre: input.numeroFinestre !== undefined ? parseOptionalNumber(input.numeroFinestre) : old.numeroFinestre,
-      oblo: input.oblo !== undefined ? parseOptionalBool(input.oblo) : old.oblo,
-      zanzariere: input.zanzariere !== undefined ? parseOptionalBool(input.zanzariere) : old.zanzariere,
-      oscuranti: input.oscuranti !== undefined ? parseOptionalBool(input.oscuranti) : old.oscuranti,
-      verandaTendalino: input.verandaTendalino !== undefined ? parseOptionalBool(input.verandaTendalino) : old.verandaTendalino,
-      stabilizzatori: input.stabilizzatori !== undefined ? parseOptionalBool(input.stabilizzatori) : old.stabilizzatori,
-      ruotaScorta: input.ruotaScorta !== undefined ? parseOptionalBool(input.ruotaScorta) : old.ruotaScorta,
-      portabici: input.portabici !== undefined ? parseOptionalBool(input.portabici) : old.portabici,
-
-      documenti: input.documenti !== undefined ? String(input.documenti ?? '') : old.documenti,
-      tipologia: input.tipologia !== undefined ? String(input.tipologia ?? '') : old.tipologia,
-      lunghezza: input.lunghezza !== undefined ? parseOptionalNumber(input.lunghezza) : old.lunghezza,
-      posti: input.posti !== undefined ? parseOptionalNumber(input.posti) : old.posti,
-
-      videoUrl: input.videoUrl !== undefined ? String(input.videoUrl || '').trim() : old.videoUrl,
-      planimetriaUrl: input.planimetriaUrl !== undefined ? String(input.planimetriaUrl || '').trim() : old.planimetriaUrl,
-
-      contattoTelefono: input.contattoTelefono !== undefined ? String(input.contattoTelefono || '').trim() : old.contattoTelefono,
-      contattoWhatsapp: input.contattoWhatsapp !== undefined ? String(input.contattoWhatsapp || '').trim() : old.contattoWhatsapp,
-      contattoEmail: input.contattoEmail !== undefined ? String(input.contattoEmail || '').trim() : old.contattoEmail,
-      localita: input.localita !== undefined ? String(input.localita || '').trim() : old.localita,
-      orariContatto: input.orariContatto !== undefined ? String(input.orariContatto || '').trim() : old.orariContatto,
-      
-      photos: Array.isArray(input.photos) ? input.photos : old.photos,
-      note: input.note !== undefined ? String(input.note).trim() : old.note,
-      updatedAt: nowIso()
-    };
-
-    const newRoulottes = [...db.roulottes];
-    newRoulottes[existingIndex] = updated;
-
-    const next = { ...db, roulottes: newRoulottes };
-    addLog(`Modificata roulotte: ${updated.marca} ${updated.modello} (${updated.id})`);
-    return saveDB(next);
+  async function updateRoulotte(input, photos = [], onProgress) {
+    if (!input || !input.id) throw new Error('ID mancante per modifica');
+    return sendRoulotteData('PUT', `${API_BASE_URL}/api/roulottes/${input.id}`, input, photos, 'new_photos', onProgress);
   }
 
-  function deleteRoulotte(id) {
-    const db = getDB();
-    const r = db.roulottes.find(x => x.id === id);
-    if (!r) return;
-    
-    const next = {
-      ...db,
-      roulottes: db.roulottes.filter(x => x.id !== id)
-    };
-    addLog(`Eliminata roulotte: ${r.marca} ${r.modello} (${id})`);
-    return saveDB(next);
+  async function deleteRoulotte(id) {
+    if (!id) throw new Error('ID mancante');
+    const res = await fetch(`${API_BASE_URL}/api/roulottes/${id}`, {
+       method: 'DELETE',
+       headers: { 'Authorization': 'Bearer ' + authToken }
+    });
+    if (!res.ok) {
+       let msg = 'Errore cancellazione';
+       try { const j = await res.json(); if(j.error) msg = j.error; } catch{}
+       throw new Error(msg);
+    }
+    return true;
   }
 
   function replaceAll(db) {

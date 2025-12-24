@@ -648,6 +648,172 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
   }
 });
 
+// Rotta per aggiornare una roulotte esistente
+app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const publicId = req.params.id;
+    if (!publicId) return res.status(400).json({ error: 'BAD_REQUEST' });
+
+    // Verifica esistenza
+    const check = await client.query('SELECT id FROM roulottes WHERE public_id = $1', [publicId]);
+    if (check.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'NOT_FOUND' });
+    }
+    const dbId = check.rows[0].id;
+
+    const raw = req.body || {};
+    const visibile = parseBooleanLike(raw.visibile, true);
+    
+    const marca = String(raw.marca || '').trim();
+    const modello = String(raw.modello || '').trim();
+    const title = `${marca} ${modello}`.trim() || String(raw.title || '').trim() || 'Senza titolo';
+
+    const description = String(raw.note || raw.descrizione || raw.description || '').trim() || null;
+    const price = parseNumberLike(raw.prezzo ?? raw.price);
+    const year = parseNumberLike(raw.anno ?? raw.year);
+    const weight = parseNumberLike(raw.pesoVuoto ?? raw.weight);
+    const length = parseNumberLike(raw.lunghezzaTotale ?? raw.length);
+    const beds = parseNumberLike(raw.postiLetto ?? raw.beds);
+
+    const data = { ...raw };
+    // Rimuoviamo campi speciali dal blob json
+    delete data.new_photos;
+    delete data.existing_photos;
+    delete data.photos;
+
+    // 1. Aggiorna dati testuali
+    const updateQuery = `
+      UPDATE roulottes
+      SET title = $1, description = $2, price = $3, year = $4, weight = $5, length = $6, beds = $7, 
+          data = data || $8::jsonb, visibile = $9, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $10
+    `;
+    await client.query(updateQuery, [
+      title, description, price, year, weight, length, beds, JSON.stringify(data), visibile, dbId
+    ]);
+
+    // 2. Gestione foto esistenti (Sync cancellazioni)
+    // raw.existing_photos dovrebbe essere una stringa JSON di array di URL
+    let keptUrls = [];
+    if (raw.existing_photos) {
+      try {
+        const parsed = JSON.parse(raw.existing_photos);
+        if (Array.isArray(parsed)) keptUrls = parsed.map(u => String(u).trim());
+      } catch {}
+    }
+    
+    // Se è stato passato un elenco di foto esistenti, cancelliamo quelle non presenti
+    // Se non è stato passato (es. null/undefined), assumiamo di non voler toccare le foto esistenti (o gestirlo diversamente?)
+    // Per sicurezza: se existing_photos è presente (anche array vuoto), sincronizziamo. Se manca del tutto, ignoriamo.
+    if (raw.existing_photos !== undefined) {
+      const currentPhotosRes = await client.query('SELECT id, url_full FROM photos WHERE roulotte_id = $1', [dbId]);
+      const currentPhotos = currentPhotosRes.rows;
+      
+      for (const p of currentPhotos) {
+        // Logica di matching semplice: se l'URL salvato non è nella lista dei keptUrls, elimina.
+        // Attenzione: i client potrebbero avere URL normalizzati o relativi.
+        // Cerchiamo di matchare la parte finale (filename) se l'URL completo fallisce?
+        // Per ora proviamo match esatto o "contains".
+        
+        const match = keptUrls.some(k => k === p.url_full || k.endsWith(p.url_full) || p.url_full.endsWith(k));
+        if (!match) {
+           await client.query('DELETE FROM photos WHERE id = $1', [p.id]);
+           // Opzionale: cancellare anche da R2? Per ora lasciamo i file orfani o gestiamoli con un cron job.
+        }
+      }
+    }
+
+    // 3. Carica nuove foto
+    if (req.files && req.files.length > 0) {
+      if (!process.env.R2_BUCKET_NAME || !process.env.R2_PUBLIC_URL) {
+         // Se manca config storage, non possiamo caricare foto. 
+         // Ma l'update testuale è andato. Vogliamo fallire tutto o solo avvisare?
+         // Meglio fallire per coerenza.
+         await client.query('ROLLBACK');
+         return res.status(500).json({ error: 'STORAGE_CONFIG_MISSING', detail: 'Mancano variabili R2.' });
+      }
+
+      // Trova l'ordine massimo attuale per accodare
+      const ordRes = await client.query('SELECT MAX(sort_order) as m FROM photos WHERE roulotte_id = $1', [dbId]);
+      let maxOrd = Number(ordRes.rows[0]?.m || 0);
+
+      for (const file of req.files) {
+        const mt = String(file.mimetype || '').toLowerCase();
+        const sz = Number(file.size || 0);
+        if (!['image/jpeg','image/png','image/webp'].includes(mt)) continue; // Skip invalid
+        
+        const fileName = generateFileName();
+        const params = {
+          Bucket: process.env.R2_BUCKET_NAME,
+          Key: fileName,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+          CacheControl: 'public, max-age=31536000, immutable'
+        };
+
+        try {
+          await s3Client.send(new PutObjectCommand(params));
+        } catch (e) {
+           // Skip failed upload or rollback? Skip single file safest here.
+           continue;
+        }
+        
+        if (process.env.R2_BACKUP_BUCKET_NAME) {
+          try {
+             await s3Client.send(new PutObjectCommand({
+               Bucket: process.env.R2_BACKUP_BUCKET_NAME, Key: fileName, Body: file.buffer, ContentType: file.mimetype
+             })); 
+          } catch {}
+        }
+        
+        const photoUrl = joinUrl(process.env.R2_PUBLIC_URL, fileName);
+        maxOrd++;
+        await client.query(`
+          INSERT INTO photos (roulotte_id, url_full, url_thumb, sort_order, is_cover)
+          VALUES ($1, $2, $3, $4, $5)
+        `, [dbId, photoUrl, photoUrl, maxOrd, false]);
+      }
+    }
+
+    await client.query('COMMIT');
+    try { await adminLog(client, 'UPDATE_ROULOTTE', req.adminUser || 'admin', { id: publicId }); } catch {}
+    res.json({ ok: true, id: publicId });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Errore update roulotte:', err);
+    res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
+  } finally {
+    client.release();
+  }
+});
+
+app.delete('/api/roulottes/:id', requireAdmin, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const publicId = req.params.id;
+    if (!publicId) return res.status(400).json({ error: 'BAD_REQUEST' });
+
+    const check = await client.query('SELECT id FROM roulottes WHERE public_id = $1', [publicId]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    const dbId = check.rows[0].id;
+
+    await client.query('DELETE FROM roulottes WHERE id = $1', [dbId]);
+    // Cascade dovrebbe rimuovere le foto dal DB.
+    
+    try { await adminLog(client, 'DELETE_ROULOTTE', req.adminUser || 'admin', { id: publicId }); } catch {}
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Errore interno del server' });
+  } finally {
+    client.release();
+  }
+});
+
 app.delete('/api/photos/:id', requireAdmin, async (req, res) => {
   const id = Number(req.params.id || 0);
   if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: 'BAD_REQUEST' });

@@ -2970,57 +2970,75 @@
       };
       
       const editId = editIdEl.value;
-      if (editId) {
-        payload.id = editId;
-        window.RoulotteStore.updateRoulotte(payload);
-      } else {
-        try {
-          const progEl = document.getElementById('uploadProg');
-          const maxSize = 10 * 1024 * 1024;
-          const allowed = ['image/jpeg','image/png','image/webp'];
-          for (const ph of draftPhotos) {
-            if (!ph.file) continue;
-            const t = String(ph.file.type || '');
-            const s = Number(ph.file.size || 0);
-            if (!allowed.includes(t)) {
-              formMsg.hidden = false;
-              formMsg.textContent = 'Formato non supportato. Usa JPG, PNG o WEBP.';
-              return;
-            }
-            if (s > maxSize) {
-              formMsg.hidden = false;
-              formMsg.textContent = 'File troppo grande. Max 10MB per foto.';
-              return;
-            }
-          }
-          if (progEl) { progEl.value = 0; progEl.style.display = ''; }
-          await window.RoulotteStore.addRoulotte(payload, draftPhotos, function(p){
-            if (progEl) { progEl.value = p; }
-          });
-          if (progEl) { progEl.style.display = 'none'; progEl.value = 0; }
-          try {
-            if ('Notification' in window) {
-              if (Notification.permission === 'granted') {
-                new Notification('Upload completato', { body: 'Le foto sono state caricate.' });
-              } else {
-                await Notification.requestPermission();
-                if (Notification.permission === 'granted') new Notification('Upload completato', { body: 'Le foto sono state caricate.' });
-              }
-            }
-          } catch {}
-        } catch (err) {
+      
+      // Prepare existing photos list for server sync (URLs only)
+      const existingPhotos = draftPhotos
+        .filter(p => !p.file && (p.src || p.url_full || typeof p === 'string'))
+        .map(p => (typeof p === 'string' ? p : (p.url_full || p.src)));
+        
+      payload.existing_photos = JSON.stringify(existingPhotos);
+
+      // Prepare new photos for upload
+      const newFiles = draftPhotos.filter(p => p.file);
+
+      // Validation for new files
+      const maxSize = 10 * 1024 * 1024;
+      const allowed = ['image/jpeg','image/png','image/webp'];
+      for (const ph of newFiles) {
+        const t = String(ph.file.type || '');
+        const s = Number(ph.file.size || 0);
+        if (!allowed.includes(t)) {
           formMsg.hidden = false;
-          const msg = String((err && err.message) ? err.message : 'Errore durante il salvataggio. Riprova.');
-          formMsg.textContent = msg;
-          if (msg.includes('UNAUTHORIZED') || msg.includes('401')) { logout(); }
+          formMsg.textContent = 'Formato non supportato. Usa JPG, PNG o WEBP.';
+          return;
+        }
+        if (s > maxSize) {
+          formMsg.hidden = false;
+          formMsg.textContent = 'File troppo grande. Max 10MB per foto.';
           return;
         }
       }
-      
+
+      const progEl = document.getElementById('uploadProg');
+      if (progEl) { progEl.value = 0; progEl.style.display = ''; }
       formMsg.hidden = true;
-      clearForm();
-      refreshAll();
-      switchSection('list');
+
+      try {
+        const onProgress = function(p){ if (progEl) progEl.value = p; };
+        
+        if (editId) {
+          payload.id = editId;
+          await window.RoulotteStore.updateRoulotte(payload, newFiles, onProgress);
+        } else {
+          await window.RoulotteStore.addRoulotte(payload, newFiles, onProgress);
+        }
+
+        if (progEl) { progEl.style.display = 'none'; progEl.value = 0; }
+        
+        try {
+          if ('Notification' in window) {
+            if (Notification.permission === 'granted') {
+              new Notification(editId ? 'Modifica completata' : 'Creazione completata', { body: 'Operazione eseguita con successo.' });
+            } else if (Notification.permission !== 'denied') {
+               Notification.requestPermission().then(p => {
+                 if (p === 'granted') new Notification(editId ? 'Modifica completata' : 'Creazione completata', { body: 'Operazione eseguita con successo.' });
+               });
+            }
+          }
+        } catch {}
+
+        clearForm();
+        refreshAll();
+        switchSection('list');
+
+      } catch (err) {
+        if (progEl) { progEl.style.display = 'none'; progEl.value = 0; }
+        formMsg.hidden = false;
+        const msg = String((err && err.message) ? err.message : 'Errore durante il salvataggio. Riprova.');
+        formMsg.textContent = msg;
+        console.error(err);
+        if (msg.includes('UNAUTHORIZED') || msg.includes('401')) { logout(); }
+      }
     });
 
     function clearForm() {
@@ -3289,10 +3307,14 @@
       });
     }
 
-    window.deleteItem = function(id) {
+    window.deleteItem = async function(id) {
        if(confirm('Sei sicuro di voler eliminare definitivamente questa scheda?')) {
-         window.RoulotteStore.deleteRoulotte(id);
-         refreshAll();
+         try {
+           await window.RoulotteStore.deleteRoulotte(id);
+           refreshAll();
+         } catch (e) {
+           alert('Errore durante l\'eliminazione: ' + e.message);
+         }
        }
     };
 
