@@ -1486,6 +1486,7 @@
 
   <script src="roulotte-store.js"></script>
   <script src="live-reload.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     const AUTH_KEY = 'admin_auth_v2';
 
@@ -1780,6 +1781,47 @@
         loginError.textContent = 'Errore di rete o server non raggiungibile.';
       }
     });
+    // Login con Google
+    (async function initGoogleLogin(){
+      try {
+        const cfg = await fetch('https://roulotte-online-foto.onrender.com/api/config').then(r => r.json()).catch(() => ({}));
+        const cid = String(cfg && cfg.google_client_id || '');
+        if (!cid || typeof google === 'undefined' || !google.accounts || !google.accounts.id) return;
+        const googleWrap = document.createElement('div');
+        googleWrap.style.marginTop = '10px';
+        const googleBtn = document.createElement('div');
+        googleWrap.appendChild(googleBtn);
+        loginForm.parentElement.appendChild(googleWrap);
+        google.accounts.id.initialize({
+          client_id: cid,
+          callback: async (response) => {
+            try {
+              const r = await fetch('https://roulotte-online-foto.onrender.com/api/auth/google', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id_token: response.credential })
+              });
+              if (!r.ok) { loginError.hidden = false; loginError.textContent = 'Login Google non riuscito.'; return; }
+              const data = await r.json();
+              if (data && data.token) {
+                window.RoulotteStore.setAuthToken(data.token);
+                setAuthed(true);
+                showApp();
+                switchSection('dashboard');
+                refreshAll();
+              } else {
+                loginError.hidden = false;
+                loginError.textContent = 'Login Google non riuscito.';
+              }
+            } catch {
+              loginError.hidden = false;
+              loginError.textContent = 'Errore login Google.';
+            }
+          }
+        });
+        google.accounts.id.renderButton(googleBtn, { theme: 'outline', size: 'large' });
+      } catch {}
+    })();
     const recoveryForm = document.getElementById('recoveryForm');
     const toggleRecoveryBtn = document.getElementById('toggleRecoveryBtn');
     const recoveryMsg = document.getElementById('recoveryMsg');
@@ -3008,7 +3050,31 @@
             msg.textContent = 'Errore di rete.';
           }
         });
+        const exportBtn2 = document.createElement('button');
+        exportBtn2.className = 'btn';
+        exportBtn2.textContent = 'Esporta dati (JSON)';
+        exportBtn2.style.marginLeft = '8px';
+        exportBtn2.addEventListener('click', async () => {
+          try {
+            const token = window.RoulotteStore.getAuthToken();
+            const r = await fetch('https://roulotte-online-foto.onrender.com/api/export', { headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
+            if (!r.ok) { alert('Errore esportazione: ' + r.status); return; }
+            const data = await r.json();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'roulotte_export.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          } catch {
+            alert('Errore di rete durante esportazione.');
+          }
+        });
         deployWrap.appendChild(btn);
+        deployWrap.appendChild(exportBtn2);
         deployWrap.appendChild(msg);
         settingsSection.appendChild(deployWrap);
       }

@@ -40,6 +40,11 @@ app.get('/admin.html', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'admin.html'));
 });
 
+// Config pubblica (solo parametri non sensibili)
+app.get('/api/config', (req, res) => {
+  res.json({ google_client_id: GOOGLE_CLIENT_ID });
+});
+
 const pool = require('./db'); // Importiamo la configurazione del database
 const s3Client = require('./s3-client'); // Importiamo il client S3 per R2
 const { PutObjectCommand } = require('@aws-sdk/client-s3');
@@ -54,6 +59,7 @@ const ADMIN_PASS = process.env.ADMIN_PASS || 'admin';
 const ADMIN_RESET_TOKEN = process.env.ADMIN_RESET_TOKEN || 'reset_token_fallback_2025';
 const RENDER_API_KEY = process.env.RENDER_API_KEY || '';
 const RENDER_SERVICE_ID = process.env.RENDER_SERVICE_ID || 'srv-d54pt6i4d50c739h8ob0';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 
 // Configurazione di Multer per gestire l'upload di file in memoria
 const storage = multer.memoryStorage();
@@ -221,6 +227,27 @@ app.post('/api/auth/reset', async (req, res) => {
   }
 });
 
+// Login con Google: riceve id_token dal client, valida tramite tokeninfo e rilascia JWT
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const idToken = String(req.body && req.body.id_token || '').trim();
+    if (!idToken) return res.status(400).json({ error: 'BAD_REQUEST' });
+    const url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken);
+    const resp = await fetch(url);
+    if (!resp.ok) return res.status(401).json({ error: 'UNAUTHORIZED' });
+    const info = await resp.json();
+    const aud = String(info && info.aud || '');
+    const email = String(info && info.email || '');
+    const emailVerified = String(info && info.email_verified || '') === 'true';
+    if (!GOOGLE_CLIENT_ID || aud !== GOOGLE_CLIENT_ID) return res.status(401).json({ error: 'UNAUTHORIZED' });
+    if (!email || !emailVerified) return res.status(401).json({ error: 'UNAUTHORIZED' });
+    const token = jwt.sign({ user: email, provider: 'google' }, JWT_SECRET, { expiresIn: '12h' });
+    res.json({ token, email });
+  } catch (err) {
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 app.get('/api/content/:key', async (req, res) => {
   try {
     const key = String(req.params.key || '').trim();
@@ -296,6 +323,31 @@ app.post('/api/deploy/trigger', requireAdmin, async (req, res) => {
     res.json({ ok: true, deploy: j });
   } catch (err) {
     res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
+  }
+});
+
+// Esportazione dati (JSON) protetta
+app.get('/api/export', requireAdmin, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const out = {};
+    const tables = [
+      { key: 'roulottes', q: 'SELECT id, public_id, title, description, price, year, weight, length, beds, data, visibile, created_at, updated_at FROM roulottes ORDER BY id;' },
+      { key: 'photos', q: 'SELECT id, roulotte_id, url_full, url_thumb, is_cover, sort_order, created_at FROM photos ORDER BY id;' },
+      { key: 'media', q: 'SELECT id, url_full, url_thumb, title, alt, created_at FROM media ORDER BY id;' },
+      { key: 'contents', q: 'SELECT content_key, content_type, published_data, updated_at FROM contents ORDER BY content_key;' },
+    ];
+    for (const t of tables) {
+      const r = await client.query(t.q);
+      out[t.key] = r.rows || [];
+    }
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (err) {
+    res.status(500).json({ error: 'Errore interno del server' });
+  } finally {
+    client.release();
   }
 });
 
