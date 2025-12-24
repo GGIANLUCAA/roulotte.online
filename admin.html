@@ -532,6 +532,25 @@
     @media (prefers-reduced-motion: reduce){
       *{scroll-behavior:auto;transition:none !important;animation:none !important}
     }
+
+    .system-status {
+      padding: 8px 12px;
+      margin-top: auto;
+      margin-bottom: 10px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.5);
+      border: 1px solid var(--border);
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #ccc;
+    }
+    .status-dot.ok { background: var(--success); box-shadow: 0 0 0 2px rgba(16,185,129,0.2); }
+    .status-dot.error { background: var(--danger); }
   </style>
 </head>
 <body>
@@ -617,6 +636,11 @@
       </nav>
 
       <div class="spacer"></div>
+
+      <div class="system-status" id="systemStatus">
+        <div class="status-dot" id="healthDot"></div>
+        <span id="healthText">Controllo...</span>
+      </div>
 
       <div class="profile" aria-label="Profilo">
         <div style="display:flex;align-items:center;gap:10px">
@@ -3032,13 +3056,17 @@
         msg.hidden = true;
         btn.addEventListener('click', async () => {
           msg.hidden = false;
+          msg.style.color = 'var(--muted)';
           msg.textContent = 'Richiesta di aggiornamento inviata…';
+          btn.disabled = true;
           try {
             const token = window.RoulotteStore.getAuthToken();
             const r = await fetch('https://roulotte-online-foto.onrender.com/api/deploy/trigger', { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
             if (r.ok) {
-              msg.textContent = 'Aggiornamento avviato su Render.';
+              msg.textContent = 'Aggiornamento avviato su Render. Il sito sarà aggiornato in pochi minuti.';
+              msg.style.color = 'var(--success)';
             } else {
+              msg.style.color = 'var(--danger)';
               try {
                 const j = await r.json();
                 msg.textContent = 'Errore aggiornamento: ' + (j && j.error ? j.error : r.status);
@@ -3047,7 +3075,10 @@
               }
             }
           } catch {
+            msg.style.color = 'var(--danger)';
             msg.textContent = 'Errore di rete.';
+          } finally {
+            setTimeout(() => btn.disabled = false, 2000);
           }
         });
         const exportBtn2 = document.createElement('button');
@@ -3495,6 +3526,34 @@
       container.appendChild(iframe);
     });
 
+    async function checkHealth() {
+      const dot = document.getElementById('healthDot');
+      const txt = document.getElementById('healthText');
+      if (!dot || !txt) return;
+      
+      try {
+        const res = await fetch('https://roulotte-online-foto.onrender.com/api/health');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok) {
+             dot.className = 'status-dot ok';
+             txt.textContent = 'Sistema Online';
+          } else {
+             dot.className = 'status-dot error';
+             txt.textContent = 'Errore DB';
+          }
+        } else {
+          dot.className = 'status-dot error';
+          txt.textContent = 'Server Error';
+        }
+      } catch (e) {
+        dot.className = 'status-dot error';
+        txt.textContent = 'Offline';
+      }
+    }
+    // Controllo ogni 60 secondi
+    setInterval(checkHealth, 60000);
+
     // --- Init ---
     function refreshAll() {
       refreshStats();
@@ -3508,6 +3567,7 @@
 
     async function bootAuthed() {
       showApp();
+      checkHealth();
       try {
         const res = await window.RoulotteStore.syncNow();
         if (res && syncMsg) {
