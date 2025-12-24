@@ -40,6 +40,12 @@ const multer = require('multer');
 const crypto = require('crypto');
 const { createTables } = require('./init-db');
 
+// Configurazione Sicurezza (Default Fallback)
+const JWT_SECRET = process.env.JWT_SECRET || 'roulotte_secret_fallback_2025';
+const ADMIN_USER = process.env.ADMIN_USER || 'admin';
+const ADMIN_PASS = process.env.ADMIN_PASS || 'admin';
+const ADMIN_RESET_TOKEN = process.env.ADMIN_RESET_TOKEN || 'reset_token_fallback_2025';
+
 // Configurazione di Multer per gestire l'upload di file in memoria
 const storage = multer.memoryStorage();
 const upload = multer({ 
@@ -97,7 +103,7 @@ function requireAdmin(req, res, next) {
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   if (!token) return res.status(401).json({ error: 'UNAUTHORIZED' });
   try {
-    const payload = jwt.verify(token, String(process.env.JWT_SECRET || ''));
+    const payload = jwt.verify(token, JWT_SECRET);
     req.adminUser = payload && payload.user ? String(payload.user) : 'admin';
     next();
   } catch (err) {
@@ -143,16 +149,16 @@ app.post('/api/auth/login', async (req, res) => {
       const row = rows.find(r => String(r.username) === u) || rows[0];
       const ok = (String(row.username) === u) && verifyPassword(p, String(row.password_hash));
       if (!ok) { rec.count++; global.__loginAttempts.set(key, rec); return res.status(401).json({ error: 'INVALID_CREDENTIALS' }); }
-      const token = jwt.sign({ user: u }, String(process.env.JWT_SECRET || ''), { expiresIn: '12h' });
+      const token = jwt.sign({ user: u }, JWT_SECRET, { expiresIn: '12h' });
       return res.json({ token });
     }
   } catch {}
 
-  const okU = String(process.env.ADMIN_USER || '');
-  const okP = String(process.env.ADMIN_PASS || '');
+  const okU = ADMIN_USER;
+  const okP = ADMIN_PASS;
   if (!okU || !okP) return res.status(500).json({ error: 'CONFIG' });
   if (u !== okU || p !== okP) { rec.count++; global.__loginAttempts.set(key, rec); return res.status(401).json({ error: 'INVALID_CREDENTIALS' }); }
-  const token = jwt.sign({ user: u }, String(process.env.JWT_SECRET || ''), { expiresIn: '12h' });
+  const token = jwt.sign({ user: u }, JWT_SECRET, { expiresIn: '12h' });
   res.json({ token });
 });
 
@@ -173,7 +179,7 @@ app.post('/api/auth/setup', async (req, res) => {
 
 app.post('/api/auth/reset', async (req, res) => {
   const code = String(req.headers['x-admin-reset'] || '');
-  const tokenOk = code && (code === String(process.env.ADMIN_RESET_TOKEN || '') || code === String(process.env.JWT_SECRET || ''));
+  const tokenOk = code && (code === ADMIN_RESET_TOKEN || code === JWT_SECRET);
   if (!tokenOk) return res.status(401).json({ error: 'UNAUTHORIZED' });
   const u = String(req.body.username || '').trim();
   const p = String(req.body.password || '');
