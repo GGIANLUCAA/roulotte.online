@@ -1952,6 +1952,27 @@
           img.style.objectFit = 'cover';
           const actions = document.createElement('div');
           actions.className = 'card-actions';
+          const use = document.createElement('button');
+          use.className = 'btn';
+          use.textContent = 'Usa in scheda';
+          use.onclick = async () => {
+            try {
+              const res = await fetch(m.url_full || m.url_thumb);
+              const blob = await res.blob();
+              if (!String(blob.type || '').startsWith('image/')) return;
+              const obj = await processImageFromBlob(blob);
+              if (!obj.file) {
+                const ext = obj.type === 'image/webp' ? 'webp' : 'jpg';
+                obj.name = 'photo_' + Date.now() + '.' + ext;
+                const f = dataURLToFile(obj.name, obj.src);
+                if (f) obj.file = f;
+              }
+              obj.alt = m.alt || '';
+              draftPhotos.push(obj);
+              renderPhotos();
+              switchSection('new');
+            } catch {}
+          };
           const del = document.createElement('button');
           del.className = 'btn btn-danger';
           del.textContent = 'Elimina';
@@ -1962,7 +1983,7 @@
               if (rr.ok) loadMedia();
             } catch {}
           };
-          actions.appendChild(document.createElement('div'));
+          actions.appendChild(use);
           actions.appendChild(del);
           card.appendChild(img);
           card.appendChild(actions);
