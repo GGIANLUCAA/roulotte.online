@@ -36,6 +36,9 @@ app.use((req, res, next) => {
 
 // Static files (serve admin UI e asset dal root del progetto)
 app.use(express.static(path.join(__dirname, '..')));
+app.get('/admin.html', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'admin.html'));
+});
 
 const pool = require('./db'); // Importiamo la configurazione del database
 const s3Client = require('./s3-client'); // Importiamo il client S3 per R2
