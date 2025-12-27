@@ -623,7 +623,7 @@
         <div>
           <div class="brand-title">Roulotte online</div>
           <div class="brand-sub">Dashboard Admin</div>
-          <div style="font-size:0.7rem;color:var(--muted);margin-top:2px">v1.2 (Fix Admin)</div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:2px">v1.3 (Event Delegation)</div>
         </div>
       </a>
 
@@ -3201,7 +3201,7 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>
-            <div style="display:grid;gap:2px;cursor:pointer" onclick="viewItem('${r.id}')" title="Apri scheda">
+            <div style="display:grid;gap:2px;cursor:pointer" class="action-btn" data-action="view" data-id="${r.id}" title="Apri scheda">
               <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
                 <div style="font-weight:900">${r.marca} ${r.modello}</div>
                 <div style="font-size:0.85rem;color:var(--muted)">${r.id}</div>
@@ -3214,11 +3214,11 @@
           <td><span class="${statusClass(r.stato)}">${r.stato}</span></td>
           <td>
             <div style="display:flex;gap:6px">
-              <button class="btn" style="padding:6px 10px;font-size:0.8rem" onclick="viewItem('${r.id}')">Dettaglio</button>
-              <button class="btn" style="padding:6px 10px;font-size:0.8rem" onclick="editItem('${r.id}')">Modifica</button>
-              <button class="btn" style="padding:6px 10px;font-size:0.8rem" onclick="duplicateItem('${r.id}')">Duplica</button>
-              <button class="btn" style="padding:6px 10px;font-size:0.8rem" onclick="markSold('${r.id}')">Venduto</button>
-              <button class="btn btn-danger" style="padding:6px 10px;font-size:0.8rem" onclick="deleteItem('${r.id}')">Elimina</button>
+              <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="view" data-id="${r.id}">Dettaglio</button>
+              <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="edit" data-id="${r.id}">Modifica</button>
+              <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="duplicate" data-id="${r.id}">Duplica</button>
+              <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="sold" data-id="${r.id}">Venduto</button>
+              <button class="btn btn-danger action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="delete" data-id="${r.id}">Elimina</button>
             </div>
           </td>
         `;
@@ -3622,6 +3622,36 @@
     }
     if (isAuthed()) bootAuthed();
     else showLogin();
+
+    // --- Event Delegation for List Actions ---
+    // Fixes issues with onclick scope and unresponsiveness
+    if (tableBody) {
+      tableBody.addEventListener('click', (e) => {
+        const target = e.target.closest('[data-action]');
+        if (!target) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+
+        const action = target.getAttribute('data-action');
+        const id = target.getAttribute('data-id');
+        console.log('Action Clicked via Delegation:', action, id);
+
+        if (!id) return;
+
+        if (action === 'view') {
+           if (typeof window.viewItem === 'function') window.viewItem(id);
+        } else if (action === 'edit') {
+           if (typeof window.editItem === 'function') window.editItem(id);
+        } else if (action === 'duplicate') {
+           if (typeof window.duplicateItem === 'function') window.duplicateItem(id);
+        } else if (action === 'sold') {
+           if (typeof window.markSold === 'function') window.markSold(id);
+        } else if (action === 'delete') {
+           if (typeof window.deleteItem === 'function') window.deleteItem(id);
+        }
+      });
+    }
   </script>
 </body>
 </html>
