@@ -3448,17 +3448,25 @@
       editItem(id);
       const srcId = editIdEl.value;
       editIdEl.value = '';
+      // IMPORTANTE: Resetta draftPhotos per duplicazione
+      // editItem popola draftPhotos con oggetti (alcuni con file, altri con URL)
+      // Per la duplicazione, dobbiamo assicurarci che siano trattati come nuove risorse o URL esistenti
+      // editItem già fa un buon lavoro, ma resettiamo l'ID.
       formTitle.textContent = `Duplica ${srcId}`;
       clearFormBtn.textContent = 'Nuova Scheda';
     };
 
-    window.markSold = function(id) {
+    window.markSold = async function(id) {
       const safeId = String(id || '').trim();
       if (!safeId) return;
       if (!confirm('Impostare lo stato su "Venduto"?')) return;
-      window.RoulotteStore.updateRoulotte({ id: safeId, stato: 'Venduto' });
-      refreshAll();
-      if (currentDetailId === safeId) renderDetail(safeId);
+      try {
+        await window.RoulotteStore.updateRoulotte({ id: safeId, stato: 'Venduto' });
+        refreshAll();
+        if (currentDetailId === safeId) renderDetail(safeId);
+      } catch (e) {
+        alert('Errore aggiornamento stato: ' + e.message);
+      }
     };
 
     let listTimer = null;
