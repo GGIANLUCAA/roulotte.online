@@ -661,7 +661,7 @@
         <div>
           <div class="brand-title">Roulotte online</div>
           <div class="brand-sub">Dashboard Admin</div>
-          <div style="font-size:0.7rem;color:var(--muted);margin-top:2px">v1.4 (Debug Mode)</div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:2px">v1.5 (Fix TDZ Error)</div>
         </div>
       </a>
 
@@ -2001,6 +2001,15 @@
     logoutBtnMobile.addEventListener('click', logout);
 
     let contentSaveTimer = null;
+
+    // --- Content Elements (Moved up to fix TDZ Error) ---
+    const contentKeyEl = document.getElementById('contentKey');
+    const contentTypeEl = document.getElementById('contentType');
+    const contentDataEl = document.getElementById('contentData');
+    const contentPreviewEl = document.getElementById('contentPreview');
+    const publishContentBtn = document.getElementById('publishContentBtn');
+    const contentStatusEl = document.getElementById('contentStatus');
+
     function renderContentPreview() {
       const t = String(contentTypeEl?.value || 'html');
       const d = String(contentDataEl?.value || '');
@@ -2167,13 +2176,6 @@
       try { mediaInput.setAttribute('accept','image/jpeg,image/png,image/webp'); mediaInput.setAttribute('multiple',''); mediaInput.setAttribute('capture','environment'); } catch {}
       mediaInput.addEventListener('change', (e) => uploadMedia(e.target.files));
     }
-
-    const contentKeyEl = document.getElementById('contentKey');
-    const contentTypeEl = document.getElementById('contentType');
-    const contentDataEl = document.getElementById('contentData');
-    const contentPreviewEl = document.getElementById('contentPreview');
-    const publishContentBtn = document.getElementById('publishContentBtn');
-    const contentStatusEl = document.getElementById('contentStatus');
 
     // --- Dashboard & Log ---
     function refreshStats() {
