@@ -334,12 +334,16 @@
   }
 
   async function addRoulotte(input, photos = [], onProgress) {
-    return sendRoulotteData('POST', `${API_BASE_URL}/api/roulottes`, input, photos, 'photos', onProgress);
+    const res = await sendRoulotteData('POST', `${API_BASE_URL}/api/roulottes`, input, photos, 'photos', onProgress);
+    await syncNow();
+    return res;
   }
 
   async function updateRoulotte(input, photos = [], onProgress) {
     if (!input || !input.id) throw new Error('ID mancante per modifica');
-    return sendRoulotteData('PUT', `${API_BASE_URL}/api/roulottes/${input.id}`, input, photos, 'new_photos', onProgress);
+    const res = await sendRoulotteData('PUT', `${API_BASE_URL}/api/roulottes/${input.id}`, input, photos, 'new_photos', onProgress);
+    await syncNow();
+    return res;
   }
 
   async function deleteRoulotte(id) {
@@ -353,6 +357,7 @@
        try { const j = await res.json(); if(j.error) msg = j.error; } catch{}
        throw new Error(msg);
     }
+    await syncNow();
     return true;
   }
 
