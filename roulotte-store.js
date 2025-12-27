@@ -68,6 +68,7 @@
 
   let store = null;
   let authToken = null;
+  let serverDbSupported = null;
 
   async function initializeStore() {
     try {
@@ -79,17 +80,29 @@
       
       const db = seed();
       db.roulottes = roulottesFromServer;
-      store = db;
+      store = saveDB(db, { skipServerPush: true });
       
     } catch (error) {
       console.error("Impossibile caricare i dati dal server.", error);
-      store = seed();
+      store = loadDBFromStorage() || seed();
     }
     return store;
   }
 
+  function loadDBFromStorage() {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return null;
+      const obj = safeJsonParse(raw);
+      if (!isValidDbObject(obj)) return null;
+      return obj;
+    } catch {
+      return null;
+    }
+  }
+
   function getDB() {
-    if (!store) store = seed();
+    if (!store) store = loadDBFromStorage() || seed();
     return store;
   }
 
@@ -125,7 +138,11 @@
   async function serverGetDB(timeoutMs = 1500) {
     if (isFileProtocol()) throw new Error('file_protocol');
     const res = await fetchWithTimeout('/api/db', { method: 'GET', headers: { 'Accept': 'application/json' } }, timeoutMs);
-    if (res.status === 404) return null;
+    if (res.status === 404) {
+      serverDbSupported = false;
+      return null;
+    }
+    serverDbSupported = true;
     if (!res.ok) throw new Error('server_get_failed');
     const obj = await res.json();
     if (!isValidDbObject(obj)) throw new Error('invalid_server_db');
@@ -144,6 +161,7 @@
   function scheduleServerPush(db) {
     if (typeof fetch !== 'function') return;
     if (isFileProtocol()) return;
+    if (serverDbSupported === false) return;
     const now = Date.now();
     if (now < serverBackoffUntil) return;
     if (serverPushTimer) clearTimeout(serverPushTimer);
@@ -171,6 +189,16 @@
   }
 
   async function syncNow() {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE_URL}/api/roulottes`, { method: 'GET', headers: { 'Accept': 'application/json' } }, 2500);
+      if (!res.ok) throw new Error('roulottes_fetch_failed');
+      const list = await res.json();
+      const db = getDB();
+      const next = saveDB({ ...db, roulottes: Array.isArray(list) ? list : [] }, { skipServerPush: true });
+      store = next;
+      return { ok: true, mode: 'pulled_roulottes', updatedAt: next.updatedAt };
+    } catch {}
+
     const local = getDB();
     let serverDb = null;
     try {
@@ -300,10 +328,13 @@
 
   async function sendRoulotteData(method, url, input, photos = [], photoField = 'photos', onProgress) {
     const formData = new FormData();
-    for (const key in input) {
-      if (input[key] !== null && input[key] !== undefined) {
-        formData.append(key, input[key]);
-      }
+    formData.append('payload', JSON.stringify(input || {}));
+    for (const key in (input || {})) {
+      const v = input[key];
+      const t = typeof v;
+      if (v === undefined) continue;
+      if (v === null) continue;
+      if (t === 'string' || t === 'number' || t === 'boolean') formData.append(key, String(v));
     }
     for (const photo of photos) {
       if (photo && photo.file) formData.append(photoField, photo.file, photo.name);

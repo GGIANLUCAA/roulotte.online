@@ -11,7 +11,11 @@ const app = express();
 const server = http.createServer(app);
 
 // Middlewares
-app.use(cors({ origin: String(process.env.ALLOWED_ORIGIN || '*') })); // Abilita la comunicazione tra frontend e backend
+app.use(cors({
+  origin: String(process.env.ALLOWED_ORIGIN || '*'),
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-if-updated-at', 'x-admin-reset'],
+}));
 app.use(compression());
 app.use(express.json({ limit: '50mb' })); // Permette al server di ricevere dati JSON (es. info roulotte)
 app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Permette di ricevere dati da form HTML
@@ -31,8 +35,6 @@ app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   }
   next();
 });
@@ -782,7 +784,12 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
   try {
     await client.query('BEGIN'); // Inizia la transazione
 
-    const raw = req.body || {};
+    const incoming = req.body || {};
+    let raw = incoming;
+    if (incoming && incoming.payload) {
+      const parsed = safeJsonParse(incoming.payload);
+      if (parsed && typeof parsed === 'object') raw = parsed;
+    }
     const visibile = parseBooleanLike(raw.visibile, true);
 
     const publicIdFromClient = String(raw.id || '').trim();
@@ -874,12 +881,14 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
         await client.query(photoQuery, [roulotteDbId, photoUrl, photoUrl, index, index === 0]);
       }
     } else {
+      try { await insertRoulotteRevision(client, savedPublicId, 'CREATE', req.adminUser || 'admin'); } catch {}
       await client.query('COMMIT');
       try { await adminLog(client, 'CREATE_ROULOTTE', req.adminUser || 'admin', { id: savedPublicId }); } catch {}
       wsEmitInvalidate('roulottes', { action: 'created', id: savedPublicId, user: req.adminUser || 'admin' });
       return res.status(201).json({ message: 'Roulotte creata con successo!', id: savedPublicId });
     }
 
+    try { await insertRoulotteRevision(client, savedPublicId, 'CREATE', req.adminUser || 'admin'); } catch {}
     await client.query('COMMIT'); // Conferma la transazione
     try {
       if (process.env.WEBHOOK_URL) {
@@ -893,6 +902,7 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
 
   } catch (err) {
     await client.query('ROLLBACK'); // Annulla la transazione in caso di errore
+    try { await adminLog(client, 'CREATE_ROULOTTE_ERROR', req.adminUser || 'admin', { error: String(err && err.message ? err.message : err) }); } catch {}
     console.error('Errore durante la creazione della roulotte:', err);
     res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
   } finally {
@@ -909,7 +919,12 @@ app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (r
     const publicId = req.params.id;
     if (!publicId) return res.status(400).json({ error: 'BAD_REQUEST' });
 
-    const raw = req.body || {};
+    const incoming = req.body || {};
+    let raw = incoming;
+    if (incoming && incoming.payload) {
+      const parsed = safeJsonParse(incoming.payload);
+      if (parsed && typeof parsed === 'object') raw = parsed;
+    }
 
     // Verifica esistenza
     const check = await client.query('SELECT id, updated_at FROM roulottes WHERE public_id = $1', [publicId]);
@@ -926,6 +941,7 @@ app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (r
       const c = Date.parse(currentUpdatedAt);
       if (Number.isFinite(e) && Number.isFinite(c) && e < c) {
         await client.query('ROLLBACK');
+        try { await adminLog(client, 'UPDATE_ROULOTTE_CONFLICT', req.adminUser || 'admin', { id: publicId, expectedUpdatedAt, currentUpdatedAt }); } catch {}
         return res.status(409).json({ error: 'CONFLICT', currentUpdatedAt });
       }
     }
@@ -1043,6 +1059,7 @@ app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (r
       }
     }
 
+    try { await insertRoulotteRevision(client, publicId, 'UPDATE', req.adminUser || 'admin'); } catch {}
     await client.query('COMMIT');
     try { await adminLog(client, 'UPDATE_ROULOTTE', req.adminUser || 'admin', { id: publicId }); } catch {}
     wsEmitInvalidate('roulottes', { action: 'updated', id: publicId, user: req.adminUser || 'admin' });
@@ -1050,6 +1067,7 @@ app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (r
 
   } catch (err) {
     await client.query('ROLLBACK');
+    try { await adminLog(client, 'UPDATE_ROULOTTE_ERROR', req.adminUser || 'admin', { id: String(req.params.id || ''), error: String(err && err.message ? err.message : err) }); } catch {}
     console.error('Errore update roulotte:', err);
     res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
   } finally {
@@ -1063,17 +1081,25 @@ app.delete('/api/roulottes/:id', requireAdmin, async (req, res) => {
     const publicId = req.params.id;
     if (!publicId) return res.status(400).json({ error: 'BAD_REQUEST' });
 
+    await client.query('BEGIN');
     const check = await client.query('SELECT id FROM roulottes WHERE public_id = $1', [publicId]);
-    if (check.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    if (check.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'NOT_FOUND' });
+    }
     const dbId = check.rows[0].id;
 
+    try { await insertRoulotteRevision(client, publicId, 'DELETE', req.adminUser || 'admin'); } catch {}
     await client.query('DELETE FROM roulottes WHERE id = $1', [dbId]);
     // Cascade dovrebbe rimuovere le foto dal DB.
-    
+
+    await client.query('COMMIT');
     try { await adminLog(client, 'DELETE_ROULOTTE', req.adminUser || 'admin', { id: publicId }); } catch {}
     wsEmitInvalidate('roulottes', { action: 'deleted', id: publicId, user: req.adminUser || 'admin' });
     res.json({ ok: true });
   } catch (err) {
+    try { await client.query('ROLLBACK'); } catch {}
+    try { await adminLog(client, 'DELETE_ROULOTTE_ERROR', req.adminUser || 'admin', { id: String(req.params.id || ''), error: String(err && err.message ? err.message : err) }); } catch {}
     res.status(500).json({ error: 'Errore interno del server' });
   } finally {
     client.release();

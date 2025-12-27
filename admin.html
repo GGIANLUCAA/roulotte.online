@@ -3109,7 +3109,16 @@
         if (progEl) { progEl.style.display = 'none'; progEl.value = 0; }
         formMsg.hidden = false;
         const msg = String((err && err.message) ? err.message : 'Errore durante il salvataggio. Riprova.');
-        formMsg.textContent = msg;
+        if (msg.includes('CONFLICT')) {
+          formMsg.textContent = 'Conflitto dati rilevato: la scheda è stata aggiornata da un altro dispositivo. Ricarico i dati…';
+          try { await window.RoulotteStore.reloadRoulottes(); } catch {}
+          try { refreshAll(); } catch {}
+          if (editIdEl && editIdEl.value) {
+            try { window.editItem(editIdEl.value); } catch {}
+          }
+        } else {
+          formMsg.textContent = msg;
+        }
         console.error(err);
         if (msg.includes('UNAUTHORIZED') || msg.includes('401')) { logout(); }
       }
@@ -3351,40 +3360,47 @@
     }
 
     window.editItem = function(id) {
-       console.log('editItem called for:', id);
-       const db = window.RoulotteStore.getDB();
-       const r = db.roulottes.find(x => x.id === id);
-       if(!r) {
-         alert('Elemento non trovato nel database locale.');
-         return;
-       }
-       
-       try {
-         draftEditingUpdatedAt = r.updatedAt || r.updated_at || '';
-         // Use the draft mechanism to populate form fields
-         sessionStorage.setItem('roulotte_draft', JSON.stringify(r));
-         loadDraft();
-         
-         // Handle photos explicitly as loadDraft doesn't
-         if (r.photos && Array.isArray(r.photos)) {
-             draftPhotos = r.photos.map(p => {
-                 if (typeof p === 'string') return { src: p, thumb: p, type: 'image/jpeg' };
-                 return p;
-             });
-             renderPhotos();
-         } else {
-             draftPhotos = [];
-             renderPhotos();
-         }
+       const safeId = String(id || '').trim();
+       if (!safeId) return;
 
-         switchSection('new');
-         formTitle.textContent = `Modifica ${r.id}`;
-         editIdEl.value = r.id;
-         clearFormBtn.textContent = 'Annulla Modifica';
-       } catch (e) {
-         alert('Errore durante la modifica: ' + e.message);
-         console.error(e);
-       }
+       Promise.resolve()
+         .then(async () => {
+           if (window.RoulotteStore && typeof window.RoulotteStore.reloadRoulottes === 'function') {
+             await window.RoulotteStore.reloadRoulottes();
+           }
+         })
+         .then(() => {
+           const db = window.RoulotteStore.getDB();
+           const r = (db.roulottes || []).find(x => x && x.id === safeId);
+           if (!r) {
+             alert('Elemento non trovato nel database server.');
+             return;
+           }
+
+           draftEditingUpdatedAt = r.updatedAt || r.updated_at || '';
+           sessionStorage.setItem('roulotte_draft', JSON.stringify(r));
+           loadDraft();
+           
+           if (r.photos && Array.isArray(r.photos)) {
+               draftPhotos = r.photos.map(p => {
+                   if (typeof p === 'string') return { src: p, thumb: p, type: 'image/jpeg' };
+                   return p;
+               });
+               renderPhotos();
+           } else {
+               draftPhotos = [];
+               renderPhotos();
+           }
+
+           switchSection('new');
+           formTitle.textContent = `Modifica ${r.id}`;
+           editIdEl.value = r.id;
+           clearFormBtn.textContent = 'Annulla Modifica';
+         })
+         .catch((e) => {
+           alert('Errore durante la modifica: ' + (e && e.message ? e.message : String(e)));
+           console.error(e);
+         });
     };
 
     window.duplicateItem = function(id) {
@@ -3658,6 +3674,7 @@
       showApp();
       checkHealth();
       connectAdminWs();
+      try { await window.RoulotteStore.reloadRoulottes(); } catch {}
       try {
         const res = await window.RoulotteStore.syncNow();
         if (res && syncMsg) {

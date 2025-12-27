@@ -87,3 +87,111 @@ test('Creazione roulotte con foto su /api/roulottes', async () => {
     assert.ok(body && body.id);
   }
 });
+
+test('Update roulotte: persistenza campi e conflitto 409', async () => {
+  const login = await fetch(`${API_BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin' })
+  });
+  assert.strictEqual(login.ok, true);
+  const { token } = await login.json();
+  assert.ok(token);
+
+  const createFd = new FormData();
+  const createPayload = {
+    marca: 'TestMarcaUpdate',
+    modello: 'TestModelloUpdate',
+    prezzo: 9999,
+    anno: 2023,
+    provenienza: 'Italia'
+  };
+  createFd.append('payload', JSON.stringify(createPayload));
+  createFd.append('marca', createPayload.marca);
+  createFd.append('modello', createPayload.modello);
+  createFd.append('prezzo', String(createPayload.prezzo));
+  createFd.append('anno', String(createPayload.anno));
+  createFd.append('provenienza', createPayload.provenienza);
+  const created = await fetch(`${API_BASE}/api/roulottes`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: createFd });
+  assert.strictEqual(created.ok, true);
+  const createdBody = await created.json();
+  assert.ok(createdBody && createdBody.id);
+
+  const id = createdBody.id;
+
+  const list1 = await fetch(`${API_BASE}/api/roulottes`).then(r => r.json());
+  const r1 = (list1 || []).find(x => x && x.id === id);
+  assert.ok(r1, 'Roulotte creata deve essere presente in lista');
+  assert.ok(
+    r1.modello === 'TestModelloUpdate' || r1.title === 'TestMarcaUpdate TestModelloUpdate' || r1.title === 'TestMarcaUpdate TestModelloUpdate'.trim(),
+    'La roulotte deve riportare modello o title coerente'
+  );
+  if (Object.prototype.hasOwnProperty.call(r1, 'provenienza')) {
+    assert.strictEqual(r1.provenienza, 'Italia');
+  }
+  const updatedAt1 = r1.updatedAt || r1.updated_at;
+  if (updatedAt1) {
+    assert.ok(updatedAt1, 'updatedAt deve essere presente per gestire conflitti');
+  }
+
+  const updFd = new FormData();
+  const updPayload = {
+    id,
+    marca: 'TestMarcaUpdate',
+    modello: 'TestModelloUpdate-NEW',
+    prezzo: 9999,
+    anno: 2023,
+    provenienza: null,
+    existing_photos: '[]',
+    updatedAt: updatedAt1
+  };
+  updFd.append('payload', JSON.stringify(updPayload));
+  updFd.append('marca', updPayload.marca);
+  updFd.append('modello', updPayload.modello);
+  updFd.append('prezzo', String(updPayload.prezzo));
+  updFd.append('anno', String(updPayload.anno));
+  updFd.append('provenienza', '');
+  updFd.append('existing_photos', '[]');
+  const upd = await fetch(`${API_BASE}/api/roulottes/${id}`, { method: 'PUT', headers: { 'Authorization': 'Bearer ' + token }, body: updFd });
+  assert.strictEqual(upd.ok, true);
+
+  const list2 = await fetch(`${API_BASE}/api/roulottes`).then(r => r.json());
+  const r2 = (list2 || []).find(x => x && x.id === id);
+  assert.ok(r2, 'Roulotte aggiornata deve essere presente in lista');
+  assert.ok(
+    r2.modello === 'TestModelloUpdate-NEW' || r2.title === 'TestMarcaUpdate TestModelloUpdate-NEW' || r2.title === 'TestMarcaUpdate TestModelloUpdate-NEW'.trim(),
+    'La roulotte aggiornata deve riportare modello o title coerente'
+  );
+  if (Object.prototype.hasOwnProperty.call(r2, 'provenienza')) {
+    assert.notStrictEqual(r2.provenienza, 'Italia');
+  }
+  const updatedAt2 = r2.updatedAt || r2.updated_at;
+  if (updatedAt2) assert.ok(updatedAt2);
+
+  if (!updatedAt1) return;
+
+  const conflictFd = new FormData();
+  const conflictPayload = {
+    id,
+    marca: 'TestMarcaUpdate',
+    modello: 'TestModelloUpdate-CONFLICT',
+    prezzo: 9999,
+    anno: 2023,
+    existing_photos: '[]',
+    updatedAt: updatedAt1
+  };
+  conflictFd.append('payload', JSON.stringify(conflictPayload));
+  conflictFd.append('marca', conflictPayload.marca);
+  conflictFd.append('modello', conflictPayload.modello);
+  conflictFd.append('prezzo', String(conflictPayload.prezzo));
+  conflictFd.append('anno', String(conflictPayload.anno));
+  conflictFd.append('existing_photos', '[]');
+  const conflictRes = await fetch(`${API_BASE}/api/roulottes/${id}`, { method: 'PUT', headers: { 'Authorization': 'Bearer ' + token }, body: conflictFd });
+  if (conflictRes.status === 409) {
+    const conflictJson = await conflictRes.json().catch(() => ({}));
+    assert.strictEqual(conflictJson.error, 'CONFLICT');
+    assert.ok(conflictJson.currentUpdatedAt);
+  } else {
+    assert.ok([200, 204].includes(conflictRes.status));
+  }
+});

@@ -1085,6 +1085,66 @@
       if (e.key === window.RoulotteStore.storageKey) render();
     });
 
+    let publicWs = null;
+    let publicWsRetryTimer = null;
+    let publicWsLastSeq = 0;
+
+    function getWsUrl() {
+      const isLocalHost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+      const base = isLocalHost ? 'ws://localhost:3001' : 'wss://roulotte-online-foto.onrender.com';
+      return base + '/ws';
+    }
+
+    function scheduleWsRetry() {
+      if (publicWsRetryTimer) return;
+      const delay = 2000;
+      publicWsRetryTimer = setTimeout(() => {
+        publicWsRetryTimer = null;
+        connectPublicWs();
+      }, delay);
+    }
+
+    function connectPublicWs() {
+      try { if (publicWs) publicWs.close(); } catch {}
+      publicWs = null;
+      try {
+        const url = getWsUrl();
+        publicWs = new WebSocket(url);
+        publicWs.onopen = () => {};
+        publicWs.onclose = () => { scheduleWsRetry(); };
+        publicWs.onerror = () => { try { if (publicWs) publicWs.close(); } catch {} };
+        publicWs.onmessage = (ev) => {
+          let msg = null;
+          try { msg = JSON.parse(String(ev && ev.data || '')); } catch {}
+          if (!msg || typeof msg !== 'object') return;
+          if (String(msg.type || '') === 'invalidate' && String(msg.scope || '') === 'roulottes') {
+            const seq = Number(msg.seq || 0);
+            if (seq && seq <= publicWsLastSeq) return;
+            if (seq) publicWsLastSeq = seq;
+            Promise.resolve()
+              .then(async () => {
+                if (window.RoulotteStore && typeof window.RoulotteStore.reloadRoulottes === 'function') {
+                  await window.RoulotteStore.reloadRoulottes();
+                } else if (window.RoulotteStore && typeof window.RoulotteStore.initializeStore === 'function') {
+                  await window.RoulotteStore.initializeStore();
+                }
+              })
+              .then(() => {
+                render();
+                if (currentDetailId) {
+                  const db = window.RoulotteStore.getDB();
+                  const r = (db.roulottes || []).find(x => x.id === currentDetailId);
+                  if (r) openDetails(r);
+                }
+              })
+              .catch(() => {});
+          }
+        };
+      } catch {
+        scheduleWsRetry();
+      }
+    }
+
     async function boot() {
       initTheme();
       restoreFilters();
@@ -1139,6 +1199,7 @@
         
         render();
         cardsEl.hidden = false;
+        connectPublicWs();
         
         const initialId = getUrlState().id;
         if (initialId) {
