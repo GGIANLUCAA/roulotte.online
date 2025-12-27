@@ -3304,6 +3304,7 @@
     }
 
     window.viewItem = function(id) {
+      console.log('viewItem called with id:', id);
       renderDetail(id);
       switchSection('detail');
     };
@@ -3314,9 +3315,21 @@
         renderList();
       });
     }
+
+    // Event listeners for detail buttons with robust error handling
     if (detailEditBtn) {
       detailEditBtn.addEventListener('click', () => {
-        if (currentDetailId) editItem(currentDetailId);
+        console.log('detailEditBtn clicked. currentDetailId:', currentDetailId);
+        if (currentDetailId) {
+          try {
+             editItem(currentDetailId);
+          } catch (e) {
+             alert('Errore apertura modifica: ' + e.message);
+             console.error(e);
+          }
+        } else {
+           alert('Nessun elemento selezionato.');
+        }
       });
     }
     if (detailOpenPublicBtn) {
@@ -3326,12 +3339,26 @@
     }
     if (detailDuplicateBtn) {
       detailDuplicateBtn.addEventListener('click', () => {
-        if (currentDetailId) duplicateItem(currentDetailId);
+        if (currentDetailId) {
+           try {
+             duplicateItem(currentDetailId);
+           } catch(e) {
+             alert('Errore duplicazione: ' + e.message);
+           }
+        }
       });
     }
     if (detailSoldBtn) {
       detailSoldBtn.addEventListener('click', () => {
-        if (currentDetailId) markSold(currentDetailId);
+        console.log('detailSoldBtn clicked. currentDetailId:', currentDetailId);
+        if (currentDetailId) {
+          markSold(currentDetailId).catch(err => {
+             console.error('Error in markSold wrapper:', err);
+             alert('Errore: ' + err.message);
+          });
+        } else {
+          alert('Nessun elemento selezionato.');
+        }
       });
     }
 
@@ -3340,103 +3367,120 @@
          try {
            await window.RoulotteStore.deleteRoulotte(id);
            refreshAll();
+           // Se eravamo nel dettaglio di questo item, torniamo alla lista
+           if (currentDetailId === id) {
+             switchSection('list');
+             currentDetailId = null;
+           }
          } catch (e) {
            alert('Errore durante l\'eliminazione: ' + e.message);
          }
        }
     };
 
-    window.editItem = function(id) {
+    // Hoisted function for editItem to ensure availability
+    function editItem(id) {
+       console.log('editItem called for:', id);
        const db = window.RoulotteStore.getDB();
        const r = db.roulottes.find(x => x.id === id);
-       if(!r) return;
-       
-       clearForm();
-       switchSection('new');
-       
-       formTitle.textContent = `Modifica ${r.id}`;
-       editIdEl.value = r.id;
-       marcaEl.value = r.marca;
-       modelloEl.value = r.modello;
-       versioneEl.value = r.versione || '';
-       statoEl.value = r.stato;
-       categoryIdEl.value = r.categoryId || '';
-       prezzoEl.value = r.prezzo;
-       annoEl.value = r.anno;
-
-       tipologiaMezzoEl.value = r.tipologiaMezzo || '';
-       prontaConsegnaEl.checked = !!r.disponibilitaProntaConsegna;
-       setRadioValue('permuta', r.permuta === true ? 'Sì' : (r.permuta === false ? 'No' : ''));
-
-       condizioneGeneraleEl.value = r.condizioneGenerale || '';
-       statoInterniEl.value = r.statoInterni || '';
-       statoEsterniEl.value = r.statoEsterni || '';
-       infiltrazioniEl.value = r.infiltrazioni || '';
-       odoriEl.value = r.odori || '';
-       provenienzaEl.value = r.provenienza || '';
-
-       setBoolSelect(targataEl, r.targata);
-       setBoolSelect(librettoCircolazioneEl, r.librettoCircolazione);
-       setBoolSelect(omologataCircolazioneEl, r.omologataCircolazione);
-       numeroTelaioEl.value = r.numeroTelaio || '';
-       numeroAssiEl.value = r.numeroAssi || '';
-       timoneEl.value = r.timone === true ? 'Presente' : (r.timone === false ? 'Assente' : '');
-       setBoolSelect(frenoRepulsioneEl, r.frenoRepulsione);
-       pesoVuotoEl.value = r.pesoVuoto || '';
-       
-       lunghezzaEl.value = r.lunghezzaTotale ?? r.lunghezza ?? '';
-       lunghezzaInternaEl.value = r.lunghezzaInterna ?? '';
-       larghezzaEl.value = r.larghezza || '';
-       altezzaEl.value = r.altezza || '';
-       postiEl.value = r.postiLetto ?? r.posti ?? '';
-       massaEl.value = r.massa || '';
-       documentiEl.value = r.documenti || '';
-       tipologiaEl.value = r.tipologia || '';
-       setCheckedValues('disposizioneLetti', r.disposizioneLetti || []);
-       setBoolSelect(lettoFissoEl, r.lettoFisso);
-       setCheckedValues('idealePer', r.idealePer || []);
-
-       tipoDinetteEl.value = r.tipoDinette || '';
-       cucinaEl.value = r.cucina || '';
-       bagnoEl.value = r.bagno || '';
-       setBoolSelect(docciaSeparataEl, r.docciaSeparata);
-       setBoolSelect(armadiEl, r.armadi);
-       setBoolSelect(gavoniInterniEl, r.gavoniInterni);
-
-       setBoolSelect(presa220EsternaEl, r.presa220Esterna);
-       setBoolSelect(impianto12VEl, r.impianto12V);
-       setBoolSelect(batteriaServiziEl, r.batteriaServizi);
-       setBoolSelect(illuminazioneLedEl, r.illuminazioneLed);
-       impiantoGasEl.value = r.impiantoGas || '';
-       numeroBomboleEl.value = r.numeroBombole || '';
-       scadenzaImpiantoGasEl.value = r.scadenzaImpiantoGas || '';
-       setBoolSelect(serbatoioAcquaPulitaEl, r.serbatoioAcquaPulita);
-       setBoolSelect(serbatoioAcqueGrigieEl, r.serbatoioAcqueGrigie);
-       setBoolSelect(riscaldamentoEl, r.riscaldamento);
-       tipoRiscaldamentoEl.value = r.tipoRiscaldamento || '';
-       setBoolSelect(climatizzatoreEl, r.climatizzatore);
-       setBoolSelect(predisposizioneClimaEl, r.predisposizioneClima);
-       setBoolSelect(verandaTendalinoEl, r.verandaTendalino);
-       setBoolSelect(portabiciEl, r.portabici);
-
-       contattoTelefonoEl.value = r.contattoTelefono || '';
-       contattoWhatsappEl.value = r.contattoWhatsapp || '';
-       contattoEmailEl.value = r.contattoEmail || '';
-       localitaEl.value = r.localita || '';
-       orariContattoEl.value = r.orariContatto || '';
-       videoUrlEl.value = r.videoUrl || '';
-       planimetriaUrlEl.value = r.planimetriaUrl || '';
-
-       if(r.note) {
-         editor.innerHTML = r.note;
-         noteEl.value = r.note;
+       if(!r) {
+         alert('Elemento non trovato nel database locale.');
+         return;
        }
        
-       if(Array.isArray(r.photos)) {
-         draftPhotos = [...r.photos];
-         renderPhotos();
+       try {
+         clearForm();
+         switchSection('new');
+         
+         formTitle.textContent = `Modifica ${r.id}`;
+         editIdEl.value = r.id;
+         if (marcaEl) marcaEl.value = r.marca || '';
+         if (modelloEl) modelloEl.value = r.modello || '';
+         if (versioneEl) versioneEl.value = r.versione || '';
+         if (statoEl) statoEl.value = r.stato || '';
+         if (categoryIdEl) categoryIdEl.value = r.categoryId || '';
+         if (prezzoEl) prezzoEl.value = r.prezzo || '';
+         if (annoEl) annoEl.value = r.anno || '';
+
+         if (tipologiaMezzoEl) tipologiaMezzoEl.value = r.tipologiaMezzo || '';
+         if (prontaConsegnaEl) prontaConsegnaEl.checked = !!r.disponibilitaProntaConsegna;
+         setRadioValue('permuta', r.permuta === true ? 'Sì' : (r.permuta === false ? 'No' : ''));
+
+         if (condizioneGeneraleEl) condizioneGeneraleEl.value = r.condizioneGenerale || '';
+         if (statoInterniEl) statoInterniEl.value = r.statoInterni || '';
+         if (statoEsterniEl) statoEsterniEl.value = r.statoEsterni || '';
+         if (infiltrazioniEl) infiltrazioniEl.value = r.infiltrazioni || '';
+         if (odoriEl) odoriEl.value = r.odori || '';
+         if (provenienzaEl) provenienzaEl.value = r.provenienza || '';
+
+         setBoolSelect(targataEl, r.targata);
+         setBoolSelect(librettoCircolazioneEl, r.librettoCircolazione);
+         setBoolSelect(omologataCircolazioneEl, r.omologataCircolazione);
+         if (numeroTelaioEl) numeroTelaioEl.value = r.numeroTelaio || '';
+         if (numeroAssiEl) numeroAssiEl.value = r.numeroAssi || '';
+         if (timoneEl) timoneEl.value = r.timone === true ? 'Presente' : (r.timone === false ? 'Assente' : '');
+         setBoolSelect(frenoRepulsioneEl, r.frenoRepulsione);
+         if (pesoVuotoEl) pesoVuotoEl.value = r.pesoVuoto || '';
+         
+         if (lunghezzaEl) lunghezzaEl.value = r.lunghezzaTotale ?? r.lunghezza ?? '';
+         if (lunghezzaInternaEl) lunghezzaInternaEl.value = r.lunghezzaInterna ?? '';
+         if (larghezzaEl) larghezzaEl.value = r.larghezza || '';
+         if (altezzaEl) altezzaEl.value = r.altezza || '';
+         if (postiEl) postiEl.value = r.postiLetto ?? r.posti ?? '';
+         if (massaEl) massaEl.value = r.massa || '';
+         if (documentiEl) documentiEl.value = r.documenti || '';
+         if (tipologiaEl) tipologiaEl.value = r.tipologia || '';
+         setCheckedValues('disposizioneLetti', r.disposizioneLetti || []);
+         setBoolSelect(lettoFissoEl, r.lettoFisso);
+         setCheckedValues('idealePer', r.idealePer || []);
+
+         if (tipoDinetteEl) tipoDinetteEl.value = r.tipoDinette || '';
+         if (cucinaEl) cucinaEl.value = r.cucina || '';
+         if (bagnoEl) bagnoEl.value = r.bagno || '';
+         setBoolSelect(docciaSeparataEl, r.docciaSeparata);
+         setBoolSelect(armadiEl, r.armadi);
+         setBoolSelect(gavoniInterniEl, r.gavoniInterni);
+
+         setBoolSelect(presa220EsternaEl, r.presa220Esterna);
+         setBoolSelect(impianto12VEl, r.impianto12V);
+         setBoolSelect(batteriaServiziEl, r.batteriaServizi);
+         setBoolSelect(illuminazioneLedEl, r.illuminazioneLed);
+         if (impiantoGasEl) impiantoGasEl.value = r.impiantoGas || '';
+         if (numeroBomboleEl) numeroBomboleEl.value = r.numeroBombole || '';
+         if (scadenzaImpiantoGasEl) scadenzaImpiantoGasEl.value = r.scadenzaImpiantoGas || '';
+         setBoolSelect(serbatoioAcquaPulitaEl, r.serbatoioAcquaPulita);
+         setBoolSelect(serbatoioAcqueGrigieEl, r.serbatoioAcqueGrigie);
+         setBoolSelect(riscaldamentoEl, r.riscaldamento);
+         if (tipoRiscaldamentoEl) tipoRiscaldamentoEl.value = r.tipoRiscaldamento || '';
+         setBoolSelect(climatizzatoreEl, r.climatizzatore);
+         setBoolSelect(predisposizioneClimaEl, r.predisposizioneClima);
+         setBoolSelect(verandaTendalinoEl, r.verandaTendalino);
+         setBoolSelect(portabiciEl, r.portabici);
+
+         if (contattoTelefonoEl) contattoTelefonoEl.value = r.contattoTelefono || '';
+         if (contattoWhatsappEl) contattoWhatsappEl.value = r.contattoWhatsapp || '';
+         if (contattoEmailEl) contattoEmailEl.value = r.contattoEmail || '';
+         if (localitaEl) localitaEl.value = r.localita || '';
+         if (orariContattoEl) orariContattoEl.value = r.orariContatto || '';
+         if (videoUrlEl) videoUrlEl.value = r.videoUrl || '';
+         if (planimetriaUrlEl) planimetriaUrlEl.value = r.planimetriaUrl || '';
+
+         if(r.note) {
+           if (editor) editor.innerHTML = r.note;
+           if (noteEl) noteEl.value = r.note;
+         }
+         
+         if(Array.isArray(r.photos)) {
+           draftPhotos = [...r.photos];
+           renderPhotos();
+         }
+       } catch (err) {
+         console.error('Errore durante popolamento form:', err);
+         alert('Errore durante il caricamento dei dati nel form: ' + err.message);
        }
-    };
+    }
+    // Expose as window.editItem for HTML onclick attributes
+    window.editItem = editItem;
 
     window.openPublic = function(id) {
       const safeId = encodeURIComponent(String(id || '').trim());
