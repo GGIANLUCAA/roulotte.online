@@ -623,6 +623,7 @@
         <div>
           <div class="brand-title">Roulotte online</div>
           <div class="brand-sub">Dashboard Admin</div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:2px">v1.2 (Fix Admin)</div>
         </div>
       </a>
 
@@ -3303,12 +3304,6 @@
       }
     }
 
-    window.viewItem = function(id) {
-      console.log('viewItem called with id:', id);
-      renderDetail(id);
-      switchSection('detail');
-    };
-
     window.editItem = function(id) {
        console.log('editItem called for:', id);
        const db = window.RoulotteStore.getDB();
@@ -3380,6 +3375,14 @@
         alert('Errore aggiornamento stato: ' + e.message);
       }
     };
+
+    // Ensure functions are global for onclick handlers
+    window.viewItem = window.viewItem || function(id) {
+      console.log('viewItem called with id:', id);
+      renderDetail(id);
+      switchSection('detail');
+    };
+
 
     if (detailBackBtn) {
       detailBackBtn.addEventListener('click', () => {
