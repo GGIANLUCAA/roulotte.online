@@ -3309,6 +3309,78 @@
       switchSection('detail');
     };
 
+    window.editItem = function(id) {
+       console.log('editItem called for:', id);
+       const db = window.RoulotteStore.getDB();
+       const r = db.roulottes.find(x => x.id === id);
+       if(!r) {
+         alert('Elemento non trovato nel database locale.');
+         return;
+       }
+       
+       try {
+         // Use the draft mechanism to populate form fields
+         sessionStorage.setItem('roulotte_draft', JSON.stringify(r));
+         loadDraft();
+         
+         // Handle photos explicitly as loadDraft doesn't
+         if (r.photos && Array.isArray(r.photos)) {
+             draftPhotos = r.photos.map(p => {
+                 if (typeof p === 'string') return { src: p, thumb: p, type: 'image/jpeg' };
+                 return p;
+             });
+             renderPhotos();
+         } else {
+             draftPhotos = [];
+             renderPhotos();
+         }
+
+         switchSection('new');
+         formTitle.textContent = `Modifica ${r.id}`;
+         editIdEl.value = r.id;
+         clearFormBtn.textContent = 'Annulla Modifica';
+       } catch (e) {
+         alert('Errore durante la modifica: ' + e.message);
+         console.error(e);
+       }
+    };
+
+    window.duplicateItem = function(id) {
+      window.editItem(id);
+      const srcId = editIdEl.value;
+      editIdEl.value = '';
+      formTitle.textContent = `Duplica ${srcId}`;
+      clearFormBtn.textContent = 'Nuova Scheda';
+    };
+
+    window.deleteItem = async function(id) {
+       if(confirm('Sei sicuro di voler eliminare definitivamente questa scheda?')) {
+         try {
+           await window.RoulotteStore.deleteRoulotte(id);
+           refreshAll();
+           if (currentDetailId === id) {
+             switchSection('list');
+             currentDetailId = null;
+           }
+         } catch (e) {
+           alert('Errore durante l\'eliminazione: ' + e.message);
+         }
+       }
+    };
+
+    window.markSold = async function(id) {
+      const safeId = String(id || '').trim();
+      if (!safeId) return;
+      if (!confirm('Impostare lo stato su "Venduto"?')) return;
+      try {
+        await window.RoulotteStore.updateRoulotte({ id: safeId, stato: 'Venduto' });
+        refreshAll();
+        if (currentDetailId === safeId) renderDetail(safeId);
+      } catch (e) {
+        alert('Errore aggiornamento stato: ' + e.message);
+      }
+    };
+
     if (detailBackBtn) {
       detailBackBtn.addEventListener('click', () => {
         switchSection('list');
@@ -3362,156 +3434,7 @@
       });
     }
 
-    window.deleteItem = async function(id) {
-       if(confirm('Sei sicuro di voler eliminare definitivamente questa scheda?')) {
-         try {
-           await window.RoulotteStore.deleteRoulotte(id);
-           refreshAll();
-           // Se eravamo nel dettaglio di questo item, torniamo alla lista
-           if (currentDetailId === id) {
-             switchSection('list');
-             currentDetailId = null;
-           }
-         } catch (e) {
-           alert('Errore durante l\'eliminazione: ' + e.message);
-         }
-       }
-    };
 
-    // Hoisted function for editItem to ensure availability
-    function editItem(id) {
-       console.log('editItem called for:', id);
-       const db = window.RoulotteStore.getDB();
-       const r = db.roulottes.find(x => x.id === id);
-       if(!r) {
-         alert('Elemento non trovato nel database locale.');
-         return;
-       }
-       
-       try {
-         clearForm();
-         switchSection('new');
-         
-         formTitle.textContent = `Modifica ${r.id}`;
-         editIdEl.value = r.id;
-         if (marcaEl) marcaEl.value = r.marca || '';
-         if (modelloEl) modelloEl.value = r.modello || '';
-         if (versioneEl) versioneEl.value = r.versione || '';
-         if (statoEl) statoEl.value = r.stato || '';
-         if (categoryIdEl) categoryIdEl.value = r.categoryId || '';
-         if (prezzoEl) prezzoEl.value = r.prezzo || '';
-         if (annoEl) annoEl.value = r.anno || '';
-
-         if (tipologiaMezzoEl) tipologiaMezzoEl.value = r.tipologiaMezzo || '';
-         if (prontaConsegnaEl) prontaConsegnaEl.checked = !!r.disponibilitaProntaConsegna;
-         setRadioValue('permuta', r.permuta === true ? 'Sì' : (r.permuta === false ? 'No' : ''));
-
-         if (condizioneGeneraleEl) condizioneGeneraleEl.value = r.condizioneGenerale || '';
-         if (statoInterniEl) statoInterniEl.value = r.statoInterni || '';
-         if (statoEsterniEl) statoEsterniEl.value = r.statoEsterni || '';
-         if (infiltrazioniEl) infiltrazioniEl.value = r.infiltrazioni || '';
-         if (odoriEl) odoriEl.value = r.odori || '';
-         if (provenienzaEl) provenienzaEl.value = r.provenienza || '';
-
-         setBoolSelect(targataEl, r.targata);
-         setBoolSelect(librettoCircolazioneEl, r.librettoCircolazione);
-         setBoolSelect(omologataCircolazioneEl, r.omologataCircolazione);
-         if (numeroTelaioEl) numeroTelaioEl.value = r.numeroTelaio || '';
-         if (numeroAssiEl) numeroAssiEl.value = r.numeroAssi || '';
-         if (timoneEl) timoneEl.value = r.timone === true ? 'Presente' : (r.timone === false ? 'Assente' : '');
-         setBoolSelect(frenoRepulsioneEl, r.frenoRepulsione);
-         if (pesoVuotoEl) pesoVuotoEl.value = r.pesoVuoto || '';
-         
-         if (lunghezzaEl) lunghezzaEl.value = r.lunghezzaTotale ?? r.lunghezza ?? '';
-         if (lunghezzaInternaEl) lunghezzaInternaEl.value = r.lunghezzaInterna ?? '';
-         if (larghezzaEl) larghezzaEl.value = r.larghezza || '';
-         if (altezzaEl) altezzaEl.value = r.altezza || '';
-         if (postiEl) postiEl.value = r.postiLetto ?? r.posti ?? '';
-         if (massaEl) massaEl.value = r.massa || '';
-         if (documentiEl) documentiEl.value = r.documenti || '';
-         if (tipologiaEl) tipologiaEl.value = r.tipologia || '';
-         setCheckedValues('disposizioneLetti', r.disposizioneLetti || []);
-         setBoolSelect(lettoFissoEl, r.lettoFisso);
-         setCheckedValues('idealePer', r.idealePer || []);
-
-         if (tipoDinetteEl) tipoDinetteEl.value = r.tipoDinette || '';
-         if (cucinaEl) cucinaEl.value = r.cucina || '';
-         if (bagnoEl) bagnoEl.value = r.bagno || '';
-         setBoolSelect(docciaSeparataEl, r.docciaSeparata);
-         setBoolSelect(armadiEl, r.armadi);
-         setBoolSelect(gavoniInterniEl, r.gavoniInterni);
-
-         setBoolSelect(presa220EsternaEl, r.presa220Esterna);
-         setBoolSelect(impianto12VEl, r.impianto12V);
-         setBoolSelect(batteriaServiziEl, r.batteriaServizi);
-         setBoolSelect(illuminazioneLedEl, r.illuminazioneLed);
-         if (impiantoGasEl) impiantoGasEl.value = r.impiantoGas || '';
-         if (numeroBomboleEl) numeroBomboleEl.value = r.numeroBombole || '';
-         if (scadenzaImpiantoGasEl) scadenzaImpiantoGasEl.value = r.scadenzaImpiantoGas || '';
-         setBoolSelect(serbatoioAcquaPulitaEl, r.serbatoioAcquaPulita);
-         setBoolSelect(serbatoioAcqueGrigieEl, r.serbatoioAcqueGrigie);
-         setBoolSelect(riscaldamentoEl, r.riscaldamento);
-         if (tipoRiscaldamentoEl) tipoRiscaldamentoEl.value = r.tipoRiscaldamento || '';
-         setBoolSelect(climatizzatoreEl, r.climatizzatore);
-         setBoolSelect(predisposizioneClimaEl, r.predisposizioneClima);
-         setBoolSelect(verandaTendalinoEl, r.verandaTendalino);
-         setBoolSelect(portabiciEl, r.portabici);
-
-         if (contattoTelefonoEl) contattoTelefonoEl.value = r.contattoTelefono || '';
-         if (contattoWhatsappEl) contattoWhatsappEl.value = r.contattoWhatsapp || '';
-         if (contattoEmailEl) contattoEmailEl.value = r.contattoEmail || '';
-         if (localitaEl) localitaEl.value = r.localita || '';
-         if (orariContattoEl) orariContattoEl.value = r.orariContatto || '';
-         if (videoUrlEl) videoUrlEl.value = r.videoUrl || '';
-         if (planimetriaUrlEl) planimetriaUrlEl.value = r.planimetriaUrl || '';
-
-         if(r.note) {
-           if (editor) editor.innerHTML = r.note;
-           if (noteEl) noteEl.value = r.note;
-         }
-         
-         if(Array.isArray(r.photos)) {
-           draftPhotos = [...r.photos];
-           renderPhotos();
-         }
-       } catch (err) {
-         console.error('Errore durante popolamento form:', err);
-         alert('Errore durante il caricamento dei dati nel form: ' + err.message);
-       }
-    }
-    // Expose as window.editItem for HTML onclick attributes
-    window.editItem = editItem;
-
-    window.openPublic = function(id) {
-      const safeId = encodeURIComponent(String(id || '').trim());
-      if (!safeId) return;
-      window.open(`index.html?id=${safeId}`, '_blank', 'noopener');
-    };
-
-    window.duplicateItem = function(id) {
-      editItem(id);
-      const srcId = editIdEl.value;
-      editIdEl.value = '';
-      // IMPORTANTE: Resetta draftPhotos per duplicazione
-      // editItem popola draftPhotos con oggetti (alcuni con file, altri con URL)
-      // Per la duplicazione, dobbiamo assicurarci che siano trattati come nuove risorse o URL esistenti
-      // editItem già fa un buon lavoro, ma resettiamo l'ID.
-      formTitle.textContent = `Duplica ${srcId}`;
-      clearFormBtn.textContent = 'Nuova Scheda';
-    };
-
-    window.markSold = async function(id) {
-      const safeId = String(id || '').trim();
-      if (!safeId) return;
-      if (!confirm('Impostare lo stato su "Venduto"?')) return;
-      try {
-        await window.RoulotteStore.updateRoulotte({ id: safeId, stato: 'Venduto' });
-        refreshAll();
-        if (currentDetailId === safeId) renderDetail(safeId);
-      } catch (e) {
-        alert('Errore aggiornamento stato: ' + e.message);
-      }
-    };
 
     let listTimer = null;
     listQ.addEventListener('input', () => { clearTimeout(listTimer); listTimer = setTimeout(renderList, 150); });
