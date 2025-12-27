@@ -333,16 +333,31 @@
     });
   }
 
+  async function forceReloadRoulottes() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/roulottes`);
+      if (!response.ok) throw new Error('Reload failed');
+      const list = await response.json();
+      const db = getDB();
+      db.roulottes = list;
+      saveDB(db, { skipServerPush: true }); // Salva in locale senza pushare indietro
+      return true;
+    } catch (e) {
+      console.error("Errore ricaricamento lista:", e);
+      return false;
+    }
+  }
+
   async function addRoulotte(input, photos = [], onProgress) {
     const res = await sendRoulotteData('POST', `${API_BASE_URL}/api/roulottes`, input, photos, 'photos', onProgress);
-    await syncNow();
+    await forceReloadRoulottes(); // Forza aggiornamento lista
     return res;
   }
 
   async function updateRoulotte(input, photos = [], onProgress) {
     if (!input || !input.id) throw new Error('ID mancante per modifica');
     const res = await sendRoulotteData('PUT', `${API_BASE_URL}/api/roulottes/${input.id}`, input, photos, 'new_photos', onProgress);
-    await syncNow();
+    await forceReloadRoulottes(); // Forza aggiornamento lista
     return res;
   }
 
@@ -357,7 +372,7 @@
        try { const j = await res.json(); if(j.error) msg = j.error; } catch{}
        throw new Error(msg);
     }
-    await syncNow();
+    await forceReloadRoulottes(); // Forza aggiornamento lista
     return true;
   }
 
