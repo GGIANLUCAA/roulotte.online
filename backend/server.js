@@ -4,8 +4,11 @@ const compression = require('compression');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const http = require('http');
+const { WebSocketServer } = require('ws');
 
 const app = express();
+const server = http.createServer(app);
 
 // Middlewares
 app.use(cors({ origin: String(process.env.ALLOWED_ORIGIN || '*') })); // Abilita la comunicazione tra frontend e backend
@@ -60,6 +63,149 @@ const ADMIN_RESET_TOKEN = process.env.ADMIN_RESET_TOKEN || 'reset_token_fallback
 const RENDER_API_KEY = process.env.RENDER_API_KEY || '';
 const RENDER_SERVICE_ID = process.env.RENDER_SERVICE_ID || 'srv-d54pt6i4d50c739h8ob0';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+
+const serverWss = new WebSocketServer({ server, path: '/ws' });
+
+let wsSeq = 0;
+const wsLocks = new Map();
+
+function safeJsonParse(v) {
+  try { return JSON.parse(String(v || '')); } catch { return null; }
+}
+
+function wsBroadcast(payload, predicate) {
+  if (!payload) return;
+  const msg = JSON.stringify(payload);
+  for (const client of serverWss.clients) {
+    if (client.readyState !== 1) continue;
+    if (predicate && !predicate(client)) continue;
+    try { client.send(msg); } catch {}
+  }
+}
+
+function wsEmitInvalidate(scope, detail) {
+  wsSeq += 1;
+  wsBroadcast({ type: 'invalidate', scope: String(scope || ''), detail: detail || null, ts: Date.now(), seq: wsSeq });
+}
+
+function wsNormalizeLocks() {
+  const now = Date.now();
+  const out = [];
+  for (const [id, lock] of wsLocks.entries()) {
+    if (!lock || now >= lock.expiresAt) continue;
+    out.push({ id, user: lock.user, expiresAt: lock.expiresAt });
+  }
+  return out;
+}
+
+function wsCleanupExpiredLocks() {
+  const now = Date.now();
+  let changed = false;
+  for (const [id, lock] of wsLocks.entries()) {
+    if (!lock || now >= lock.expiresAt) {
+      wsLocks.delete(id);
+      changed = true;
+    }
+  }
+  if (changed) wsBroadcast({ type: 'locks', locks: wsNormalizeLocks(), ts: Date.now() }, (c) => c && c._meta && c._meta.role === 'admin');
+}
+
+function wsReleaseUserLocks(username) {
+  if (!username) return;
+  let changed = false;
+  for (const [id, lock] of wsLocks.entries()) {
+    if (lock && lock.user === username) {
+      wsLocks.delete(id);
+      changed = true;
+    }
+  }
+  if (changed) wsBroadcast({ type: 'locks', locks: wsNormalizeLocks(), ts: Date.now() }, (c) => c && c._meta && c._meta.role === 'admin');
+}
+
+function wsTrySetLock(publicId, username) {
+  const id = String(publicId || '').trim();
+  if (!id) return { ok: false, error: 'BAD_REQUEST' };
+  const now = Date.now();
+  const existing = wsLocks.get(id);
+  if (existing && now < existing.expiresAt && existing.user && existing.user !== username) {
+    return { ok: false, error: 'LOCKED', lock: { id, user: existing.user, expiresAt: existing.expiresAt } };
+  }
+  wsLocks.set(id, { user: username, expiresAt: now + 60000 });
+  return { ok: true, lock: { id, user: username, expiresAt: now + 60000 } };
+}
+
+function wsRefreshLock(publicId, username) {
+  const id = String(publicId || '').trim();
+  if (!id) return { ok: false, error: 'BAD_REQUEST' };
+  const now = Date.now();
+  const existing = wsLocks.get(id);
+  if (!existing || now >= existing.expiresAt) return wsTrySetLock(id, username);
+  if (existing.user !== username) return { ok: false, error: 'LOCKED', lock: { id, user: existing.user, expiresAt: existing.expiresAt } };
+  wsLocks.set(id, { user: username, expiresAt: now + 60000 });
+  return { ok: true, lock: { id, user: username, expiresAt: now + 60000 } };
+}
+
+function wsReleaseLock(publicId, username) {
+  const id = String(publicId || '').trim();
+  if (!id) return { ok: false, error: 'BAD_REQUEST' };
+  const existing = wsLocks.get(id);
+  if (existing && existing.user && existing.user !== username) return { ok: false, error: 'LOCKED' };
+  wsLocks.delete(id);
+  return { ok: true };
+}
+
+serverWss.on('connection', (ws, req) => {
+  const url = new URL(String(req.url || '/ws'), 'http://localhost');
+  const token = String(url.searchParams.get('token') || '').trim();
+
+  let role = 'public';
+  let user = null;
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET);
+      role = 'admin';
+      user = payload && payload.user ? String(payload.user) : 'admin';
+    } catch {}
+  }
+
+  ws._meta = { role, user };
+
+  try { ws.send(JSON.stringify({ type: 'hello', role, user, ts: Date.now() })); } catch {}
+  if (role === 'admin') {
+    try { ws.send(JSON.stringify({ type: 'locks', locks: wsNormalizeLocks(), ts: Date.now() })); } catch {}
+  }
+
+  ws.on('message', (data) => {
+    if (!ws || !ws._meta || ws._meta.role !== 'admin') return;
+    const msg = safeJsonParse(data);
+    if (!msg || typeof msg !== 'object') return;
+
+    const t = String(msg.type || '').trim();
+    const publicId = String(msg.id || '').trim();
+    const username = String(ws._meta.user || 'admin');
+
+    if (t === 'lock_acquire') {
+      const r = wsTrySetLock(publicId, username);
+      try { ws.send(JSON.stringify({ type: 'lock_result', request: 'acquire', ...r, ts: Date.now() })); } catch {}
+      if (r.ok) wsBroadcast({ type: 'locks', locks: wsNormalizeLocks(), ts: Date.now() }, (c) => c && c._meta && c._meta.role === 'admin');
+    } else if (t === 'lock_heartbeat') {
+      const r = wsRefreshLock(publicId, username);
+      try { ws.send(JSON.stringify({ type: 'lock_result', request: 'heartbeat', ...r, ts: Date.now() })); } catch {}
+      if (r.ok) wsBroadcast({ type: 'locks', locks: wsNormalizeLocks(), ts: Date.now() }, (c) => c && c._meta && c._meta.role === 'admin');
+    } else if (t === 'lock_release') {
+      const r = wsReleaseLock(publicId, username);
+      try { ws.send(JSON.stringify({ type: 'lock_result', request: 'release', ...r, ts: Date.now() })); } catch {}
+      wsBroadcast({ type: 'locks', locks: wsNormalizeLocks(), ts: Date.now() }, (c) => c && c._meta && c._meta.role === 'admin');
+    }
+  });
+
+  ws.on('close', () => {
+    const u = ws && ws._meta && ws._meta.user ? String(ws._meta.user) : '';
+    wsReleaseUserLocks(u);
+  });
+});
+
+setInterval(wsCleanupExpiredLocks, 10000).unref();
 
 // Configurazione di Multer per gestire l'upload di file in memoria
 const storage = multer.memoryStorage();
@@ -118,6 +264,52 @@ function adminLog(client, action, username, details) {
   `;
   const d = details ? JSON.stringify(details) : JSON.stringify({});
   return client.query(q, [String(action || ''), String(username || ''), d]);
+}
+
+async function captureRoulotteSnapshot(client, publicId) {
+  const id = String(publicId || '').trim();
+  if (!id) return null;
+  const r = await client.query(
+    'SELECT id, public_id, title, description, price, year, weight, length, beds, data, visibile, created_at, updated_at FROM roulottes WHERE public_id = $1;',
+    [id]
+  );
+  if (!r.rows.length) return null;
+  const row = r.rows[0];
+  const pr = await client.query(
+    'SELECT url_full, url_thumb, is_cover, sort_order FROM photos WHERE roulotte_id = $1 ORDER BY sort_order ASC, id ASC;',
+    [row.id]
+  );
+  const photos = (pr.rows || []).map((p) => ({
+    url_full: p.url_full,
+    url_thumb: p.url_thumb,
+    is_cover: p.is_cover === true,
+    sort_order: Number(p.sort_order || 0),
+  }));
+  const snapshot = {
+    public_id: row.public_id,
+    title: row.title,
+    description: row.description,
+    price: row.price,
+    year: row.year,
+    weight: row.weight,
+    length: row.length,
+    beds: row.beds,
+    data: row.data || {},
+    visibile: row.visibile === true,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+  return { snapshot, photos };
+}
+
+async function insertRoulotteRevision(client, publicId, action, username) {
+  const cap = await captureRoulotteSnapshot(client, publicId);
+  if (!cap) return false;
+  await client.query(
+    'INSERT INTO roulotte_revisions (public_id, action, snapshot, photos, username) VALUES ($1, $2, $3::jsonb, $4::jsonb, $5);',
+    [String(publicId || '').trim(), String(action || ''), JSON.stringify(cap.snapshot), JSON.stringify(cap.photos || []), username ? String(username) : null]
+  );
+  return true;
 }
 
 app.post('/api/admin/log', requireAdmin, async (req, res) => {
@@ -290,6 +482,32 @@ app.get('/api/contents', async (req, res) => {
   }
 });
 
+app.get('/api/content/:key/revisions', requireAdmin, async (req, res) => {
+  try {
+    const key = String(req.params.key || '').trim();
+    if (!key) return res.status(400).json({ error: 'BAD_REQUEST' });
+    const { rows } = await pool.query(
+      'SELECT id, content_key, content_type, username, created_at FROM content_revisions WHERE content_key = $1 ORDER BY created_at DESC LIMIT 50;',
+      [key]
+    );
+    res.json(rows || []);
+  } catch (err) {
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+app.get('/api/content/revision/:id', requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id || 0);
+    if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: 'BAD_REQUEST' });
+    const { rows } = await pool.query('SELECT id, content_key, content_type, data, username, created_at FROM content_revisions WHERE id = $1;', [id]);
+    if (!rows.length) return res.status(404).json({ error: 'NOT_FOUND' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 app.post('/api/content', requireAdmin, async (req, res) => {
   const key = String(req.body.content_key || '').trim();
   const type = String(req.body.content_type || 'html').trim();
@@ -308,6 +526,7 @@ app.post('/api/content', requireAdmin, async (req, res) => {
     `;
     await client.query(up, [key, type]);
     await client.query('COMMIT');
+    wsEmitInvalidate('contents', { action: 'draft_saved', key, user: req.adminUser || 'admin' });
     res.json({ ok: true });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -328,6 +547,31 @@ app.post('/api/content/:key/publish', requireAdmin, async (req, res) => {
       VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
       ON CONFLICT (content_key) DO UPDATE SET content_type = EXCLUDED.content_type, published_data = EXCLUDED.published_data, updated_at = CURRENT_TIMESTAMP;
     `, [key, rev ? rev.content_type : 'html', rev ? rev.data : '']);
+    wsEmitInvalidate('contents', { action: 'published', key, user: req.adminUser || 'admin' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+app.post('/api/content/:key/publish_revision', requireAdmin, async (req, res) => {
+  const key = String(req.params.key || '').trim();
+  const revisionId = Number(req.body && req.body.revision_id || 0);
+  if (!key || !Number.isFinite(revisionId) || revisionId <= 0) return res.status(400).json({ error: 'BAD_REQUEST' });
+  try {
+    const { rows } = await pool.query('SELECT data, content_type FROM content_revisions WHERE id = $1 AND content_key = $2;', [revisionId, key]);
+    if (!rows.length) return res.status(404).json({ error: 'NOT_FOUND' });
+    const rev = rows[0];
+    await pool.query(
+      `
+        INSERT INTO contents (content_key, content_type, published_data, updated_at)
+        VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+        ON CONFLICT (content_key) DO UPDATE
+        SET content_type = EXCLUDED.content_type, published_data = EXCLUDED.published_data, updated_at = CURRENT_TIMESTAMP;
+      `,
+      [key, String(rev.content_type || 'html'), String(rev.data || '')]
+    );
+    wsEmitInvalidate('contents', { action: 'published', key, user: req.adminUser || 'admin', revision_id: revisionId });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Errore interno del server' });
@@ -632,6 +876,7 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
     } else {
       await client.query('COMMIT');
       try { await adminLog(client, 'CREATE_ROULOTTE', req.adminUser || 'admin', { id: savedPublicId }); } catch {}
+      wsEmitInvalidate('roulottes', { action: 'created', id: savedPublicId, user: req.adminUser || 'admin' });
       return res.status(201).json({ message: 'Roulotte creata con successo!', id: savedPublicId });
     }
 
@@ -643,6 +888,7 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
       }
     } catch {}
     try { await adminLog(client, 'CREATE_ROULOTTE', req.adminUser || 'admin', { id: savedPublicId }); } catch {}
+    wsEmitInvalidate('roulottes', { action: 'created', id: savedPublicId, user: req.adminUser || 'admin' });
     res.status(201).json({ message: 'Roulotte creata con successo!', id: savedPublicId });
 
   } catch (err) {
@@ -663,15 +909,27 @@ app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (r
     const publicId = req.params.id;
     if (!publicId) return res.status(400).json({ error: 'BAD_REQUEST' });
 
+    const raw = req.body || {};
+
     // Verifica esistenza
-    const check = await client.query('SELECT id FROM roulottes WHERE public_id = $1', [publicId]);
+    const check = await client.query('SELECT id, updated_at FROM roulottes WHERE public_id = $1', [publicId]);
     if (check.rows.length === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'NOT_FOUND' });
     }
     const dbId = check.rows[0].id;
+    const currentUpdatedAt = check.rows[0].updated_at ? new Date(check.rows[0].updated_at).toISOString() : null;
 
-    const raw = req.body || {};
+    const expectedUpdatedAt = String(req.headers['x-if-updated-at'] || raw.updatedAt || '').trim();
+    if (expectedUpdatedAt && currentUpdatedAt) {
+      const e = Date.parse(expectedUpdatedAt);
+      const c = Date.parse(currentUpdatedAt);
+      if (Number.isFinite(e) && Number.isFinite(c) && e < c) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'CONFLICT', currentUpdatedAt });
+      }
+    }
+
     const visibile = parseBooleanLike(raw.visibile, true);
     
     const marca = String(raw.marca || '').trim();
@@ -787,6 +1045,7 @@ app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (r
 
     await client.query('COMMIT');
     try { await adminLog(client, 'UPDATE_ROULOTTE', req.adminUser || 'admin', { id: publicId }); } catch {}
+    wsEmitInvalidate('roulottes', { action: 'updated', id: publicId, user: req.adminUser || 'admin' });
     res.json({ ok: true, id: publicId });
 
   } catch (err) {
@@ -812,6 +1071,7 @@ app.delete('/api/roulottes/:id', requireAdmin, async (req, res) => {
     // Cascade dovrebbe rimuovere le foto dal DB.
     
     try { await adminLog(client, 'DELETE_ROULOTTE', req.adminUser || 'admin', { id: publicId }); } catch {}
+    wsEmitInvalidate('roulottes', { action: 'deleted', id: publicId, user: req.adminUser || 'admin' });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Errore interno del server' });
@@ -825,6 +1085,7 @@ app.delete('/api/photos/:id', requireAdmin, async (req, res) => {
   if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: 'BAD_REQUEST' });
   try {
     await pool.query('DELETE FROM photos WHERE id = $1;', [id]);
+    wsEmitInvalidate('roulottes', { action: 'photo_deleted', photoId: id, user: req.adminUser || 'admin' });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Errore interno del server' });
@@ -839,6 +1100,7 @@ app.patch('/api/photos/:id', requireAdmin, async (req, res) => {
   try {
     if (sortOrder !== undefined) await pool.query('UPDATE photos SET sort_order = $1 WHERE id = $2;', [Number(sortOrder) || 0, id]);
     if (isCover !== undefined) await pool.query('UPDATE photos SET is_cover = $1 WHERE id = $2;', [isCover === true || String(isCover).toLowerCase() === 'true', id]);
+    wsEmitInvalidate('roulottes', { action: 'photo_updated', photoId: id, user: req.adminUser || 'admin' });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Errore interno del server' });
@@ -855,6 +1117,6 @@ createTables()
   .then(() => console.log('Tabelle database pronte.'))
   .catch((err) => console.error('Errore durante la preparazione delle tabelle:', err));
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server in ascolto sulla porta ${PORT}`);
 });

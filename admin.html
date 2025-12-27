@@ -661,7 +661,7 @@
         <div>
           <div class="brand-title">Roulotte online</div>
           <div class="brand-sub">Dashboard Admin</div>
-          <div style="font-size:0.7rem;color:var(--muted);margin-top:2px">v1.6 (Fix List Refresh)</div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:2px">v1.7 (Realtime + Conflitti)</div>
         </div>
       </a>
 
@@ -1665,6 +1665,7 @@
     const photosPreview = document.getElementById('photosPreview');
     const photoHint = document.getElementById('photoHint');
     let draftPhotos = [];
+    let draftEditingUpdatedAt = '';
 
     // Categorie
     const catList = document.getElementById('catList');
@@ -1789,6 +1790,9 @@
     function logout() {
       setAuthed(false);
       showLogin();
+      try { if (typeof window.RoulotteStore?.setAuthToken === 'function') window.RoulotteStore.setAuthToken(''); } catch {}
+      try { if (adminWs) adminWs.close(); } catch {}
+      adminWs = null;
       loginForm.reset();
       loginError.hidden = true;
     }
@@ -3039,6 +3043,7 @@
       };
       
       const editId = editIdEl.value;
+      if (editId) payload.updatedAt = draftEditingUpdatedAt || null;
       
       // Prepare existing photos list for server sync (URLs only)
       const existingPhotos = draftPhotos
@@ -3113,6 +3118,7 @@
     function clearForm() {
       newForm.reset();
       editIdEl.value = '';
+      draftEditingUpdatedAt = '';
       formTitle.textContent = 'Crea nuova scheda';
       clearFormBtn.textContent = 'Nuova Scheda';
       editor.innerHTML = '';
@@ -3354,6 +3360,7 @@
        }
        
        try {
+         draftEditingUpdatedAt = r.updatedAt || r.updated_at || '';
          // Use the draft mechanism to populate form fields
          sessionStorage.setItem('roulotte_draft', JSON.stringify(r));
          loadDraft();
@@ -3384,6 +3391,7 @@
       window.editItem(id);
       const srcId = editIdEl.value;
       editIdEl.value = '';
+      draftEditingUpdatedAt = '';
       formTitle.textContent = `Duplica ${srcId}`;
       clearFormBtn.textContent = 'Nuova Scheda';
     };
@@ -3408,7 +3416,9 @@
       if (!safeId) return;
       if (!confirm('Impostare lo stato su "Venduto"?')) return;
       try {
-        await window.RoulotteStore.updateRoulotte({ id: safeId, stato: 'Venduto' });
+        const db = window.RoulotteStore.getDB();
+        const r = (db.roulottes || []).find(x => x.id === safeId);
+        await window.RoulotteStore.updateRoulotte({ id: safeId, stato: 'Venduto', updatedAt: (r && (r.updatedAt || r.updated_at)) ? (r.updatedAt || r.updated_at) : null });
         refreshAll();
         if (currentDetailId === safeId) renderDetail(safeId);
       } catch (e) {
@@ -3647,6 +3657,7 @@
     async function bootAuthed() {
       showApp();
       checkHealth();
+      connectAdminWs();
       try {
         const res = await window.RoulotteStore.syncNow();
         if (res && syncMsg) {
@@ -3691,6 +3702,62 @@
            if (typeof window.deleteItem === 'function') window.deleteItem(id);
         }
       });
+    }
+
+    var adminWs = null;
+    var adminWsRetryTimer = null;
+    var adminWsLastSeq = 0;
+
+    function getWsUrl() {
+      const isLocalHost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+      const base = isLocalHost ? 'ws://localhost:3001' : 'wss://roulotte-online-foto.onrender.com';
+      const token = (window.RoulotteStore && typeof window.RoulotteStore.getAuthToken === 'function') ? window.RoulotteStore.getAuthToken() : '';
+      const qs = token ? ('?token=' + encodeURIComponent(token)) : '';
+      return base + '/ws' + qs;
+    }
+
+    function scheduleWsRetry() {
+      if (adminWsRetryTimer) return;
+      const delay = 1500;
+      adminWsRetryTimer = setTimeout(() => {
+        adminWsRetryTimer = null;
+        if (isAuthed()) connectAdminWs();
+      }, delay);
+    }
+
+    function connectAdminWs() {
+      try { if (adminWs) adminWs.close(); } catch {}
+      adminWs = null;
+      try {
+        const url = getWsUrl();
+        adminWs = new WebSocket(url);
+        adminWs.onopen = () => {};
+        adminWs.onclose = () => { scheduleWsRetry(); };
+        adminWs.onerror = () => { try { if (adminWs) adminWs.close(); } catch {} };
+        adminWs.onmessage = (ev) => {
+          let msg = null;
+          try { msg = JSON.parse(String(ev && ev.data || '')); } catch {}
+          if (!msg || typeof msg !== 'object') return;
+          if (String(msg.type || '') === 'invalidate' && String(msg.scope || '') === 'roulottes') {
+            const seq = Number(msg.seq || 0);
+            if (seq && seq <= adminWsLastSeq) return;
+            if (seq) adminWsLastSeq = seq;
+            Promise.resolve()
+              .then(async () => {
+                if (window.RoulotteStore && typeof window.RoulotteStore.reloadRoulottes === 'function') {
+                  await window.RoulotteStore.reloadRoulottes();
+                }
+              })
+              .then(() => {
+                refreshAll();
+                if (currentDetailId) renderDetail(currentDetailId);
+              })
+              .catch(() => {});
+          }
+        };
+      } catch {
+        scheduleWsRetry();
+      }
     }
   </script>
 </body>

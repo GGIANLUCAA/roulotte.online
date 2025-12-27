@@ -312,6 +312,8 @@
       const xhr = new XMLHttpRequest();
       xhr.open(method, url);
       if (authToken) xhr.setRequestHeader('Authorization', 'Bearer ' + authToken);
+      const expectedUpdatedAt = input && typeof input === 'object' ? String(input.updatedAt || input.updated_at || '').trim() : '';
+      if (expectedUpdatedAt && String(method || '').toUpperCase() === 'PUT') xhr.setRequestHeader('x-if-updated-at', expectedUpdatedAt);
       xhr.upload.onprogress = function(e){
         if (onProgress && e && e.lengthComputable) {
           try { onProgress(Math.round((e.loaded / e.total) * 100)); } catch {}
@@ -388,6 +390,7 @@
     addRoulotte,
     updateRoulotte,
     deleteRoulotte,
+    reloadRoulottes: forceReloadRoulottes,
     replaceAll,
     syncNow,
     pullFromServer,

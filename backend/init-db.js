@@ -113,6 +113,20 @@ async function createTables() {
   `;
   await db.query(createAdminLogs);
 
+  const createRoulotteRevisions = `
+    CREATE TABLE IF NOT EXISTS roulotte_revisions (
+      id SERIAL PRIMARY KEY,
+      public_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      snapshot JSONB NOT NULL,
+      photos JSONB NOT NULL DEFAULT '[]'::jsonb,
+      username TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_roulotte_rev_public_id ON roulotte_revisions(public_id);
+  `;
+  await db.query(createRoulotteRevisions);
+
   const createContents = `
     CREATE TABLE IF NOT EXISTS contents (
       id SERIAL PRIMARY KEY,
