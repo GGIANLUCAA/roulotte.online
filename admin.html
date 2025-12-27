@@ -1,6 +1,43 @@
 <!DOCTYPE html>
 <html lang="it" data-theme="light">
 <head>
+  <script>
+    // Global Error Handler per Debug Critico
+    window.onerror = function(msg, url, line, col, error) {
+       // Ignora errori di estensioni browser o resize observer benigni
+       if (msg.includes('ResizeObserver') || msg.includes('extension')) return;
+
+       const box = document.createElement('div');
+       box.id = 'critical-error-box';
+       box.style.position = 'fixed';
+       box.style.top = '0';
+       box.style.left = '0';
+       box.style.width = '100%';
+       box.style.height = 'auto';
+       box.style.maxHeight = '50vh';
+       box.style.overflow = 'auto';
+       box.style.background = '#dc2626';
+       box.style.color = '#fff';
+       box.style.padding = '20px';
+       box.style.zIndex = '999999';
+       box.style.fontSize = '14px';
+       box.style.fontFamily = 'monospace';
+       box.style.whiteSpace = 'pre-wrap';
+       box.style.boxShadow = '0 10px 30px rgba(0,0,0,0.5)';
+       box.innerHTML = '<strong>⚠️ ERRORE CRITICO RILEVATO:</strong><br>' + 
+                       (msg || 'Errore sconosciuto') + '<br>' + 
+                       'Riga: ' + (line || '?') + '<br>' + 
+                       'Per favore, invia uno screenshot di questo messaggio.<br><br>' + 
+                       (error && error.stack ? error.stack : '');
+       
+       if (!document.body) {
+         window.addEventListener('DOMContentLoaded', () => document.body.appendChild(box));
+       } else {
+         document.body.appendChild(box);
+       }
+       return false;
+    };
+  </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin - Roulotte online</title>
@@ -95,6 +132,7 @@
       background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
     }
 
+    .action-btn { cursor: pointer; pointer-events: auto !important; }
     .brand{
       display:flex;
       gap:12px;
@@ -623,7 +661,7 @@
         <div>
           <div class="brand-title">Roulotte online</div>
           <div class="brand-sub">Dashboard Admin</div>
-          <div style="font-size:0.7rem;color:var(--muted);margin-top:2px">v1.3 (Event Delegation)</div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:2px">v1.4 (Debug Mode)</div>
         </div>
       </a>
 
