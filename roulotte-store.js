@@ -418,9 +418,11 @@
 
   async function deleteRoulotte(id) {
     if (!id) throw new Error('ID mancante');
+    const token = authToken || (typeof window !== 'undefined' && window.RoulotteStore && typeof window.RoulotteStore.getAuthToken === 'function' ? window.RoulotteStore.getAuthToken() : '');
+    if (!token) throw new Error('UNAUTHORIZED');
     const res = await fetch(`${API_BASE_URL}/api/roulottes/${id}`, {
-       method: 'DELETE',
-       headers: { 'Authorization': 'Bearer ' + authToken }
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + token }
     });
     if (!res.ok) {
        let msg = 'Errore cancellazione';

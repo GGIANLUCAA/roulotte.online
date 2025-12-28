@@ -397,7 +397,7 @@
 <body>
   <a class="skip-link" href="#contenuto" data-i18n="a11y.skipToContent">Vai al contenuto</a>
   <div class="container">
-    <header role="banner" aria-label="Intestazione">
+    <header id="editableHeader" role="banner" aria-label="Intestazione">
       <a class="brand" href="index.html" aria-label="Roulotte online, home">
         <div class="logo" aria-hidden="true">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -429,7 +429,7 @@
       </div>
     </header>
 
-    <section class="hero" aria-label="Ricerca">
+    <section class="hero" id="editableHome" aria-label="Ricerca">
       <div class="hero-card">
         <h2 id="heroTitle" data-i18n="hero.title" data-i18n-default="Trova la roulotte giusta">Trova la roulotte giusta</h2>
         <p id="heroText" data-i18n="hero.text" data-i18n-default="Filtra per marca, modello, anno e stato. I risultati si aggiornano in tempo reale.">Filtra per marca, modello, anno e stato. I risultati si aggiornano in tempo reale.</p>
@@ -496,10 +496,12 @@
         <h3 data-i18n="results.title">Disponibilità</h3>
         <div class="sr-only" aria-live="polite" id="liveStatus"></div>
       </div>
+      <div id="editableListTop"></div>
       <div id="emptyState" class="empty" hidden>
         <span data-i18n="empty.noResults">Nessun risultato. Prova a cambiare filtri o aggiungi nuove schede dall'area admin.</span>
       </div>
       <section id="cards" class="grid" aria-label="Risultati"></section>
+      <div id="editableListBottom"></div>
     </main>
 
     <section id="trasporto" aria-label="Calcolatore trasporto" style="padding:10px 0 30px">
@@ -563,7 +565,7 @@
       </div>
     </section>
 
-    <footer role="contentinfo"></footer>
+    <footer id="editableFooter" role="contentinfo"></footer>
   </div>
 
   <dialog id="detailDialog" role="dialog" aria-modal="true" aria-labelledby="detailTitle" aria-label="Dettagli roulotte">
@@ -2403,6 +2405,119 @@
             const j2 = await r2.json();
             const t2 = String(j2.data || '').trim();
             if (t2) { const el2 = document.getElementById('heroText'); if (el2) el2.textContent = t2; }
+          }
+        } catch {}
+        try {
+          const rFrag = await fetch(getApiBaseUrl() + '/api/content/page_home_fragment', { headers: { 'Accept': 'application/json' } });
+          const rCss = await fetch(getApiBaseUrl() + '/api/content/page_home_styles', { headers: { 'Accept': 'application/json' } });
+          if (rCss.ok) {
+            const jCss = await rCss.json();
+            const css = String(jCss.published_data || '').trim();
+            if (css) {
+              const st = document.getElementById('pageCustomCss') || document.createElement('style');
+              st.id = 'pageCustomCss';
+              st.textContent = css;
+              document.head.appendChild(st);
+            }
+          }
+          if (rFrag.ok) {
+            const jFrag = await rFrag.json();
+            const html = String(jFrag.published_data || '').trim();
+            if (html) {
+              const root = document.getElementById('editableHome');
+              if (root) root.innerHTML = html;
+            }
+          }
+        } catch {}
+        // Header
+        try {
+          const rHFrag = await fetch(getApiBaseUrl() + '/api/content/page_header_fragment', { headers: { 'Accept': 'application/json' } });
+          const rHCss = await fetch(getApiBaseUrl() + '/api/content/page_header_styles', { headers: { 'Accept': 'application/json' } });
+          if (rHCss.ok) {
+            const jHCss = await rHCss.json();
+            const cssH = String(jHCss.published_data || '').trim();
+            if (cssH) {
+              const stH = document.getElementById('pageCustomCssHeader') || document.createElement('style');
+              stH.id = 'pageCustomCssHeader';
+              stH.textContent = cssH;
+              document.head.appendChild(stH);
+            }
+          }
+          if (rHFrag.ok) {
+            const jHFrag = await rHFrag.json();
+            const htmlH = String(jHFrag.published_data || '').trim();
+            if (htmlH) {
+              const hRoot = document.getElementById('editableHeader');
+              if (hRoot) hRoot.innerHTML = htmlH;
+            }
+          }
+        } catch {}
+        // Footer
+        try {
+          const rFFrag = await fetch(getApiBaseUrl() + '/api/content/page_footer_fragment', { headers: { 'Accept': 'application/json' } });
+          const rFCss = await fetch(getApiBaseUrl() + '/api/content/page_footer_styles', { headers: { 'Accept': 'application/json' } });
+          if (rFCss.ok) {
+            const jFCss = await rFCss.json();
+            const cssF = String(jFCss.published_data || '').trim();
+            if (cssF) {
+              const stF = document.getElementById('pageCustomCssFooter') || document.createElement('style');
+              stF.id = 'pageCustomCssFooter';
+              stF.textContent = cssF;
+              document.head.appendChild(stF);
+            }
+          }
+          if (rFFrag.ok) {
+            const jFFrag = await rFFrag.json();
+            const htmlF = String(jFFrag.published_data || '').trim();
+            if (htmlF) {
+              const fRoot = document.getElementById('editableFooter');
+              if (fRoot) fRoot.innerHTML = htmlF;
+            }
+          }
+        } catch {}
+        // List Top/Bottom
+        try {
+          const rLT = await fetch(getApiBaseUrl() + '/api/content/page_list_top_fragment', { headers: { 'Accept': 'application/json' } });
+          const rLTs = await fetch(getApiBaseUrl() + '/api/content/page_list_top_styles', { headers: { 'Accept': 'application/json' } });
+          if (rLTs.ok) {
+            const jLTs = await rLTs.json();
+            const cssLT = String(jLTs.published_data || '').trim();
+            if (cssLT) {
+              const stLT = document.getElementById('pageCustomCssListTop') || document.createElement('style');
+              stLT.id = 'pageCustomCssListTop';
+              stLT.textContent = cssLT;
+              document.head.appendChild(stLT);
+            }
+          }
+          if (rLT.ok) {
+            const jLT = await rLT.json();
+            const htmlLT = String(jLT.published_data || '').trim();
+            if (htmlLT) {
+              const ltRoot = document.getElementById('editableListTop');
+              if (ltRoot) ltRoot.innerHTML = htmlLT;
+            }
+          }
+        } catch {}
+        try {
+          const rLB = await fetch(getApiBaseUrl() + '/api/content/page_list_bottom_fragment', { headers: { 'Accept': 'application/json' } });
+          const rLBs = await fetch(getApiBaseUrl() + '/api/content/page_list_bottom_styles', { headers: { 'Accept': 'application/json' } });
+          if (rLBs.ok) {
+            const jLBs = await rLBs.json();
+            const cssLB = String(jLBs.published_data || '').trim();
+            if (cssLB) {
+              const stLB = document.getElementById('pageCustomCssListBottom') || document.createElement('style');
+              stLB.id = 'pageCustomCssListBottom';
+              stLB.textContent = cssLB;
+              document.head.appendChild(stLB);
+            }
+          }
+          if (rLB.ok) {
+            const jLB = await rLB.json();
+            const htmlLB = String(jLB.published_data || '').trim();
+            if (htmlLB) {
+              const lbRoot = document.getElementById('editableListBottom');
+              if (lbRoot) lbRoot.innerHTML = htmlLB;
+            }
           }
         } catch {}
       }

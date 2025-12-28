@@ -42,6 +42,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin - Roulotte online</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/grapesjs/dist/css/grapes.min.css">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     :root{
@@ -672,6 +674,7 @@
         <button class="nav-btn" type="button" data-section="categories">Categorie</button>
         <button class="nav-btn" type="button" data-section="settings">Impostazioni</button>
         <button class="nav-btn" type="button" data-section="content">Contenuti</button>
+        <button class="nav-btn" type="button" data-section="builder">Editor visivo</button>
         <button class="nav-btn" type="button" data-section="media">Media</button>
       </nav>
 
@@ -762,6 +765,36 @@
         </div>
       </section>
 
+      <section id="builder" class="section" aria-label="Editor visuale" hidden>
+        <div class="card">
+          <div style="font-weight:900;font-size:1.05rem">Editor visivo (GrapesJS)</div>
+          <div class="hint" style="margin-top:6px">Modifica sezioni principali con drag&drop, testi e stili. Salva e pubblica senza toccare il codice.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+            <div class="field">
+              <label>Pagina</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <select id="builderPageKey">
+                  <option value="home">Home</option>
+                  <option value="header">Header</option>
+                  <option value="footer">Footer</option>
+                  <option value="list_top">Lista (top)</option>
+                  <option value="list_bottom">Lista (bottom)</option>
+                </select>
+                <button class="btn" type="button" id="builderLoadBtn">Carica</button>
+                <button class="btn" type="button" id="builderSaveBtn">Salva bozza</button>
+                <button class="btn btn-primary" type="button" id="builderPublishBtn">Pubblica</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>Stato</label>
+              <div id="builderStatus" class="hint">Inattivo</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div id="gjs" style="height:70vh;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff"></div>
+        </div>
+      </section>
       <section id="new" class="section" aria-label="Nuova roulotte">
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
@@ -1449,7 +1482,10 @@
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
               <div class="field">
                 <label for="contentKey">Chiave contenuto</label>
-                <input id="contentKey" placeholder="es. home_hero" />
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input id="contentKey" placeholder="es. home_hero" />
+                  <button class="btn" type="button" id="loadContentBtn">Carica</button>
+                </div>
               </div>
               <div class="field">
                 <label for="contentType">Tipo</label>
@@ -1459,6 +1495,24 @@
             <div class="field">
               <label for="contentData">Contenuto</label>
               <textarea id="contentData" rows="8" placeholder="Testo o HTML"></textarea>
+              <div id="quillWrap" style="margin-top:8px;display:none">
+                <div id="quillToolbar">
+                  <span class="ql-formats">
+                    <button class="ql-bold"></button>
+                    <button class="ql-italic"></button>
+                    <button class="ql-underline"></button>
+                  </span>
+                  <span class="ql-formats">
+                    <button class="ql-list" value="ordered"></button>
+                    <button class="ql-list" value="bullet"></button>
+                  </span>
+                  <span class="ql-formats">
+                    <button class="ql-link"></button>
+                    <button class="ql-clean"></button>
+                  </span>
+                </div>
+                <div id="quillEditor" style="min-height:160px"></div>
+              </div>
             </div>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
               <button class="btn btn-primary" type="button" id="publishContentBtn">Pubblica</button>
@@ -1552,6 +1606,8 @@
   <script src="roulotte-store.js"></script>
   <script src="live-reload.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+  <script src="https://unpkg.com/grapesjs"></script>
   <script>
     const AUTH_KEY = 'admin_auth_v2';
 
@@ -1687,6 +1743,12 @@
     const pushServerBtn = document.getElementById('pushServerBtn');
     const syncMsg = document.getElementById('syncMsg');
     const wipeBtn = document.getElementById('wipeBtn');
+    const builderPageKey = document.getElementById('builderPageKey');
+    const builderLoadBtn = document.getElementById('builderLoadBtn');
+    const builderSaveBtn = document.getElementById('builderSaveBtn');
+    const builderPublishBtn = document.getElementById('builderPublishBtn');
+    const builderStatus = document.getElementById('builderStatus');
+    let gjsEditor = null;
 
     // Elenco
     const listMeta = document.getElementById('listMeta');
@@ -2007,12 +2069,24 @@
         detail: 'Dettaglio',
         categories: 'Gestione Categorie',
         settings: 'Impostazioni',
-        content: 'Gestione Contenuti'
+        content: 'Gestione Contenuti',
+        builder: 'Editor visivo'
       };
       pageTitle.textContent = titleMap[sectionId] || 'Admin';
       
       if (sectionId === 'new') marcaEl.focus();
       if (sectionId === 'list') listQ.focus();
+      if (sectionId === 'builder' && !gjsEditor) {
+        try {
+          gjsEditor = window.grapesjs.init({
+            container: '#gjs',
+            height: '70vh',
+            storageManager: false,
+            fromElement: false
+          });
+          builderStatus.textContent = 'Editor pronto';
+        } catch {}
+      }
     }
     navButtons.forEach(btn => btn.addEventListener('click', () => switchSection(btn.dataset.section)));
     refreshBtn.addEventListener('click', () => refreshAll());
@@ -2028,6 +2102,9 @@
     const contentPreviewEl = document.getElementById('contentPreview');
     const publishContentBtn = document.getElementById('publishContentBtn');
     const contentStatusEl = document.getElementById('contentStatus');
+    const loadContentBtn = document.getElementById('loadContentBtn');
+    const quillWrap = document.getElementById('quillWrap');
+    let quill = null;
 
     function renderContentPreview() {
       const t = String(contentTypeEl?.value || 'html');
@@ -2060,7 +2137,9 @@
           body: JSON.stringify({ content_key: key, content_type: type, data })
         });
         if (contentStatusEl) contentStatusEl.textContent = 'Bozza salvata';
-      } catch {}
+      } catch {
+        if (contentStatusEl) contentStatusEl.textContent = 'Errore salvataggio';
+      }
     }
     function scheduleContentSave() {
       if (contentSaveTimer) clearTimeout(contentSaveTimer);
@@ -2089,6 +2168,124 @@
         }
       });
     }
+    async function loadContent() {
+      const key = String(contentKeyEl?.value || '').trim();
+      if (!key) return;
+      try {
+        const r = await fetch(apiUrl('/api/content/' + encodeURIComponent(key)));
+        if (!r.ok) return;
+        const j = await r.json();
+        const t = String(j && j.content_type || 'html');
+        const d = String(j && (j.data || j.published_data) || '');
+        if (contentTypeEl) contentTypeEl.value = t || 'html';
+        if (contentDataEl) contentDataEl.value = d || '';
+        renderContentPreview();
+        initQuillIfNeeded();
+        if (contentStatusEl) contentStatusEl.textContent = 'Caricato';
+      } catch {}
+    }
+    if (loadContentBtn) loadContentBtn.addEventListener('click', loadContent);
+    function initQuillIfNeeded() {
+      const mode = String(contentTypeEl?.value || 'html');
+      if (mode === 'html') {
+        if (!quill) {
+          try {
+            quillWrap.style.display = '';
+            contentDataEl.style.display = 'none';
+            quill = new window.Quill('#quillEditor', { theme: 'snow', modules: { toolbar: '#quillToolbar' } });
+            const html = String(contentDataEl.value || '');
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            quill.setContents(quill.clipboard.convert(tmp.innerHTML));
+            quill.on('text-change', () => {
+              const htmlOut = quill.root.innerHTML;
+              contentDataEl.value = htmlOut;
+              scheduleContentSave();
+            });
+          } catch {}
+        }
+      } else {
+        if (quill) {
+          try { quill.off('text-change'); } catch {}
+          quill = null;
+        }
+        if (quillWrap) quillWrap.style.display = 'none';
+        contentDataEl.style.display = '';
+      }
+    }
+    initQuillIfNeeded();
+    if (contentTypeEl) contentTypeEl.addEventListener('change', initQuillIfNeeded);
+
+    async function builderLoad() {
+      const page = String(builderPageKey?.value || 'home');
+      builderStatus.textContent = 'Caricamento…';
+      try {
+        const rHtml = await fetch(apiUrl('/api/content/page_' + page + '_fragment'), { headers: { 'Accept': 'application/json' } });
+        const rCss = await fetch(apiUrl('/api/content/page_' + page + '_styles'), { headers: { 'Accept': 'application/json' } });
+        let html = '';
+        let css = '';
+        if (rHtml.ok) {
+          const jh = await rHtml.json();
+          html = String(jh.published_data || jh.data || '');
+        }
+        if (rCss.ok) {
+          const jc = await rCss.json();
+          css = String(jc.published_data || jc.data || '');
+        }
+        if ((!html || !html.trim())) {
+          try {
+            const raw = await fetch('index.html').then(x => x.text());
+            const dom = new DOMParser().parseFromString(raw, 'text/html');
+            let source = null;
+            if (page === 'home') source = dom.querySelector('.hero');
+            else if (page === 'header') source = dom.querySelector('header');
+            else if (page === 'footer') source = dom.querySelector('footer');
+            else if (page === 'list_top') source = null;
+            else if (page === 'list_bottom') source = null;
+            html = source ? source.outerHTML : '<section class="container"><h2>Nuova sezione</h2><p>Modifica contenuti qui.</p></section>';
+            const styleTags = Array.from(dom.querySelectorAll('style'));
+            css = styleTags.map(s => s.textContent || '').join('\n');
+          } catch {}
+        }
+        if (gjsEditor) {
+          gjsEditor.setComponents(html || '');
+          gjsEditor.setStyle(css || '');
+        }
+        builderStatus.textContent = 'Caricato';
+      } catch {
+        builderStatus.textContent = 'Errore caricamento';
+      }
+    }
+    async function builderSave() {
+      if (!gjsEditor) return;
+      const page = String(builderPageKey?.value || 'home');
+      const token = window.RoulotteStore.getAuthToken();
+      const html = gjsEditor.getHtml();
+      const css = gjsEditor.getCss();
+      builderStatus.textContent = 'Salvataggio…';
+      try {
+        await fetch(apiUrl('/api/content'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' }, body: JSON.stringify({ content_key: 'page_' + page + '_fragment', content_type: 'html', data: String(html || '') }) });
+        await fetch(apiUrl('/api/content'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' }, body: JSON.stringify({ content_key: 'page_' + page + '_styles', content_type: 'html', data: String(css || '') }) });
+        builderStatus.textContent = 'Bozza salvata';
+      } catch {
+        builderStatus.textContent = 'Errore salvataggio';
+      }
+    }
+    async function builderPublish() {
+      const page = String(builderPageKey?.value || 'home');
+      builderStatus.textContent = 'Pubblicazione…';
+      try {
+        const token = window.RoulotteStore.getAuthToken();
+        await fetch(apiUrl('/api/content/page_' + page + '_fragment/publish'), { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
+        await fetch(apiUrl('/api/content/page_' + page + '_styles/publish'), { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
+        builderStatus.textContent = 'Pubblicato';
+      } catch {
+        builderStatus.textContent = 'Errore pubblicazione';
+      }
+    }
+    if (builderLoadBtn) builderLoadBtn.addEventListener('click', builderLoad);
+    if (builderSaveBtn) builderSaveBtn.addEventListener('click', builderSave);
+    if (builderPublishBtn) builderPublishBtn.addEventListener('click', builderPublish);
 
     const mediaInput = document.getElementById('mediaInput');
     const mediaRefreshBtn = document.getElementById('mediaRefreshBtn');
@@ -3437,7 +3634,9 @@
              currentDetailId = null;
            }
          } catch (e) {
-           alert('Errore durante l\'eliminazione: ' + e.message);
+           const msg = e && e.message ? String(e.message) : 'Errore';
+           alert('Errore durante l\'eliminazione: ' + msg);
+           if (msg.includes('UNAUTHORIZED') || msg.includes('401')) { logout(); }
          }
        }
     };
