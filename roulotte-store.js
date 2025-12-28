@@ -2,7 +2,7 @@
   const storageKey = 'roulotte_db_v1';
   // Rileva automaticamente se siamo in locale o in produzione
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  const API_BASE_URL = isLocal ? 'http://localhost:3001' : 'https://roulotte-online-foto.onrender.com';
+  const API_BASE_URL = isLocal ? 'http://localhost:3001' : '';
 
   function nowIso() {
     return new Date().toISOString();
@@ -381,6 +381,28 @@
     }
   }
 
+  async function searchRoulottes(params = {}, timeoutMs = 1500) {
+    const q = String(params.q || '').trim();
+    const url = new URL(`${API_BASE_URL}/api/search`);
+    url.searchParams.set('q', q);
+    if (params && typeof params === 'object') {
+      const stato = String(params.stato || '').trim();
+      const sort = String(params.sort || '').trim();
+      if (stato) url.searchParams.set('stato', stato);
+      if (sort) url.searchParams.set('sort', sort);
+      if (params.min !== undefined && params.min !== null && Number.isFinite(Number(params.min))) url.searchParams.set('min', String(Number(params.min)));
+      if (params.max !== undefined && params.max !== null && Number.isFinite(Number(params.max))) url.searchParams.set('max', String(Number(params.max)));
+      if (params.hasPhoto) url.searchParams.set('photo', '1');
+      if (params.limit !== undefined && params.limit !== null && Number.isFinite(Number(params.limit))) url.searchParams.set('limit', String(Math.min(Math.max(Number(params.limit) || 36, 1), 100)));
+    }
+
+    const res = await fetchWithTimeout(url.toString(), { method: 'GET', headers: { 'Accept': 'application/json' } }, timeoutMs);
+    if (res.status === 404) throw new Error('remote_search_not_supported');
+    if (!res.ok) throw new Error('remote_search_failed');
+    const list = await res.json();
+    return Array.isArray(list) ? list : [];
+  }
+
   async function addRoulotte(input, photos = [], onProgress) {
     const res = await sendRoulotteData('POST', `${API_BASE_URL}/api/roulottes`, input, photos, 'photos', onProgress);
     await forceReloadRoulottes(); // Forza aggiornamento lista
@@ -422,6 +444,7 @@
     updateRoulotte,
     deleteRoulotte,
     reloadRoulottes: forceReloadRoulottes,
+    searchRoulottes,
     replaceAll,
     syncNow,
     pullFromServer,

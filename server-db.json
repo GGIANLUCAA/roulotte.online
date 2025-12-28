@@ -1,6 +1,6 @@
 {
     "version":  2,
-    "updatedAt":  "2025-12-24T00:36:32.689Z",
+    "updatedAt":  "2025-12-28T16:17:27.647Z",
     "admin":  {
                   "username":  "admin",
                   "password":  "admin",
@@ -12,7 +12,7 @@
                  {
                      "id":  "L-INIT",
                      "action":  "Inizializzazione Sistema",
-                     "timestamp":  "2025-12-24T00:36:32.689Z",
+                     "timestamp":  "2025-12-28T16:17:27.647Z",
                      "user":  "system"
                  }
              ],
@@ -46,7 +46,7 @@
 
                                      ],
                           "note":  "",
-                          "createdAt":  "2025-12-24T00:36:32.689Z"
+                          "createdAt":  "2025-12-28T16:17:27.647Z"
                       },
                       {
                           "id":  "R-0002",
@@ -60,7 +60,7 @@
 
                                      ],
                           "note":  "",
-                          "createdAt":  "2025-12-24T00:36:32.689Z"
+                          "createdAt":  "2025-12-28T16:17:27.647Z"
                       },
                       {
                           "id":  "R-0003",
@@ -74,7 +74,7 @@
 
                                      ],
                           "note":  "",
-                          "createdAt":  "2025-12-24T00:36:32.689Z"
+                          "createdAt":  "2025-12-28T16:17:27.647Z"
                       }
                   ]
 }

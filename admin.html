@@ -1797,11 +1797,28 @@
       loginError.hidden = true;
     }
 
+    function isLocalHost() {
+      return (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+    }
+
+    function getApiBaseUrl() {
+      return isLocalHost() ? 'http://localhost:3001' : '';
+    }
+
+    function apiUrl(path) {
+      return getApiBaseUrl() + String(path || '');
+    }
+
+    function getWsBaseUrl() {
+      if (isLocalHost()) return 'ws://localhost:3001';
+      const proto = (location.protocol === 'https:') ? 'wss' : 'ws';
+      return proto + '://' + location.host;
+    }
+
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
-        const isLocalHost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
-        const loginUrl = isLocalHost ? 'http://localhost:3001/api/auth/login' : 'https://roulotte-online-foto.onrender.com/api/auth/login';
+        const loginUrl = apiUrl('/api/auth/login');
         
         const response = await fetch(loginUrl, {
           method: 'POST',
@@ -1809,8 +1826,7 @@
           body: JSON.stringify({ username: userEl.value, password: passEl.value })
         });
         if (!response.ok) {
-          const isLocal = (location.hostname === '127.0.0.1' || location.hostname === 'localhost');
-          if (isLocal) {
+          if (isLocalHost()) {
             const resLocal = window.RoulotteStore.checkLogin(userEl.value, passEl.value);
             if (resLocal.success) {
               setAuthed(true);
@@ -1838,8 +1854,7 @@
           loginError.textContent = 'Errore di autenticazione.';
         }
       } catch {
-        const isLocal = (location.hostname === '127.0.0.1' || location.hostname === 'localhost');
-        if (isLocal) {
+        if (isLocalHost()) {
           const resLocal = window.RoulotteStore.checkLogin(userEl.value, passEl.value);
           if (resLocal.success) {
             setAuthed(true);
@@ -1856,7 +1871,7 @@
     // Login con Google
     (async function initGoogleLogin(){
       try {
-        const cfg = await fetch('https://roulotte-online-foto.onrender.com/api/config').then(r => r.json()).catch(() => ({}));
+        const cfg = await fetch(apiUrl('/api/config')).then(r => r.json()).catch(() => ({}));
         const cid = String(cfg && cfg.google_client_id || '');
         if (!cid) { console.warn('Google Client ID non trovato in /api/config'); return; }
         if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) { console.warn('Google Library non caricata'); return; }
@@ -1869,7 +1884,7 @@
           client_id: cid,
           callback: async (response) => {
             try {
-              const r = await fetch('https://roulotte-online-foto.onrender.com/api/auth/google', {
+              const r = await fetch(apiUrl('/api/auth/google'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id_token: response.credential })
@@ -1930,7 +1945,7 @@
       toggleRecoveryBtn.addEventListener('click', async () => {
         const token = window.RoulotteStore.getAuthToken();
         try {
-          const r = await fetch('https://roulotte-online-foto.onrender.com/api/auth/setup', {
+          const r = await fetch(apiUrl('/api/auth/setup'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username: 'admin', password: 'admin' })
@@ -1955,7 +1970,7 @@
           return;
         }
         try {
-          const r = await fetch('https://roulotte-online-foto.onrender.com/api/auth/reset', {
+          const r = await fetch(apiUrl('/api/auth/reset'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Admin-Reset': code },
             body: JSON.stringify({ username: nu, password: np })
@@ -2039,7 +2054,7 @@
       if (!key || !data) return;
       try {
         const token = window.RoulotteStore.getAuthToken();
-        await fetch('https://roulotte-online-foto.onrender.com/api/content', {
+        await fetch(apiUrl('/api/content'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' },
           body: JSON.stringify({ content_key: key, content_type: type, data })
@@ -2064,7 +2079,7 @@
         if (!key) return;
         try {
           const token = window.RoulotteStore.getAuthToken();
-          await fetch('https://roulotte-online-foto.onrender.com/api/content/' + encodeURIComponent(key) + '/publish', {
+          await fetch(apiUrl('/api/content/' + encodeURIComponent(key) + '/publish'), {
             method: 'POST',
             headers: { 'Authorization': token ? ('Bearer ' + token) : '' }
           });
@@ -2088,7 +2103,7 @@
       if (!mediaGrid) return;
       try {
         const token = window.RoulotteStore.getAuthToken();
-        const r = await fetch('https://roulotte-online-foto.onrender.com/api/media', { headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
+        const r = await fetch(apiUrl('/api/media'), { headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
         if (r.status === 401) { mediaGrid.innerHTML = '<div class="hint">Sessione scaduta. Accedi di nuovo.</div>'; logout(); return; }
         if (!r.ok) { mediaGrid.innerHTML = '<div class="hint">Impossibile caricare media.</div>'; return; }
         const arr = await r.json();
@@ -2132,7 +2147,7 @@
           del.onclick = async () => {
             try {
               const token2 = window.RoulotteStore.getAuthToken();
-              const rr = await fetch('https://roulotte-online-foto.onrender.com/api/media/' + m.id, { method: 'DELETE', headers: { 'Authorization': token2 ? ('Bearer ' + token2) : '' } });
+              const rr = await fetch(apiUrl('/api/media/' + m.id), { method: 'DELETE', headers: { 'Authorization': token2 ? ('Bearer ' + token2) : '' } });
               if (rr.ok) loadMedia();
             } catch {}
           };
@@ -2153,7 +2168,7 @@
       const token = window.RoulotteStore.getAuthToken();
       return new Promise((resolve) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', 'https://roulotte-online-foto.onrender.com/api/media');
+        xhr.open('POST', apiUrl('/api/media'));
         if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
         xhr.upload.onprogress = function(e){ if (mediaProg && e && e.lengthComputable) { mediaProg.style.display=''; mediaProg.value = Math.round((e.loaded/e.total)*100); } };
         xhr.onreadystatechange = function(){
@@ -2444,7 +2459,7 @@
         statusEl.textContent = 'Errore durante la generazione della descrizione';
         try {
           const token = window.RoulotteStore.getAuthToken();
-          fetch('https://roulotte-online-foto.onrender.com/api/admin/log', {
+          fetch(apiUrl('/api/admin/log'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' },
             body: JSON.stringify({ action: 'DESC_GENERATION_ERROR', details: { message: String(err && err.message ? err.message : err) } })
@@ -3174,7 +3189,7 @@
           btn.disabled = true;
           try {
             const token = window.RoulotteStore.getAuthToken();
-            const r = await fetch('https://roulotte-online-foto.onrender.com/api/deploy/trigger', { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
+            const r = await fetch(apiUrl('/api/deploy/trigger'), { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
             if (r.ok) {
               msg.textContent = 'Aggiornamento avviato su Render. Il sito sarà aggiornato in pochi minuti.';
               msg.style.color = 'var(--success)';
@@ -3201,7 +3216,7 @@
         exportBtn2.addEventListener('click', async () => {
           try {
             const token = window.RoulotteStore.getAuthToken();
-            const r = await fetch('https://roulotte-online-foto.onrender.com/api/export', { headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
+            const r = await fetch(apiUrl('/api/export'), { headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
             if (!r.ok) { alert('Errore esportazione: ' + r.status); return; }
             const data = await r.json();
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -3645,7 +3660,7 @@
       if (!dot || !txt) return;
       
       try {
-        const res = await fetch('https://roulotte-online-foto.onrender.com/api/health');
+        const res = await fetch(apiUrl('/api/health'));
         if (res.ok) {
           const data = await res.json();
           if (data.ok) {
@@ -3734,8 +3749,7 @@
     var adminWsLastSeq = 0;
 
     function getWsUrl() {
-      const isLocalHost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
-      const base = isLocalHost ? 'ws://localhost:3001' : 'wss://roulotte-online-foto.onrender.com';
+      const base = getWsBaseUrl();
       const token = (window.RoulotteStore && typeof window.RoulotteStore.getAuthToken === 'function') ? window.RoulotteStore.getAuthToken() : '';
       const qs = token ? ('?token=' + encodeURIComponent(token)) : '';
       return base + '/ws' + qs;

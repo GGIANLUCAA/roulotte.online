@@ -22,6 +22,32 @@ test('GET /api/roulottes ritorna array', async () => {
   }
 });
 
+test('POST /api/transport/route (tollerante a ORS non configurato)', async () => {
+  const res = await fetch(`${API_BASE}/api/transport/route`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ fromAddress: 'Milano', toAddress: 'Roma' })
+  });
+
+  if (!res.ok) {
+    assert.ok([400, 404, 429, 500].includes(res.status));
+    const j = await res.json().catch(() => null);
+    if (res.status === 400 && j && typeof j === 'object') {
+      assert.ok(j && (j.error === 'ORS_NOT_CONFIGURED' || j.error === 'BAD_REQUEST'));
+    }
+    if (res.status === 404 && j && typeof j === 'object') {
+      assert.ok(j && (j.error === 'FROM_NOT_FOUND' || j.error === 'TO_NOT_FOUND'));
+    }
+    return;
+  }
+
+  const json = await res.json();
+  assert.ok(json && typeof json === 'object');
+  assert.ok(typeof json.distance_km === 'number');
+  assert.ok(typeof json.duration_min === 'number');
+  assert.ok(json.geometry && typeof json.geometry === 'object');
+});
+
 test('GET contenuti pubblici (tollerante a backend non aggiornato)', async () => {
   const res = await fetch(`${API_BASE}/api/content/home_hero_title`);
   if (!res.ok) {
