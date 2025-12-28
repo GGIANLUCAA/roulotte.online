@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const http = require('http');
 const { WebSocketServer } = require('ws');
+const { MeiliSearch } = require('meilisearch');
 
 const app = express();
 const server = http.createServer(app);
@@ -47,7 +48,7 @@ app.get('/admin.html', (req, res) => {
 
 // Config pubblica (solo parametri non sensibili)
 app.get('/api/config', (req, res) => {
-  res.json({ google_client_id: GOOGLE_CLIENT_ID });
+  res.json({ google_client_id: GOOGLE_CLIENT_ID, ors_enabled: orsEnabled() });
 });
 
 const pool = require('./db'); // Importiamo la configurazione del database
@@ -257,6 +258,238 @@ function normalizePhotoUrlToCurrentPublicBase(url) {
     if (!key) return url;
     return joinUrl(publicBase, key);
   }
+}
+
+function parseJsonOrNull(v) {
+  try { return JSON.parse(String(v || '')); } catch { return null; }
+}
+
+const DIRECTUS_URL = String(process.env.DIRECTUS_URL || '').trim();
+const DIRECTUS_TOKEN = String(process.env.DIRECTUS_TOKEN || '').trim();
+const DIRECTUS_COLLECTION = String(process.env.DIRECTUS_COLLECTION || 'roulottes').trim() || 'roulottes';
+const DIRECTUS_ASSET_BASE_URL = String(process.env.DIRECTUS_ASSET_BASE_URL || process.env.DIRECTUS_URL || '').trim();
+const DIRECTUS_IMAGES_FIELD = String(process.env.DIRECTUS_IMAGES_FIELD || 'immagini').trim() || 'immagini';
+const DIRECTUS_DESC_FIELD = String(process.env.DIRECTUS_DESC_FIELD || 'descrizione').trim() || 'descrizione';
+
+const MEILI_URL = String(process.env.MEILI_URL || '').trim();
+const MEILI_API_KEY = String(process.env.MEILI_API_KEY || '').trim();
+const MEILI_INDEX = String(process.env.MEILI_INDEX || 'roulottes').trim() || 'roulottes';
+
+// OpenRouteService: la chiave resta sul backend (non esposta al frontend)
+const ORS_API_KEY = String(
+  process.env.ORS_API_KEY ||
+  process.env.OPENROUTESERVICE_API_KEY ||
+  process.env.ORS_KEY ||
+  ''
+).trim();
+
+function directusEnabled() {
+  return !!DIRECTUS_URL;
+}
+
+function meiliEnabled() {
+  return !!MEILI_URL;
+}
+
+function orsEnabled() {
+  return !!ORS_API_KEY;
+}
+
+let meiliClient = null;
+function getMeiliClient() {
+  if (!meiliEnabled()) return null;
+  if (meiliClient) return meiliClient;
+  meiliClient = new MeiliSearch({ host: MEILI_URL, apiKey: MEILI_API_KEY || undefined });
+  return meiliClient;
+}
+
+async function orsFetchJson(url, init) {
+  let finalUrl = String(url || '');
+  try {
+    const u = new URL(finalUrl);
+    if (u.hostname === 'api.openrouteservice.org' && ORS_API_KEY && !u.searchParams.get('api_key')) {
+      u.searchParams.set('api_key', ORS_API_KEY);
+      finalUrl = u.toString();
+    }
+  } catch {}
+
+  const headers = { 'Accept': 'application/json, application/geo+json' };
+  if (init && init.headers && typeof init.headers === 'object') Object.assign(headers, init.headers);
+  if (ORS_API_KEY) headers['Authorization'] = ORS_API_KEY;
+
+  const res = await fetch(finalUrl, { ...(init || {}), headers });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    const detail = body ? body.slice(0, 500) : '';
+    const err = new Error(`ors_http_${res.status}`);
+    err.status = res.status;
+    err.detail = detail;
+    throw err;
+  }
+  return await res.json();
+}
+
+async function nominatimGeocodeOne(text) {
+  const q = String(text || '').trim();
+  if (!q) return null;
+  const url = new URL('https://nominatim.openstreetmap.org/search');
+  url.searchParams.set('q', q);
+  url.searchParams.set('format', 'jsonv2');
+  url.searchParams.set('limit', '1');
+
+  const res = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { 'Accept': 'application/json', 'User-Agent': 'roulotte.online backend' }
+  });
+  if (!res.ok) return null;
+  const json = await res.json().catch(() => null);
+  const first = Array.isArray(json) ? json[0] : null;
+  if (!first || typeof first !== 'object') return null;
+
+  const lat = Number(first.lat);
+  const lon = Number(first.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  const label = String(first.display_name || q);
+  return { lat, lon, label };
+}
+
+async function orsGeocodeOne(text) {
+  const q = String(text || '').trim();
+  if (!q) return null;
+  try {
+    const url = new URL('https://api.openrouteservice.org/geocode/search');
+    url.searchParams.set('text', q);
+    url.searchParams.set('size', '1');
+    const json = await orsFetchJson(url.toString(), { method: 'GET' });
+    const f = Array.isArray(json && json.features) ? json.features[0] : null;
+    const coords = f && f.geometry && Array.isArray(f.geometry.coordinates) ? f.geometry.coordinates : null;
+    if (!coords || coords.length < 2) return await nominatimGeocodeOne(q);
+    const lon = Number(coords[0]);
+    const lat = Number(coords[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return await nominatimGeocodeOne(q);
+    const label = String((f && f.properties && (f.properties.label || f.properties.name)) || q);
+    return { lat, lon, label };
+  } catch (err) {
+    const status = Number(err && err.status !== undefined ? err.status : NaN);
+    const msg = String(err && err.message ? err.message : err);
+    const shouldFallback =
+      msg.startsWith('ors_http_') &&
+      [401, 403, 429, 500, 502, 503, 504].includes(status);
+    if (!shouldFallback) return null;
+    return await nominatimGeocodeOne(q);
+  }
+}
+
+function buildDirectusUrl(pathname, params) {
+  const base = joinUrl(DIRECTUS_URL, pathname);
+  const url = new URL(base);
+  if (params && typeof params === 'object') {
+    for (const [k, v] of Object.entries(params)) {
+      if (v === undefined || v === null) continue;
+      url.searchParams.set(k, String(v));
+    }
+  }
+  return url.toString();
+}
+
+function buildDirectusAssetUrl(fileId, opts) {
+  const id = String(fileId || '').trim();
+  if (!id) return '';
+  const base = joinUrl(DIRECTUS_ASSET_BASE_URL, `assets/${encodeURIComponent(id)}`);
+  const url = new URL(base);
+  const o = (opts && typeof opts === 'object') ? opts : {};
+  for (const [k, v] of Object.entries(o)) {
+    if (v === undefined || v === null) continue;
+    url.searchParams.set(k, String(v));
+  }
+  return url.toString();
+}
+
+async function directusFetchJson(pathname, params) {
+  const url = buildDirectusUrl(pathname, params);
+  const headers = { 'Accept': 'application/json' };
+  if (DIRECTUS_TOKEN) headers['Authorization'] = `Bearer ${DIRECTUS_TOKEN}`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    const detail = body ? body.slice(0, 300) : '';
+    const err = new Error(`directus_http_${res.status}`);
+    err.status = res.status;
+    err.detail = detail;
+    throw err;
+  }
+  return await res.json();
+}
+
+function mapDirectusItemToRoulotte(item) {
+  const src = (item && typeof item === 'object') ? item : {};
+  const marca = String(src.marca || '').trim();
+  const modello = String(src.modello || '').trim();
+  const stato = String(src.stato || '').trim();
+  const prezzo = src.prezzo !== undefined ? Number(src.prezzo) : null;
+  const anno =
+    src.anno !== undefined ? Number(src.anno) :
+    (src.year !== undefined ? Number(src.year) : null);
+  const lunghezza = src.lunghezza !== undefined ? Number(src.lunghezza) : null;
+  const larghezza = src.larghezza !== undefined ? Number(src.larghezza) : null;
+  const note = String(src[DIRECTUS_DESC_FIELD] || '').trim();
+
+  const createdAt = src.date_created || src.created_at || src.createdAt || null;
+  const updatedAt = src.date_updated || src.updated_at || src.updatedAt || createdAt || null;
+
+  const id =
+    String(src.public_id || src.publicId || src.id || '').trim() ||
+    ('D-' + crypto.randomBytes(6).toString('hex'));
+
+  const imagesRaw = src[DIRECTUS_IMAGES_FIELD];
+  const photos = [];
+
+  const pushFile = (file) => {
+    if (!file) return;
+    const fileId =
+      (typeof file === 'string' || typeof file === 'number') ? file :
+      (file.directus_files_id && (file.directus_files_id.id || file.directus_files_id)) ||
+      file.id ||
+      file.file ||
+      null;
+    if (!fileId) return;
+    const alt = (typeof file === 'object' && file.title) ? String(file.title) : '';
+    const srcUrl = buildDirectusAssetUrl(fileId, { quality: 82, format: 'webp' });
+    const thumbUrl = buildDirectusAssetUrl(fileId, { width: 480, quality: 70, format: 'webp' });
+    photos.push({ src: srcUrl, thumb: thumbUrl, alt, placeholder: '' });
+  };
+
+  if (Array.isArray(imagesRaw)) {
+    for (const it of imagesRaw) pushFile(it);
+  } else if (imagesRaw) {
+    pushFile(imagesRaw);
+  }
+
+  return {
+    id,
+    marca,
+    modello,
+    prezzo: Number.isFinite(prezzo) ? prezzo : null,
+    anno: Number.isFinite(anno) ? anno : null,
+    stato: stato || null,
+    lunghezza: Number.isFinite(lunghezza) ? lunghezza : null,
+    larghezza: Number.isFinite(larghezza) ? larghezza : null,
+    note,
+    photos,
+    visibile: src.visibile === undefined || src.visibile === null ? true : !!src.visibile,
+    createdAt,
+    updatedAt
+  };
+}
+
+async function fetchDirectusRoulottes() {
+  const payload = await directusFetchJson(`items/${encodeURIComponent(DIRECTUS_COLLECTION)}`, {
+    limit: '-1',
+    fields: '*.*.*'
+  });
+  const items = payload && typeof payload === 'object' ? payload.data : [];
+  const list = Array.isArray(items) ? items.map(mapDirectusItemToRoulotte) : [];
+  return list.filter(r => r && typeof r === 'object');
 }
 
 function adminLog(client, action, username, details) {
@@ -691,6 +924,15 @@ app.delete('/api/media/:id', requireAdmin, async (req, res) => {
 // Rotta per ottenere tutte le roulotte con le loro foto
 app.get('/api/roulottes', async (req, res) => {
   try {
+    if (directusEnabled()) {
+      try {
+        const list = await fetchDirectusRoulottes();
+        return res.json(list);
+      } catch (e) {
+        console.warn('Directus non disponibile, fallback al DB:', String(e && e.message ? e.message : e));
+      }
+    }
+
     const query = `
       SELECT 
         r.public_id AS id,
@@ -724,6 +966,142 @@ app.get('/api/roulottes', async (req, res) => {
   } catch (err) {
     console.error('Errore durante il recupero delle roulotte:', err);
     res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
+  }
+});
+
+app.get('/api/search', async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    const limit = Math.min(Math.max(Number(req.query.limit || 36) || 36, 1), 100);
+    const stato = String(req.query.stato || '').trim();
+    const min = req.query.min !== undefined ? Number(req.query.min) : null;
+    const max = req.query.max !== undefined ? Number(req.query.max) : null;
+    const hasPhoto = String(req.query.photo || '') === '1';
+    const sort = String(req.query.sort || '').trim();
+
+    const client = getMeiliClient();
+    if (!client) return res.status(404).json({ error: 'NOT_CONFIGURED' });
+    const index = client.index(MEILI_INDEX);
+
+    const filters = [];
+    if (stato) filters.push(`stato = "${stato.replace(/"/g, '\\"')}"`);
+    if (Number.isFinite(min)) filters.push(`prezzo >= ${min}`);
+    if (Number.isFinite(max)) filters.push(`prezzo <= ${max}`);
+    if (hasPhoto) filters.push(`hasPhoto = true`);
+
+    let sortBy = null;
+    if (sort === 'priceAsc') sortBy = 'prezzo:asc';
+    else if (sort === 'priceDesc') sortBy = 'prezzo:desc';
+    else if (sort === 'yearDesc') sortBy = 'anno:desc';
+    else if (sort === 'yearAsc') sortBy = 'anno:asc';
+    else if (sort === 'newest') sortBy = 'updatedAt:desc';
+
+    const result = await index.search(q || '', {
+      limit,
+      filter: filters.length ? filters.join(' AND ') : undefined,
+      sort: sortBy ? [sortBy] : undefined
+    });
+
+    const hits = result && typeof result === 'object' && Array.isArray(result.hits) ? result.hits : [];
+    const list = hits.map((h) => {
+      const obj = (h && typeof h === 'object') ? h : {};
+      const photos = Array.isArray(obj.photos) ? obj.photos : [];
+      return {
+        ...obj,
+        id: String(obj.id || '').trim() || null,
+        photos
+      };
+    }).filter(x => x && x.id);
+
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: 'SERVER_ERROR', detail: String(err && err.message ? err.message : err) });
+  }
+});
+
+app.post('/api/meili/reindex', requireAdmin, async (req, res) => {
+  try {
+    const client = getMeiliClient();
+    if (!client) return res.status(400).json({ error: 'MEILI_NOT_CONFIGURED' });
+    if (!directusEnabled()) return res.status(400).json({ error: 'DIRECTUS_NOT_CONFIGURED' });
+
+    const list = await fetchDirectusRoulottes();
+    const docs = list.map(r => {
+      const photos = Array.isArray(r.photos) ? r.photos : [];
+      const first = photos[0] || null;
+      return {
+        id: r.id,
+        marca: r.marca || '',
+        modello: r.modello || '',
+        stato: r.stato || '',
+        prezzo: Number.isFinite(Number(r.prezzo)) ? Number(r.prezzo) : null,
+        anno: Number.isFinite(Number(r.anno)) ? Number(r.anno) : null,
+        lunghezza: r.lunghezza !== undefined ? r.lunghezza : null,
+        larghezza: r.larghezza !== undefined ? r.larghezza : null,
+        note: r.note || '',
+        descrizione: r.note || '',
+        createdAt: r.createdAt || null,
+        updatedAt: r.updatedAt || null,
+        hasPhoto: photos.length > 0,
+        photos,
+        photo: first
+      };
+    });
+
+    const index = client.index(MEILI_INDEX);
+    await index.updateSettings({
+      searchableAttributes: ['marca', 'modello', 'note', 'descrizione', 'id', 'stato'],
+      filterableAttributes: ['stato', 'hasPhoto', 'prezzo', 'anno'],
+      sortableAttributes: ['prezzo', 'anno', 'createdAt', 'updatedAt']
+    });
+    await index.addDocuments(docs, { primaryKey: 'id' });
+    res.json({ ok: true, indexed: docs.length });
+  } catch (err) {
+    res.status(500).json({ error: 'SERVER_ERROR', detail: String(err && err.message ? err.message : err) });
+  }
+});
+
+// Proxy ORS: riceve indirizzi, fa geocoding+route, restituisce distanza/durata/geom
+app.post('/api/transport/route', async (req, res) => {
+  try {
+    if (!orsEnabled()) return res.status(400).json({ error: 'ORS_NOT_CONFIGURED' });
+
+    const body = (req && req.body && typeof req.body === 'object') ? req.body : {};
+    const fromAddress = String(body.fromAddress || body.from || '').trim();
+    const toAddress = String(body.toAddress || body.to || '').trim();
+    if (!fromAddress || !toAddress) return res.status(400).json({ error: 'BAD_REQUEST' });
+
+    const from = await orsGeocodeOne(fromAddress);
+    if (!from) return res.status(404).json({ error: 'FROM_NOT_FOUND' });
+    const to = await orsGeocodeOne(toAddress);
+    if (!to) return res.status(404).json({ error: 'TO_NOT_FOUND' });
+
+    const routeUrl = new URL('https://api.openrouteservice.org/v2/directions/driving-car/geojson');
+    if (ORS_API_KEY && !routeUrl.searchParams.get('api_key')) routeUrl.searchParams.set('api_key', ORS_API_KEY);
+    const route = await orsFetchJson(routeUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coordinates: [[from.lon, from.lat], [to.lon, to.lat]] })
+    });
+    const feature = Array.isArray(route && route.features) ? route.features[0] : null;
+    const summary = feature && feature.properties && feature.properties.summary ? feature.properties.summary : null;
+    const distanceMeters = summary && summary.distance !== undefined ? Number(summary.distance) : null;
+    const durationSeconds = summary && summary.duration !== undefined ? Number(summary.duration) : null;
+    const geometry = feature && feature.geometry ? feature.geometry : null;
+
+    const distance_km = Number.isFinite(distanceMeters) ? (distanceMeters / 1000) : null;
+    const duration_min = Number.isFinite(durationSeconds) ? (durationSeconds / 60) : null;
+
+    res.json({
+      from,
+      to,
+      distance_km,
+      duration_min,
+      geometry
+    });
+  } catch (err) {
+    const msg = String(err && err.message ? err.message : err);
+    res.status(500).json({ error: 'SERVER_ERROR', detail: msg });
   }
 });
 

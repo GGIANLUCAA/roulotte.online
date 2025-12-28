@@ -3449,6 +3449,14 @@
       switchSection('detail');
     };
 
+    window.openPublic = window.openPublic || function(id) {
+      const safeId = String(id || '').trim();
+      if (!safeId) return;
+      const url = new URL('index.html', window.location.href);
+      url.searchParams.set('id', safeId);
+      window.open(url.toString(), '_blank', 'noopener');
+    };
+
 
     if (detailBackBtn) {
       detailBackBtn.addEventListener('click', () => {
