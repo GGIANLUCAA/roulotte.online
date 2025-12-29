@@ -2623,6 +2623,9 @@
       restoreFilters();
       setCanonicalAndMeta();
       injectJsonLdWebSite();
+      function pickPublishedOrData(json) {
+        return String((json && (json.published_data || json.data)) || '').trim();
+      }
       if (currentLang === 'it') {
         try {
           const r1 = await fetch(getApiBaseUrl() + '/api/content/home_hero_title', { headers: { 'Accept': 'application/json' } });
@@ -2645,7 +2648,7 @@
           const rCss = await fetch(getApiBaseUrl() + '/api/content/page_home_styles', { headers: { 'Accept': 'application/json' } });
           if (rCss.ok) {
             const jCss = await rCss.json();
-            const css = String(jCss.published_data || '').trim();
+            const css = pickPublishedOrData(jCss);
             if (css) {
               const st = document.getElementById('pageCustomCss') || document.createElement('style');
               st.id = 'pageCustomCss';
@@ -2655,7 +2658,7 @@
           }
           if (rFrag.ok) {
             const jFrag = await rFrag.json();
-            const html = String(jFrag.published_data || '').trim();
+            const html = pickPublishedOrData(jFrag);
             if (html) {
               const root = document.getElementById('editableHome');
               if (root) root.innerHTML = html;
@@ -2668,7 +2671,7 @@
           const rHCss = await fetch(getApiBaseUrl() + '/api/content/page_header_styles', { headers: { 'Accept': 'application/json' } });
           if (rHCss.ok) {
             const jHCss = await rHCss.json();
-            const cssH = String(jHCss.published_data || '').trim();
+            const cssH = pickPublishedOrData(jHCss);
             if (cssH) {
               const stH = document.getElementById('pageCustomCssHeader') || document.createElement('style');
               stH.id = 'pageCustomCssHeader';
@@ -2678,7 +2681,7 @@
           }
           if (rHFrag.ok) {
             const jHFrag = await rHFrag.json();
-            const htmlH = String(jHFrag.published_data || '').trim();
+            const htmlH = pickPublishedOrData(jHFrag);
             if (htmlH) {
               const hRoot = document.getElementById('editableHeader');
               if (hRoot) hRoot.innerHTML = htmlH;
@@ -2691,7 +2694,7 @@
           const rFCss = await fetch(getApiBaseUrl() + '/api/content/page_footer_styles', { headers: { 'Accept': 'application/json' } });
           if (rFCss.ok) {
             const jFCss = await rFCss.json();
-            const cssF = String(jFCss.published_data || '').trim();
+            const cssF = pickPublishedOrData(jFCss);
             if (cssF) {
               const stF = document.getElementById('pageCustomCssFooter') || document.createElement('style');
               stF.id = 'pageCustomCssFooter';
@@ -2701,7 +2704,7 @@
           }
           if (rFFrag.ok) {
             const jFFrag = await rFFrag.json();
-            const htmlF = String(jFFrag.published_data || '').trim();
+            const htmlF = pickPublishedOrData(jFFrag);
             if (htmlF) {
               const fRoot = document.getElementById('editableFooter');
               if (fRoot) fRoot.innerHTML = htmlF;
@@ -2714,7 +2717,7 @@
           const rLTs = await fetch(getApiBaseUrl() + '/api/content/page_list_top_styles', { headers: { 'Accept': 'application/json' } });
           if (rLTs.ok) {
             const jLTs = await rLTs.json();
-            const cssLT = String(jLTs.published_data || '').trim();
+            const cssLT = pickPublishedOrData(jLTs);
             if (cssLT) {
               const stLT = document.getElementById('pageCustomCssListTop') || document.createElement('style');
               stLT.id = 'pageCustomCssListTop';
@@ -2724,7 +2727,7 @@
           }
           if (rLT.ok) {
             const jLT = await rLT.json();
-            const htmlLT = String(jLT.published_data || '').trim();
+            const htmlLT = pickPublishedOrData(jLT);
             if (htmlLT) {
               const ltRoot = document.getElementById('editableListTop');
               if (ltRoot) ltRoot.innerHTML = htmlLT;
@@ -2736,7 +2739,7 @@
           const rLBs = await fetch(getApiBaseUrl() + '/api/content/page_list_bottom_styles', { headers: { 'Accept': 'application/json' } });
           if (rLBs.ok) {
             const jLBs = await rLBs.json();
-            const cssLB = String(jLBs.published_data || '').trim();
+            const cssLB = pickPublishedOrData(jLBs);
             if (cssLB) {
               const stLB = document.getElementById('pageCustomCssListBottom') || document.createElement('style');
               stLB.id = 'pageCustomCssListBottom';
@@ -2746,7 +2749,7 @@
           }
           if (rLB.ok) {
             const jLB = await rLB.json();
-            const htmlLB = String(jLB.published_data || '').trim();
+            const htmlLB = pickPublishedOrData(jLB);
             if (htmlLB) {
               const lbRoot = document.getElementById('editableListBottom');
               if (lbRoot) lbRoot.innerHTML = htmlLB;
@@ -2760,7 +2763,7 @@
           const rFFs = await fetch(getApiBaseUrl() + '/api/content/page_filters_styles', { headers: { 'Accept': 'application/json' } });
           if (rFFs.ok) {
             const jFFs = await rFFs.json();
-            const cssF = String(jFFs.published_data || '').trim();
+            const cssF = pickPublishedOrData(jFFs);
             if (cssF) {
               const stF = document.getElementById('pageCustomCssFilters') || document.createElement('style');
               stF.id = 'pageCustomCssFilters';
@@ -2770,7 +2773,7 @@
           }
           if (rFF.ok) {
             const jFF = await rFF.json();
-            const htmlF = String(jFF.published_data || '').trim();
+            const htmlF = pickPublishedOrData(jFF);
             if (htmlF) {
               ensureHomeDom();
               const rootF = document.getElementById('editableFilters');
@@ -2788,7 +2791,7 @@
           const rDDs = await fetch(getApiBaseUrl() + '/api/content/page_detail_dialog_styles', { headers: { 'Accept': 'application/json' } });
           if (rDDs.ok) {
             const jDDs = await rDDs.json();
-            const cssD = String(jDDs.published_data || '').trim();
+            const cssD = pickPublishedOrData(jDDs);
             if (cssD) {
               const stD = document.getElementById('pageCustomCssDetailDialog') || document.createElement('style');
               stD.id = 'pageCustomCssDetailDialog';
@@ -2798,7 +2801,7 @@
           }
           if (rDD.ok) {
             const jDD = await rDD.json();
-            const htmlD = String(jDD.published_data || '').trim();
+            const htmlD = pickPublishedOrData(jDD);
             if (htmlD) {
               const inner = extractInnerHtmlFromHtml(htmlD, ['#detailDialog', 'dialog']);
               if (inner) {
@@ -2815,7 +2818,7 @@
           const rCTs = await fetch(getApiBaseUrl() + '/api/content/page_card_template_styles', { headers: { 'Accept': 'application/json' } });
           if (rCTs.ok) {
             const jCTs = await rCTs.json();
-            const cssC = String(jCTs.published_data || '').trim();
+            const cssC = pickPublishedOrData(jCTs);
             if (cssC) {
               const stC = document.getElementById('pageCustomCssCardTemplate') || document.createElement('style');
               stC.id = 'pageCustomCssCardTemplate';
@@ -2825,7 +2828,7 @@
           }
           if (rCT.ok) {
             const jCT = await rCT.json();
-            const htmlC = String(jCT.published_data || '').trim();
+            const htmlC = pickPublishedOrData(jCT);
             if (htmlC) setCardTemplate(htmlC);
           }
         } catch {}
