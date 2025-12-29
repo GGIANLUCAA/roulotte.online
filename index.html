@@ -423,6 +423,7 @@
           <option value="de">DE</option>
           <option value="fr">FR</option>
         </select>
+        <a class="btn" id="quickEditBtn" href="admin.html?section=builder&page=home" hidden data-i18n="actions.editSite">Modifica sito</a>
         <a class="btn" href="admin.html" data-i18n="actions.adminArea">Area Admin</a>
         <button class="btn" type="button" id="themeToggle">Tema: Chiaro</button>
         <button class="btn btn-primary" type="button" id="resetFilters" data-i18n="actions.resetFilters">Reset filtri</button>
@@ -433,7 +434,7 @@
       <div class="hero-card">
         <h2 id="heroTitle" data-i18n="hero.title" data-i18n-default="Trova la roulotte giusta">Trova la roulotte giusta</h2>
         <p id="heroText" data-i18n="hero.text" data-i18n-default="Filtra per marca, modello, anno e stato. I risultati si aggiornano in tempo reale.">Filtra per marca, modello, anno e stato. I risultati si aggiornano in tempo reale.</p>
-        <div class="controls" role="search" aria-label="Ricerca e filtri">
+        <div id="editableFilters" class="controls" role="search" aria-label="Ricerca e filtri">
           <div class="field">
             <label for="q" data-i18n="filters.searchLabel">Cerca</label>
             <input id="q" name="q" type="search" autocomplete="off" placeholder="Es. Adria, Hobby, 2021..." data-i18n-placeholder="filters.searchPlaceholder" />
@@ -655,93 +656,167 @@
   <script src="https://unpkg.com/i18next@23.16.8/dist/umd/i18next.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
-    const qEl = document.getElementById('q');
-    const statoEl = document.getElementById('statoFilter');
-    const sortEl = document.getElementById('sort');
-    const categoryEl = document.getElementById('categoryFilter');
-    const priceMinEl = document.getElementById('priceMin');
-    const priceMaxEl = document.getElementById('priceMax');
-    const hasPhotoEl = document.getElementById('hasPhoto');
-    const cardsEl = document.getElementById('cards');
-    const emptyEl = document.getElementById('emptyState');
-    const totalCountEl = document.getElementById('totalCount');
-    const resultCountEl = document.getElementById('resultCount');
-    const lastUpdatedEl = document.getElementById('lastUpdated');
-    const liveStatusEl = document.getElementById('liveStatus');
-    const resetFiltersEl = document.getElementById('resetFilters');
-    const themeToggleEl = document.getElementById('themeToggle');
-    const langSelectEl = document.getElementById('langSelect');
+    let qEl = null;
+    let statoEl = null;
+    let sortEl = null;
+    let categoryEl = null;
+    let priceMinEl = null;
+    let priceMaxEl = null;
+    let hasPhotoEl = null;
+    let cardsEl = null;
+    let emptyEl = null;
+    let totalCountEl = null;
+    let resultCountEl = null;
+    let lastUpdatedEl = null;
+    let liveStatusEl = null;
+    let resetFiltersEl = null;
+    let themeToggleEl = null;
+    let langSelectEl = null;
+    let quickEditBtnEl = null;
 
-    const dialog = document.getElementById('detailDialog');
-    const copyLinkBtn = document.getElementById('copyLinkBtn');
-    const closeDialog = document.getElementById('closeDialog');
-    const detailTitle = document.getElementById('detailTitle');
-    const detailMeta = document.getElementById('detailMeta');
-    const detailPrice = document.getElementById('detailPrice');
-    const detailNote = document.getElementById('detailNote');
-    const detailGallery = document.getElementById('detailGallery');
-    const detailPlanimetria = document.getElementById('detailPlanimetria');
-    const detailVideo = document.getElementById('detailVideo');
+    let dialog = null;
+    let copyLinkBtn = null;
+    let closeDialog = null;
+    let detailTitle = null;
+    let detailMeta = null;
+    let detailPrice = null;
+    let detailNote = null;
+    let detailGallery = null;
+    let detailPlanimetria = null;
+    let detailVideo = null;
     let currentDetailId = null;
 
-    const transportStandalone = {
-      title: document.getElementById('transportStandaloneTitle'),
-      length: document.getElementById('transportStandaloneLength'),
-      width: document.getElementById('transportStandaloneWidth'),
-      weight: document.getElementById('transportStandaloneWeight'),
-      axles: document.getElementById('transportStandaloneAxles'),
-      trainable: document.getElementById('transportStandaloneTrainable'),
-      revised: document.getElementById('transportStandaloneRevised'),
-      drawbar: document.getElementById('transportStandaloneDrawbar'),
-      lengthEdit: document.getElementById('transportStandaloneLengthEdit'),
-      widthEdit: document.getElementById('transportStandaloneWidthEdit'),
-      weightEdit: document.getElementById('transportStandaloneWeightEdit'),
-      axlesEdit: document.getElementById('transportStandaloneAxlesEdit'),
-      trainableEdit: document.getElementById('transportStandaloneTrainableEdit'),
-      revisedEdit: document.getElementById('transportStandaloneRevisedEdit'),
-      drawbarEdit: document.getElementById('transportStandaloneDrawbarEdit'),
-      perKmEdit: document.getElementById('transportStandalonePerKmEdit'),
-      confirm: document.getElementById('transportStandaloneConfirm'),
-      from: document.getElementById('transportStandaloneFrom'),
-      to: document.getElementById('transportStandaloneTo'),
-      calcBtn: document.getElementById('transportStandaloneCalcBtn'),
-      status: document.getElementById('transportStandaloneStatus'),
-      distance: document.getElementById('transportStandaloneDistance'),
-      duration: document.getElementById('transportStandaloneDuration'),
-      type: document.getElementById('transportStandaloneType'),
-      reason: document.getElementById('transportStandaloneReason'),
-      price: document.getElementById('transportStandalonePrice'),
-      mapEl: document.getElementById('transportStandaloneMap')
-    };
+    let transportStandalone = null;
+    let transportDialog = null;
 
-    const transportDialog = {
-      length: document.getElementById('transportDialogLength'),
-      width: document.getElementById('transportDialogWidth'),
-      weight: document.getElementById('transportDialogWeight'),
-      axles: document.getElementById('transportDialogAxles'),
-      trainable: document.getElementById('transportDialogTrainable'),
-      revised: document.getElementById('transportDialogRevised'),
-      drawbar: document.getElementById('transportDialogDrawbar'),
-      lengthEdit: document.getElementById('transportDialogLengthEdit'),
-      widthEdit: document.getElementById('transportDialogWidthEdit'),
-      weightEdit: document.getElementById('transportDialogWeightEdit'),
-      axlesEdit: document.getElementById('transportDialogAxlesEdit'),
-      trainableEdit: document.getElementById('transportDialogTrainableEdit'),
-      revisedEdit: document.getElementById('transportDialogRevisedEdit'),
-      drawbarEdit: document.getElementById('transportDialogDrawbarEdit'),
-      perKmEdit: document.getElementById('transportDialogPerKmEdit'),
-      confirm: document.getElementById('transportDialogConfirm'),
-      from: document.getElementById('transportDialogFrom'),
-      to: document.getElementById('transportDialogTo'),
-      calcBtn: document.getElementById('transportDialogCalcBtn'),
-      status: document.getElementById('transportDialogStatus'),
-      distance: document.getElementById('transportDialogDistance'),
-      duration: document.getElementById('transportDialogDuration'),
-      type: document.getElementById('transportDialogType'),
-      reason: document.getElementById('transportDialogReason'),
-      price: document.getElementById('transportDialogPrice'),
-      mapEl: document.getElementById('transportDialogMap')
-    };
+    let defaultHomeInnerHtml = '';
+    let defaultDetailDialogInnerHtml = '';
+
+    let cardTemplateHtml = '';
+    let cardTemplateEl = null;
+
+    function refreshDomRefs() {
+      const home = document.getElementById('editableHome');
+      const filtersRoot = document.getElementById('editableFilters')
+        || (home ? home.querySelector('#editableFilters') : null)
+        || (home ? home.querySelector('[role="search"]') : null)
+        || (home ? home.querySelector('.controls') : null);
+      const priceRange = filtersRoot ? (filtersRoot.querySelector('.price-range') || null) : null;
+      const priceInputs = priceRange ? Array.from(priceRange.querySelectorAll('input')) : [];
+
+      qEl = document.getElementById('q') || (filtersRoot ? (filtersRoot.querySelector('input[name="q"]') || filtersRoot.querySelector('input[type="search"]')) : null);
+      statoEl = document.getElementById('statoFilter') || (filtersRoot ? filtersRoot.querySelector('select[name="statoFilter"]') : null);
+      sortEl = document.getElementById('sort') || (filtersRoot ? filtersRoot.querySelector('select[name="sort"]') : null);
+      categoryEl = document.getElementById('categoryFilter') || (filtersRoot ? filtersRoot.querySelector('select[name="categoryFilter"]') : null);
+      priceMinEl = document.getElementById('priceMin') || (priceRange ? (priceRange.querySelector('input[name="priceMin"]') || priceInputs[0] || null) : null);
+      priceMaxEl = document.getElementById('priceMax') || (priceRange ? (priceRange.querySelector('input[name="priceMax"]') || priceInputs[1] || null) : null);
+      hasPhotoEl = document.getElementById('hasPhoto') || (filtersRoot ? filtersRoot.querySelector('input[type="checkbox"][name="hasPhoto"], input[type="checkbox"]') : null);
+      cardsEl = document.getElementById('cards');
+      emptyEl = document.getElementById('emptyState');
+      totalCountEl = document.getElementById('totalCount');
+      resultCountEl = document.getElementById('resultCount');
+      lastUpdatedEl = document.getElementById('lastUpdated');
+      liveStatusEl = document.getElementById('liveStatus');
+      resetFiltersEl = document.getElementById('resetFilters');
+      themeToggleEl = document.getElementById('themeToggle');
+      langSelectEl = document.getElementById('langSelect');
+      quickEditBtnEl = document.getElementById('quickEditBtn');
+
+      dialog = document.getElementById('detailDialog');
+      copyLinkBtn = document.getElementById('copyLinkBtn');
+      closeDialog = document.getElementById('closeDialog');
+      detailTitle = document.getElementById('detailTitle');
+      detailMeta = document.getElementById('detailMeta');
+      detailPrice = document.getElementById('detailPrice');
+      detailNote = document.getElementById('detailNote');
+      detailGallery = document.getElementById('detailGallery');
+      detailPlanimetria = document.getElementById('detailPlanimetria');
+      detailVideo = document.getElementById('detailVideo');
+    }
+
+    function buildTransportContexts() {
+      transportStandalone = {
+        title: document.getElementById('transportStandaloneTitle'),
+        length: document.getElementById('transportStandaloneLength'),
+        width: document.getElementById('transportStandaloneWidth'),
+        weight: document.getElementById('transportStandaloneWeight'),
+        axles: document.getElementById('transportStandaloneAxles'),
+        trainable: document.getElementById('transportStandaloneTrainable'),
+        revised: document.getElementById('transportStandaloneRevised'),
+        drawbar: document.getElementById('transportStandaloneDrawbar'),
+        lengthEdit: document.getElementById('transportStandaloneLengthEdit'),
+        widthEdit: document.getElementById('transportStandaloneWidthEdit'),
+        weightEdit: document.getElementById('transportStandaloneWeightEdit'),
+        axlesEdit: document.getElementById('transportStandaloneAxlesEdit'),
+        trainableEdit: document.getElementById('transportStandaloneTrainableEdit'),
+        revisedEdit: document.getElementById('transportStandaloneRevisedEdit'),
+        drawbarEdit: document.getElementById('transportStandaloneDrawbarEdit'),
+        perKmEdit: document.getElementById('transportStandalonePerKmEdit'),
+        confirm: document.getElementById('transportStandaloneConfirm'),
+        from: document.getElementById('transportStandaloneFrom'),
+        to: document.getElementById('transportStandaloneTo'),
+        calcBtn: document.getElementById('transportStandaloneCalcBtn'),
+        status: document.getElementById('transportStandaloneStatus'),
+        distance: document.getElementById('transportStandaloneDistance'),
+        duration: document.getElementById('transportStandaloneDuration'),
+        type: document.getElementById('transportStandaloneType'),
+        reason: document.getElementById('transportStandaloneReason'),
+        price: document.getElementById('transportStandalonePrice'),
+        mapEl: document.getElementById('transportStandaloneMap')
+      };
+
+      transportDialog = {
+        length: document.getElementById('transportDialogLength'),
+        width: document.getElementById('transportDialogWidth'),
+        weight: document.getElementById('transportDialogWeight'),
+        axles: document.getElementById('transportDialogAxles'),
+        trainable: document.getElementById('transportDialogTrainable'),
+        revised: document.getElementById('transportDialogRevised'),
+        drawbar: document.getElementById('transportDialogDrawbar'),
+        lengthEdit: document.getElementById('transportDialogLengthEdit'),
+        widthEdit: document.getElementById('transportDialogWidthEdit'),
+        weightEdit: document.getElementById('transportDialogWeightEdit'),
+        axlesEdit: document.getElementById('transportDialogAxlesEdit'),
+        trainableEdit: document.getElementById('transportDialogTrainableEdit'),
+        revisedEdit: document.getElementById('transportDialogRevisedEdit'),
+        drawbarEdit: document.getElementById('transportDialogDrawbarEdit'),
+        perKmEdit: document.getElementById('transportDialogPerKmEdit'),
+        confirm: document.getElementById('transportDialogConfirm'),
+        from: document.getElementById('transportDialogFrom'),
+        to: document.getElementById('transportDialogTo'),
+        calcBtn: document.getElementById('transportDialogCalcBtn'),
+        status: document.getElementById('transportDialogStatus'),
+        distance: document.getElementById('transportDialogDistance'),
+        duration: document.getElementById('transportDialogDuration'),
+        type: document.getElementById('transportDialogType'),
+        reason: document.getElementById('transportDialogReason'),
+        price: document.getElementById('transportDialogPrice'),
+        mapEl: document.getElementById('transportDialogMap')
+      };
+    }
+
+    function captureDefaults() {
+      const home = document.getElementById('editableHome');
+      if (home) defaultHomeInnerHtml = String(home.innerHTML || '');
+      if (dialog) defaultDetailDialogInnerHtml = String(dialog.innerHTML || '');
+    }
+
+    function setCardTemplate(html) {
+      const raw = String(html || '').trim();
+      cardTemplateHtml = raw;
+      cardTemplateEl = null;
+      if (!raw) return;
+      try {
+        const tpl = document.createElement('template');
+        tpl.innerHTML = raw;
+        const first = tpl.content.firstElementChild;
+        if (first) cardTemplateEl = tpl;
+      } catch {}
+    }
+
+    refreshDomRefs();
+    buildTransportContexts();
+    captureDefaults();
 
     const defaultTitle = 'Roulotte online';
     const imgLightbox = document.getElementById('imgLightbox');
@@ -773,6 +848,141 @@
     function trCount(key, count, defaultTemplate) {
       if (window.i18next && typeof window.i18next.t === 'function') return window.i18next.t(key, { count, defaultValue: defaultTemplate });
       return String(defaultTemplate || '').replace('{{count}}', String(count));
+    }
+
+    function bindOnce(el, eventName, key, handler) {
+      if (!el) return;
+      const k = 'wired' + String(key || '').replace(/[^a-zA-Z0-9]/g, '');
+      if (el.dataset && el.dataset[k]) return;
+      el.addEventListener(eventName, handler);
+      if (el.dataset) el.dataset[k] = '1';
+    }
+
+    function extractInnerHtmlFromHtml(html, selectors) {
+      const raw = String(html || '').trim();
+      if (!raw) return '';
+      try {
+        const dom = new DOMParser().parseFromString(raw, 'text/html');
+        const list = Array.isArray(selectors) ? selectors : [selectors];
+        for (const sel of list) {
+          if (!sel) continue;
+          const el = dom.querySelector(sel);
+          if (el) return String(el.innerHTML || '').trim();
+        }
+      } catch {}
+      return raw;
+    }
+
+    function ensureHomeDom() {
+      const home = document.getElementById('editableHome');
+      if (!home) return false;
+      if (home.querySelector('#editableFilters') || home.querySelector('[role="search"]') || home.querySelector('input[name="q"]')) return true;
+      if (!defaultHomeInnerHtml) return false;
+      home.innerHTML = defaultHomeInnerHtml;
+      return true;
+    }
+
+    function ensureDetailDialogDom() {
+      const d = document.getElementById('detailDialog');
+      if (!d) return false;
+      if (d.querySelector('#detailTitle') && d.querySelector('#closeDialog') && d.querySelector('#detailGallery')) return true;
+      if (!defaultDetailDialogInnerHtml) return false;
+      d.innerHTML = defaultDetailDialogInnerHtml;
+      return true;
+    }
+
+    async function changePublicLang(next) {
+      const n = String(next || 'it');
+      const target = (n === 'en' || n === 'de' || n === 'fr') ? n : 'it';
+      if (target === currentLang) return;
+      currentLang = target;
+      try { localStorage.setItem(LANG_STORAGE_KEY, currentLang); } catch {}
+      if (window.i18next && typeof window.i18next.changeLanguage === 'function') {
+        try { await window.i18next.changeLanguage(currentLang); } catch {}
+      }
+      applyTranslations();
+      wireUi();
+    }
+
+    function wireUi() {
+      const navToggle = document.getElementById('navToggle');
+      const mainNav = document.getElementById('mainNav');
+      if (navToggle && mainNav) {
+        bindOnce(navToggle, 'click', 'navToggle', () => {
+          const open = mainNav.classList.toggle('open');
+          navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+      }
+
+      refreshDomRefs();
+
+      if (langSelectEl) bindOnce(langSelectEl, 'change', 'langSelect', () => changePublicLang(langSelectEl.value));
+      if (themeToggleEl) bindOnce(themeToggleEl, 'click', 'themeToggle', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+      if (quickEditBtnEl) {
+        const token = (window.RoulotteStore && typeof window.RoulotteStore.getAuthToken === 'function') ? window.RoulotteStore.getAuthToken() : '';
+        quickEditBtnEl.hidden = !(!!getApiBaseUrl() || !!String(token || '').trim());
+      }
+
+      if (qEl) bindOnce(qEl, 'input', 'qInput', scheduleRender);
+      if (statoEl) bindOnce(statoEl, 'change', 'statoChange', () => { render(); scheduleRemoteSearch(0); });
+      if (sortEl) bindOnce(sortEl, 'change', 'sortChange', () => { render(); scheduleRemoteSearch(0); });
+      if (categoryEl) bindOnce(categoryEl, 'change', 'catChange', () => { render(); scheduleRemoteSearch(0); });
+      if (priceMinEl) bindOnce(priceMinEl, 'input', 'priceMin', scheduleRender);
+      if (priceMaxEl) bindOnce(priceMaxEl, 'input', 'priceMax', scheduleRender);
+      if (hasPhotoEl) bindOnce(hasPhotoEl, 'change', 'hasPhoto', () => { render(); scheduleRemoteSearch(0); });
+
+      if (resetFiltersEl) {
+        bindOnce(resetFiltersEl, 'click', 'resetFilters', () => {
+          ensureHomeDom();
+          refreshDomRefs();
+          if (!qEl || !statoEl || !sortEl) return;
+          qEl.value = '';
+          if (categoryEl) categoryEl.value = '';
+          statoEl.value = '';
+          sortEl.value = 'newest';
+          if (priceMinEl) priceMinEl.value = '';
+          if (priceMaxEl) priceMaxEl.value = '';
+          if (hasPhotoEl) hasPhotoEl.checked = false;
+          remoteActive = false;
+          remoteResults = [];
+          lastRemoteKey = '';
+          render();
+          qEl.focus();
+        });
+      }
+
+      if (copyLinkBtn) {
+        bindOnce(copyLinkBtn, 'click', 'copyLink', async () => {
+          const url = location.href;
+          const ok = await copyText(url);
+          if (ok) {
+            copyLinkBtn.textContent = tr('detail.copied', { defaultValue: 'Copiato' });
+            setTimeout(() => (copyLinkBtn.textContent = tr('detail.copyLink', { defaultValue: 'Copia link' })), 900);
+          } else {
+            alert(tr('detail.copyError', { defaultValue: 'Impossibile copiare il link.' }));
+          }
+        });
+      }
+
+      if (closeDialog) {
+        bindOnce(closeDialog, 'click', 'closeDialog', () => closeDetails());
+      }
+
+      if (dialog) {
+        bindOnce(dialog, 'click', 'dialogBackdrop', (e) => {
+          const rect = dialog.getBoundingClientRect();
+          const inDialog = rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+                           rect.left <= e.clientX && e.clientX <= rect.left + rect.width;
+          if (!inDialog) closeDetails();
+        });
+      }
+
+      bindOnce(document, 'keydown', 'escCloseDialog', (e) => {
+        if (e.key !== 'Escape') return;
+        if (!dialog) return;
+        if (!(dialog.hasAttribute('open') || (typeof dialog.open === 'boolean' && dialog.open))) return;
+        closeDetails();
+      });
     }
 
     function getStatusLabel(value) {
@@ -830,7 +1040,7 @@
             a11y: { skipToContent: "Vai al contenuto" },
             common: { caravan: "Roulotte" },
             nav: { menu: "Menu", catalog: "Catalogo", transport: "Trasporto", admin: "Admin" },
-            actions: { adminArea: "Area Admin", resetFilters: "Reset filtri", themeLight: "Tema: Chiaro", themeDark: "Tema: Scuro" },
+            actions: { adminArea: "Area Admin", editSite: "Modifica sito", resetFilters: "Reset filtri", themeLight: "Tema: Chiaro", themeDark: "Tema: Scuro" },
             hero: { title: "Trova la roulotte giusta", text: "Filtra per marca, modello, anno e stato. I risultati si aggiornano in tempo reale." },
             filters: {
               searchLabel: "Cerca",
@@ -901,7 +1111,7 @@
             a11y: { skipToContent: "Skip to content" },
             common: { caravan: "Caravan" },
             nav: { menu: "Menu", catalog: "Catalog", transport: "Transport", admin: "Admin" },
-            actions: { adminArea: "Admin Area", resetFilters: "Reset filters", themeLight: "Theme: Light", themeDark: "Theme: Dark" },
+            actions: { adminArea: "Admin Area", editSite: "Edit site", resetFilters: "Reset filters", themeLight: "Theme: Light", themeDark: "Theme: Dark" },
             hero: { title: "Find the right caravan", text: "Filter by brand, model, year and condition. Results update in real time." },
             filters: {
               searchLabel: "Search",
@@ -972,7 +1182,7 @@
             a11y: { skipToContent: "Zum Inhalt springen" },
             common: { caravan: "Wohnwagen" },
             nav: { menu: "Menü", catalog: "Katalog", transport: "Transport", admin: "Admin" },
-            actions: { adminArea: "Admin-Bereich", resetFilters: "Filter zurücksetzen", themeLight: "Thema: Hell", themeDark: "Thema: Dunkel" },
+            actions: { adminArea: "Admin-Bereich", editSite: "Website bearbeiten", resetFilters: "Filter zurücksetzen", themeLight: "Thema: Hell", themeDark: "Thema: Dunkel" },
             hero: { title: "Finde den richtigen Wohnwagen", text: "Filtere nach Marke, Modell, Jahr und Zustand. Ergebnisse aktualisieren sich in Echtzeit." },
             filters: {
               searchLabel: "Suchen",
@@ -1043,7 +1253,7 @@
             a11y: { skipToContent: "Aller au contenu" },
             common: { caravan: "Caravane" },
             nav: { menu: "Menu", catalog: "Catalogue", transport: "Transport", admin: "Admin" },
-            actions: { adminArea: "Espace admin", resetFilters: "Réinitialiser", themeLight: "Thème : Clair", themeDark: "Thème : Sombre" },
+            actions: { adminArea: "Espace Admin", editSite: "Modifier le site", resetFilters: "Réinitialiser", themeLight: "Thème : Clair", themeDark: "Thème : Sombre" },
             hero: { title: "Trouvez la bonne caravane", text: "Filtrez par marque, modèle, année et état. Les résultats se mettent à jour en temps réel." },
             filters: {
               searchLabel: "Rechercher",
@@ -1117,19 +1327,6 @@
           fallbackLng: 'it',
           resources,
           interpolation: { escapeValue: false }
-        });
-      }
-
-      if (langSelectEl) {
-        langSelectEl.addEventListener('change', async () => {
-          const next = String(langSelectEl.value || 'it');
-          if (next === currentLang) return;
-          currentLang = (next === 'en' || next === 'de' || next === 'fr') ? next : 'it';
-          try { localStorage.setItem(LANG_STORAGE_KEY, currentLang); } catch {}
-          if (window.i18next && typeof window.i18next.changeLanguage === 'function') {
-            try { await window.i18next.changeLanguage(currentLang); } catch {}
-          }
-          applyTranslations();
         });
       }
 
@@ -1865,6 +2062,10 @@
     }
 
     function openDetails(r) {
+      ensureDetailDialogDom();
+      refreshDomRefs();
+      buildTransportContexts();
+      if (!dialog || !detailTitle || !detailMeta || !detailPrice || !detailNote || !detailGallery || !closeDialog) return;
       const db = window.RoulotteStore.getDB();
       const categoriesById = Object.fromEntries((db.categories || []).map(c => [c.id, c.name]));
       detailTitle.textContent = `${r.marca || ''} ${r.modello || ''}`.trim() || tr('common.caravan', { defaultValue: 'Roulotte' });
@@ -2001,47 +2202,16 @@
       persistFilters();
     }
 
-    if (copyLinkBtn) {
-      copyLinkBtn.addEventListener('click', async () => {
-        const url = location.href;
-        const ok = await copyText(url);
-        if (ok) {
-          copyLinkBtn.textContent = tr('detail.copied', { defaultValue: 'Copiato' });
-          setTimeout(() => (copyLinkBtn.textContent = tr('detail.copyLink', { defaultValue: 'Copia link' })), 900);
-        } else {
-          alert(tr('detail.copyError', { defaultValue: 'Impossibile copiare il link.' }));
-        }
-      });
-    }
-
-    closeDialog.addEventListener('click', () => {
+    function closeDetails() {
+      ensureDetailDialogDom();
+      refreshDomRefs();
+      if (!dialog) return;
       if (typeof dialog.close === 'function') dialog.close();
       else dialog.removeAttribute('open');
       currentDetailId = null;
       document.title = defaultTitle;
       persistFilters();
-    });
-    dialog.addEventListener('click', (e) => {
-      const rect = dialog.getBoundingClientRect();
-      const inDialog = rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
-                       rect.left <= e.clientX && e.clientX <= rect.left + rect.width;
-      if (!inDialog) {
-        if (typeof dialog.close === 'function') dialog.close();
-        else dialog.removeAttribute('open');
-        currentDetailId = null;
-        document.title = defaultTitle;
-        persistFilters();
-      }
-    });
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && (dialog.hasAttribute('open') || (typeof dialog.open === 'boolean' && dialog.open))) {
-        if (typeof dialog.close === 'function') dialog.close();
-        else dialog.removeAttribute('open');
-        currentDetailId = null;
-        document.title = defaultTitle;
-        persistFilters();
-      }
-    });
+    }
 
     function applyTheme(theme) {
       const next = theme === 'dark' ? 'dark' : 'light';
@@ -2059,9 +2229,6 @@
         const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
         applyTheme(prefersDark ? 'dark' : 'light');
       }
-      if (themeToggleEl) themeToggleEl.addEventListener('click', () => {
-        applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
-      });
     }
 
     function syncCategoryOptions(categories, selectedId) {
@@ -2082,7 +2249,179 @@
       if (current) categoryEl.value = current;
     }
 
+    function renderTemplateString(templateHtml, data) {
+      let out = String(templateHtml || '');
+      if (!out) return '';
+      const d = (data && typeof data === 'object') ? data : {};
+      Object.keys(d).forEach(k => {
+        const token = '{{' + k + '}}';
+        out = out.split(token).join(String(d[k] ?? ''));
+      });
+      return out;
+    }
+
+    function buildDefaultCardElement(r, categoriesById) {
+      const card = document.createElement('article');
+      card.className = 'card';
+      const media = document.createElement('div');
+      media.className = 'card-media';
+      const firstPhoto = Array.isArray(r.photos) ? r.photos[0] : null;
+      if (firstPhoto) {
+        const ph = typeof firstPhoto === 'object' ? String(firstPhoto.placeholder || '') : '';
+        if (ph) {
+          media.style.backgroundImage = `url(${ph})`;
+          media.style.backgroundSize = 'cover';
+          media.style.backgroundPosition = 'center';
+          media.style.filter = 'blur(6px)';
+        }
+        const img = document.createElement('img');
+        const alt = (typeof firstPhoto === 'object' && firstPhoto.alt)
+          ? firstPhoto.alt
+          : (`${r.marca || ''} ${r.modello || ''}`.trim() || tr('common.caravan', { defaultValue: 'Roulotte' }));
+        img.alt = alt;
+        img.src = getPhotoUrl(firstPhoto, 'thumb');
+        img.srcset = [
+          getPhotoUrl(firstPhoto, 'thumb') + ' 480w',
+          getPhotoUrl(firstPhoto, 'src') + ' 1280w'
+        ].join(', ');
+        img.sizes = '(max-width:640px) 100vw, (max-width:980px) 50vw, 33vw';
+        img.loading = 'lazy';
+        img.decoding = 'async';
+        img.addEventListener('load', () => { media.style.filter = 'none'; img.classList.add('loaded'); });
+        media.appendChild(img);
+      } else {
+        const no = document.createElement('div');
+        no.style.fontWeight = '800';
+        no.textContent = tr('card.noPhoto', { defaultValue: 'Nessuna foto' });
+        media.innerHTML = '';
+        media.appendChild(no);
+      }
+
+      const body = document.createElement('div');
+      body.className = 'card-body';
+      const title = document.createElement('div');
+      title.className = 'card-title';
+      title.textContent = `${r.marca || ''} ${r.modello || ''}`.trim() || tr('common.caravan', { defaultValue: 'Roulotte' });
+
+      const sub = document.createElement('div');
+      sub.className = 'card-sub';
+      const tagYear = document.createElement('span');
+      tagYear.className = 'tag';
+      tagYear.textContent = `${tr('card.yearPrefix', { defaultValue: 'Anno' })} ${r.anno || '—'}`;
+      const tagState = document.createElement('span');
+      tagState.className = 'tag';
+      tagState.textContent = getStatusLabel(r.stato);
+      const tagCategory = document.createElement('span');
+      tagCategory.className = 'tag';
+      tagCategory.textContent = categoriesById[r.categoryId] || '—';
+      sub.appendChild(tagYear);
+      sub.appendChild(tagState);
+      sub.appendChild(tagCategory);
+
+      const actions = document.createElement('div');
+      actions.className = 'card-actions';
+      const price = document.createElement('div');
+      price.className = 'price';
+      price.textContent = formatPrice(r.prezzo);
+      const detailsBtn = document.createElement('button');
+      detailsBtn.type = 'button';
+      detailsBtn.className = 'btn';
+      detailsBtn.textContent = tr('card.details', { defaultValue: 'Dettagli' });
+      detailsBtn.addEventListener('click', () => openDetails(r));
+      actions.appendChild(price);
+      actions.appendChild(detailsBtn);
+
+      body.appendChild(title);
+      body.appendChild(sub);
+      body.appendChild(actions);
+      card.appendChild(media);
+      card.appendChild(body);
+      return card;
+    }
+
+    function buildCardElementFromTemplate(r, categoriesById) {
+      if (!cardTemplateHtml) return null;
+      const firstPhoto = Array.isArray(r.photos) ? r.photos[0] : null;
+      const photoThumb = firstPhoto ? getPhotoUrl(firstPhoto, 'thumb') : '';
+      const photoSrc = firstPhoto ? getPhotoUrl(firstPhoto, 'src') : '';
+      const categoryName = categoriesById[r.categoryId] || '—';
+      const title = `${r.marca || ''} ${r.modello || ''}`.trim() || tr('common.caravan', { defaultValue: 'Roulotte' });
+      const statusLabel = getStatusLabel(r.stato);
+      const noteText = truncate(stripHtml(r.note || ''), 160);
+      const html = renderTemplateString(cardTemplateHtml, {
+        id: String(r.id || ''),
+        title,
+        brand: String(r.marca || ''),
+        model: String(r.modello || ''),
+        year: String(r.anno || '—'),
+        status: String(statusLabel || ''),
+        category: String(categoryName || ''),
+        price: String(formatPrice(r.prezzo) || ''),
+        photoThumb,
+        photoSrc,
+        noteText
+      }).trim();
+
+      if (!html) return null;
+      try {
+        const tpl = document.createElement('template');
+        tpl.innerHTML = html;
+        const root = tpl.content.firstElementChild;
+        if (!root) return null;
+        if (!root.classList.contains('card')) root.classList.add('card');
+
+        const img = root.querySelector('img[data-slot="photo"]') || root.querySelector('img');
+        if (img) {
+          if (photoThumb) {
+            const alt = (typeof firstPhoto === 'object' && firstPhoto.alt) ? firstPhoto.alt : title;
+            img.alt = alt;
+            img.src = photoThumb;
+            img.srcset = [photoThumb + ' 480w', photoSrc + ' 1280w'].filter(Boolean).join(', ');
+            img.sizes = '(max-width:640px) 100vw, (max-width:980px) 50vw, 33vw';
+            img.loading = 'lazy';
+            img.decoding = 'async';
+          } else {
+            try { img.remove(); } catch {}
+          }
+        }
+
+        let detailsEl = root.querySelector('[data-action="details"]');
+        if (!detailsEl) {
+          const maybeActions = root.querySelector('.card-actions') || root;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn';
+          btn.textContent = tr('card.details', { defaultValue: 'Dettagli' });
+          btn.addEventListener('click', () => openDetails(r));
+          maybeActions.appendChild(btn);
+          detailsEl = btn;
+        } else {
+          if (detailsEl.tagName === 'BUTTON') detailsEl.type = 'button';
+          detailsEl.classList.add('btn');
+          detailsEl.textContent = tr('card.details', { defaultValue: 'Dettagli' });
+          detailsEl.addEventListener('click', (e) => {
+            e.preventDefault();
+            openDetails(r);
+          });
+        }
+
+        return root;
+      } catch {
+        return null;
+      }
+    }
+
+    function createCardElement(r, categoriesById) {
+      const custom = buildCardElementFromTemplate(r, categoriesById);
+      if (custom) return custom;
+      return buildDefaultCardElement(r, categoriesById);
+    }
+
     function render() {
+      ensureHomeDom();
+      refreshDomRefs();
+      buildTransportContexts();
+      if (!qEl || !statoEl || !sortEl || !cardsEl || !emptyEl || !totalCountEl || !resultCountEl || !lastUpdatedEl || !liveStatusEl) return;
       const db = window.RoulotteStore.getDB();
       const all = db.roulottes || [];
       const base = remoteActive ? remoteResults : all;
@@ -2113,82 +2452,8 @@
       emptyEl.hidden = sorted.length !== 0;
       const frag = document.createDocumentFragment();
       sorted.forEach(r => {
-        const card = document.createElement('article');
-        card.className = 'card';
-        const media = document.createElement('div');
-        media.className = 'card-media';
-        const firstPhoto = Array.isArray(r.photos) ? r.photos[0] : null;
-        if (firstPhoto) {
-          const ph = typeof firstPhoto === 'object' ? String(firstPhoto.placeholder || '') : '';
-          if (ph) {
-            media.style.backgroundImage = `url(${ph})`;
-            media.style.backgroundSize = 'cover';
-            media.style.backgroundPosition = 'center';
-            media.style.filter = 'blur(6px)';
-          }
-          const img = document.createElement('img');
-          const alt = (typeof firstPhoto === 'object' && firstPhoto.alt)
-            ? firstPhoto.alt
-            : (`${r.marca || ''} ${r.modello || ''}`.trim() || tr('common.caravan', { defaultValue: 'Roulotte' }));
-          img.alt = alt;
-          img.src = getPhotoUrl(firstPhoto, 'thumb');
-          img.srcset = [
-            getPhotoUrl(firstPhoto, 'thumb') + ' 480w',
-            getPhotoUrl(firstPhoto, 'src') + ' 1280w'
-          ].join(', ');
-          img.sizes = '(max-width:640px) 100vw, (max-width:980px) 50vw, 33vw';
-          img.loading = 'lazy';
-          img.decoding = 'async';
-          img.addEventListener('load', () => { media.style.filter = 'none'; img.classList.add('loaded'); });
-          media.appendChild(img);
-        } else {
-          const no = document.createElement('div');
-          no.style.fontWeight = '800';
-          no.textContent = tr('card.noPhoto', { defaultValue: 'Nessuna foto' });
-          media.innerHTML = '';
-          media.appendChild(no);
-        }
-
-        const body = document.createElement('div');
-        body.className = 'card-body';
-        const title = document.createElement('div');
-        title.className = 'card-title';
-        title.textContent = `${r.marca || ''} ${r.modello || ''}`.trim() || tr('common.caravan', { defaultValue: 'Roulotte' });
-
-        const sub = document.createElement('div');
-        sub.className = 'card-sub';
-        const tagYear = document.createElement('span');
-        tagYear.className = 'tag';
-        tagYear.textContent = `${tr('card.yearPrefix', { defaultValue: 'Anno' })} ${r.anno || '—'}`;
-        const tagState = document.createElement('span');
-        tagState.className = 'tag';
-        tagState.textContent = getStatusLabel(r.stato);
-        const tagCategory = document.createElement('span');
-        tagCategory.className = 'tag';
-        tagCategory.textContent = categoriesById[r.categoryId] || '—';
-        sub.appendChild(tagYear);
-        sub.appendChild(tagState);
-        sub.appendChild(tagCategory);
-
-        const actions = document.createElement('div');
-        actions.className = 'card-actions';
-        const price = document.createElement('div');
-        price.className = 'price';
-        price.textContent = formatPrice(r.prezzo);
-        const detailsBtn = document.createElement('button');
-        detailsBtn.type = 'button';
-        detailsBtn.className = 'btn';
-        detailsBtn.textContent = tr('card.details', { defaultValue: 'Dettagli' });
-        detailsBtn.addEventListener('click', () => openDetails(r));
-        actions.appendChild(price);
-        actions.appendChild(detailsBtn);
-
-        body.appendChild(title);
-        body.appendChild(sub);
-        body.appendChild(actions);
-        card.appendChild(media);
-        card.appendChild(body);
-        frag.appendChild(card);
+        const card = createCardElement(r, categoriesById);
+        if (card) frag.appendChild(card);
       });
       cardsEl.appendChild(frag);
       
@@ -2201,28 +2466,6 @@
       t = setTimeout(render, 100);
       scheduleRemoteSearch(260);
     }
-
-    qEl.addEventListener('input', scheduleRender);
-    statoEl.addEventListener('change', () => { render(); scheduleRemoteSearch(0); });
-    sortEl.addEventListener('change', () => { render(); scheduleRemoteSearch(0); });
-    if (categoryEl) categoryEl.addEventListener('change', () => { render(); scheduleRemoteSearch(0); });
-    if (priceMinEl) priceMinEl.addEventListener('input', scheduleRender);
-    if (priceMaxEl) priceMaxEl.addEventListener('input', scheduleRender);
-    if (hasPhotoEl) hasPhotoEl.addEventListener('change', () => { render(); scheduleRemoteSearch(0); });
-    resetFiltersEl.addEventListener('click', () => {
-      qEl.value = '';
-      if (categoryEl) categoryEl.value = '';
-      statoEl.value = '';
-      sortEl.value = 'newest';
-      if (priceMinEl) priceMinEl.value = '';
-      if (priceMaxEl) priceMaxEl.value = '';
-      if (hasPhotoEl) hasPhotoEl.checked = false;
-      remoteActive = false;
-      remoteResults = [];
-      lastRemoteKey = '';
-      render();
-      qEl.focus();
-    });
 
     window.addEventListener('storage', (e) => {
       if (e.key === window.RoulotteStore.storageKey) { render(); scheduleRemoteSearch(0); }
@@ -2372,8 +2615,6 @@
     async function boot() {
       await initI18n();
       initTheme();
-      wireCalculator(transportStandalone);
-      wireCalculator(transportDialog);
       const last = loadLastTransport();
       if (last && last.data) {
         updateTransportUi(transportStandalone, last.title || '—', last.data);
@@ -2382,14 +2623,6 @@
       restoreFilters();
       setCanonicalAndMeta();
       injectJsonLdWebSite();
-      const navToggle = document.getElementById('navToggle');
-      const mainNav = document.getElementById('mainNav');
-      if (navToggle && mainNav) {
-        navToggle.addEventListener('click', () => {
-          const open = mainNav.classList.toggle('open');
-          navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        });
-      }
       if (currentLang === 'it') {
         try {
           const r1 = await fetch(getApiBaseUrl() + '/api/content/home_hero_title', { headers: { 'Accept': 'application/json' } });
@@ -2520,8 +2753,87 @@
             }
           }
         } catch {}
+
+        // Filtri
+        try {
+          const rFF = await fetch(getApiBaseUrl() + '/api/content/page_filters_fragment', { headers: { 'Accept': 'application/json' } });
+          const rFFs = await fetch(getApiBaseUrl() + '/api/content/page_filters_styles', { headers: { 'Accept': 'application/json' } });
+          if (rFFs.ok) {
+            const jFFs = await rFFs.json();
+            const cssF = String(jFFs.published_data || '').trim();
+            if (cssF) {
+              const stF = document.getElementById('pageCustomCssFilters') || document.createElement('style');
+              stF.id = 'pageCustomCssFilters';
+              stF.textContent = cssF;
+              document.head.appendChild(stF);
+            }
+          }
+          if (rFF.ok) {
+            const jFF = await rFF.json();
+            const htmlF = String(jFF.published_data || '').trim();
+            if (htmlF) {
+              ensureHomeDom();
+              const rootF = document.getElementById('editableFilters');
+              if (rootF) {
+                const inner = extractInnerHtmlFromHtml(htmlF, ['#editableFilters', '.controls', '[role="search"]']);
+                if (inner) rootF.innerHTML = inner;
+              }
+            }
+          }
+        } catch {}
+
+        // Dialog dettagli
+        try {
+          const rDD = await fetch(getApiBaseUrl() + '/api/content/page_detail_dialog_fragment', { headers: { 'Accept': 'application/json' } });
+          const rDDs = await fetch(getApiBaseUrl() + '/api/content/page_detail_dialog_styles', { headers: { 'Accept': 'application/json' } });
+          if (rDDs.ok) {
+            const jDDs = await rDDs.json();
+            const cssD = String(jDDs.published_data || '').trim();
+            if (cssD) {
+              const stD = document.getElementById('pageCustomCssDetailDialog') || document.createElement('style');
+              stD.id = 'pageCustomCssDetailDialog';
+              stD.textContent = cssD;
+              document.head.appendChild(stD);
+            }
+          }
+          if (rDD.ok) {
+            const jDD = await rDD.json();
+            const htmlD = String(jDD.published_data || '').trim();
+            if (htmlD) {
+              const inner = extractInnerHtmlFromHtml(htmlD, ['#detailDialog', 'dialog']);
+              if (inner) {
+                const d = document.getElementById('detailDialog');
+                if (d) d.innerHTML = inner;
+              }
+            }
+          }
+        } catch {}
+
+        // Template card
+        try {
+          const rCT = await fetch(getApiBaseUrl() + '/api/content/page_card_template_fragment', { headers: { 'Accept': 'application/json' } });
+          const rCTs = await fetch(getApiBaseUrl() + '/api/content/page_card_template_styles', { headers: { 'Accept': 'application/json' } });
+          if (rCTs.ok) {
+            const jCTs = await rCTs.json();
+            const cssC = String(jCTs.published_data || '').trim();
+            if (cssC) {
+              const stC = document.getElementById('pageCustomCssCardTemplate') || document.createElement('style');
+              stC.id = 'pageCustomCssCardTemplate';
+              stC.textContent = cssC;
+              document.head.appendChild(stC);
+            }
+          }
+          if (rCT.ok) {
+            const jCT = await rCT.json();
+            const htmlC = String(jCT.published_data || '').trim();
+            if (htmlC) setCardTemplate(htmlC);
+          }
+        } catch {}
       }
 
+      wireUi();
+      wireCalculator(transportStandalone);
+      wireCalculator(transportDialog);
       showCardsLoading(6);
 
       try {

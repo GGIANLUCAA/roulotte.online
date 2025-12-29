@@ -779,6 +779,9 @@
                   <option value="footer">Footer</option>
                   <option value="list_top">Lista (top)</option>
                   <option value="list_bottom">Lista (bottom)</option>
+                  <option value="filters">Filtri</option>
+                  <option value="detail_dialog">Dialog dettagli</option>
+                  <option value="card_template">Template card</option>
                 </select>
                 <button class="btn" type="button" id="builderLoadBtn">Carica</button>
                 <button class="btn" type="button" id="builderSaveBtn">Salva bozza</button>
@@ -1877,6 +1880,32 @@
       return proto + '://' + location.host;
     }
 
+    function getInitialRoute() {
+      let section = '';
+      let page = '';
+      try {
+        const p = new URLSearchParams(location.search || '');
+        section = String(p.get('section') || '').trim();
+        page = String(p.get('page') || '').trim();
+      } catch {}
+      const okSections = new Set(['dashboard', 'new', 'list', 'detail', 'categories', 'settings', 'content', 'builder']);
+      const okPages = new Set(['home', 'header', 'footer', 'list_top', 'list_bottom', 'filters', 'detail_dialog', 'card_template']);
+      return {
+        section: okSections.has(section) ? section : '',
+        page: okPages.has(page) ? page : ''
+      };
+    }
+
+    async function applyInitialRoute() {
+      const r = getInitialRoute();
+      if (!r.section) return;
+      switchSection(r.section);
+      if (r.section === 'builder') {
+        if (r.page && builderPageKey) builderPageKey.value = r.page;
+        try { await builderLoad(); } catch {}
+      }
+    }
+
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
@@ -1893,8 +1922,9 @@
             if (resLocal.success) {
               setAuthed(true);
               showApp();
-              switchSection('dashboard');
               refreshAll();
+              await applyInitialRoute();
+              if (!getInitialRoute().section) switchSection('dashboard');
               return;
             }
           }
@@ -1909,8 +1939,9 @@
           window.RoulotteStore.setAuthToken(data.token);
           setAuthed(true);
           showApp();
-          switchSection('dashboard');
           refreshAll();
+          await applyInitialRoute();
+          if (!getInitialRoute().section) switchSection('dashboard');
         } else {
           loginError.hidden = false;
           loginError.textContent = 'Errore di autenticazione.';
@@ -1921,8 +1952,9 @@
           if (resLocal.success) {
             setAuthed(true);
             showApp();
-            switchSection('dashboard');
             refreshAll();
+            await applyInitialRoute();
+            if (!getInitialRoute().section) switchSection('dashboard');
             return;
           }
         }
@@ -1966,8 +1998,9 @@
                 window.RoulotteStore.setAuthToken(data.token);
                 setAuthed(true);
                 showApp();
-                switchSection('dashboard');
                 refreshAll();
+                await applyInitialRoute();
+                if (!getInitialRoute().section) switchSection('dashboard');
               } else {
                 loginError.hidden = false;
                 loginError.textContent = 'Login Google non riuscito.';
@@ -2217,43 +2250,85 @@
     if (contentTypeEl) contentTypeEl.addEventListener('change', initQuillIfNeeded);
 
     async function builderLoad() {
-      const page = String(builderPageKey?.value || 'home');
-      builderStatus.textContent = 'Caricamento…';
-      try {
-        const rHtml = await fetch(apiUrl('/api/content/page_' + page + '_fragment'), { headers: { 'Accept': 'application/json' } });
-        const rCss = await fetch(apiUrl('/api/content/page_' + page + '_styles'), { headers: { 'Accept': 'application/json' } });
-        let html = '';
-        let css = '';
-        if (rHtml.ok) {
-          const jh = await rHtml.json();
-          html = String(jh.published_data || jh.data || '');
+      const page = String((builderPageKey && builderPageKey.value) ? builderPageKey.value : 'home');
+      if (builderStatus) builderStatus.textContent = 'Caricamento…';
+
+      async function safeFetchContent(key) {
+        try {
+          const token = window.RoulotteStore.getAuthToken();
+          const headers = { 'Accept': 'application/json' };
+          if (token) headers['Authorization'] = 'Bearer ' + token;
+          const r = await fetch(apiUrl('/api/content/' + encodeURIComponent(key)), { headers });
+          if (!r.ok) return { ok: false, status: r.status, data: '' };
+          const j = await r.json().catch(() => null);
+          const data = String((j && (j.data || j.published_data)) || '');
+          return { ok: true, status: r.status, data };
+        } catch {
+          return { ok: false, status: 0, data: '' };
         }
-        if (rCss.ok) {
-          const jc = await rCss.json();
-          css = String(jc.published_data || jc.data || '');
-        }
-        if ((!html || !html.trim())) {
-          try {
-            const raw = await fetch('index.html').then(x => x.text());
-            const dom = new DOMParser().parseFromString(raw, 'text/html');
-            let source = null;
-            if (page === 'home') source = dom.querySelector('.hero');
-            else if (page === 'header') source = dom.querySelector('header');
-            else if (page === 'footer') source = dom.querySelector('footer');
-            else if (page === 'list_top') source = null;
-            else if (page === 'list_bottom') source = null;
+      }
+
+      const htmlKey = 'page_' + page + '_fragment';
+      const cssKey = 'page_' + page + '_styles';
+
+      const [htmlRes, cssRes] = await Promise.all([
+        safeFetchContent(htmlKey),
+        safeFetchContent(cssKey),
+      ]);
+
+      let html = String(htmlRes.data || '');
+      let css = String(cssRes.data || '');
+      let fallbackUsed = false;
+
+      if (!html.trim()) {
+        try {
+          const raw = await fetch('index.html').then(x => x.text());
+          const dom = new DOMParser().parseFromString(raw, 'text/html');
+          let source = null;
+          if (page === 'home') source = dom.querySelector('.hero');
+          else if (page === 'header') source = dom.querySelector('header');
+          else if (page === 'footer') source = dom.querySelector('footer');
+          else if (page === 'list_top') source = null;
+          else if (page === 'list_bottom') source = null;
+          else if (page === 'filters') source = dom.querySelector('#editableFilters') || dom.querySelector('.controls');
+          else if (page === 'detail_dialog') source = dom.querySelector('#detailDialog') || dom.querySelector('dialog');
+          else if (page === 'card_template') source = null;
+
+          if (page === 'card_template') {
+            html = [
+              '<article class="card">',
+              '  <div class="card-media"><img data-slot="photo" alt="{{title}}"></div>',
+              '  <div class="card-body">',
+              '    <div class="card-title">{{title}}</div>',
+              '    <div class="card-sub">',
+              '      <span class="tag">Anno {{year}}</span>',
+              '      <span class="tag">{{status}}</span>',
+              '      <span class="tag">{{category}}</span>',
+              '    </div>',
+              '    <div class="card-actions">',
+              '      <div class="price">{{price}}</div>',
+              '      <button class="btn" type="button" data-action="details">Dettagli</button>',
+              '    </div>',
+              '  </div>',
+              '</article>'
+            ].join('\n');
+          } else {
             html = source ? source.outerHTML : '<section class="container"><h2>Nuova sezione</h2><p>Modifica contenuti qui.</p></section>';
-            const styleTags = Array.from(dom.querySelectorAll('style'));
-            css = styleTags.map(s => s.textContent || '').join('\n');
-          } catch {}
-        }
+          }
+          const styleTags = Array.from(dom.querySelectorAll('style'));
+          css = styleTags.map(s => s.textContent || '').join('\n');
+          fallbackUsed = true;
+        } catch {}
+      }
+
+      try {
         if (gjsEditor) {
           gjsEditor.setComponents(html || '');
           gjsEditor.setStyle(css || '');
         }
-        builderStatus.textContent = 'Caricato';
+        if (builderStatus) builderStatus.textContent = fallbackUsed ? 'Caricato (fallback)' : 'Caricato';
       } catch {
-        builderStatus.textContent = 'Errore caricamento';
+        if (builderStatus) builderStatus.textContent = 'Errore caricamento';
       }
     }
     async function builderSave() {
@@ -2264,8 +2339,18 @@
       const css = gjsEditor.getCss();
       builderStatus.textContent = 'Salvataggio…';
       try {
-        await fetch(apiUrl('/api/content'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' }, body: JSON.stringify({ content_key: 'page_' + page + '_fragment', content_type: 'html', data: String(html || '') }) });
-        await fetch(apiUrl('/api/content'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' }, body: JSON.stringify({ content_key: 'page_' + page + '_styles', content_type: 'html', data: String(css || '') }) });
+        const r1 = await fetch(apiUrl('/api/content'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' }, body: JSON.stringify({ content_key: 'page_' + page + '_fragment', content_type: 'html', data: String(html || '') }) });
+        if (!r1.ok) {
+          if (r1.status === 401) { builderStatus.textContent = 'Sessione scaduta. Accedi di nuovo.'; logout(); return; }
+          builderStatus.textContent = 'Errore salvataggio';
+          return;
+        }
+        const r2 = await fetch(apiUrl('/api/content'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' }, body: JSON.stringify({ content_key: 'page_' + page + '_styles', content_type: 'html', data: String(css || '') }) });
+        if (!r2.ok) {
+          if (r2.status === 401) { builderStatus.textContent = 'Sessione scaduta. Accedi di nuovo.'; logout(); return; }
+          builderStatus.textContent = 'Errore salvataggio';
+          return;
+        }
         builderStatus.textContent = 'Bozza salvata';
       } catch {
         builderStatus.textContent = 'Errore salvataggio';
@@ -2276,8 +2361,18 @@
       builderStatus.textContent = 'Pubblicazione…';
       try {
         const token = window.RoulotteStore.getAuthToken();
-        await fetch(apiUrl('/api/content/page_' + page + '_fragment/publish'), { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
-        await fetch(apiUrl('/api/content/page_' + page + '_styles/publish'), { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
+        const r1 = await fetch(apiUrl('/api/content/page_' + page + '_fragment/publish'), { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
+        if (!r1.ok) {
+          if (r1.status === 401) { builderStatus.textContent = 'Sessione scaduta. Accedi di nuovo.'; logout(); return; }
+          builderStatus.textContent = 'Errore pubblicazione';
+          return;
+        }
+        const r2 = await fetch(apiUrl('/api/content/page_' + page + '_styles/publish'), { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
+        if (!r2.ok) {
+          if (r2.status === 401) { builderStatus.textContent = 'Sessione scaduta. Accedi di nuovo.'; logout(); return; }
+          builderStatus.textContent = 'Errore pubblicazione';
+          return;
+        }
         builderStatus.textContent = 'Pubblicato';
       } catch {
         builderStatus.textContent = 'Errore pubblicazione';
@@ -2286,6 +2381,7 @@
     if (builderLoadBtn) builderLoadBtn.addEventListener('click', builderLoad);
     if (builderSaveBtn) builderSaveBtn.addEventListener('click', builderSave);
     if (builderPublishBtn) builderPublishBtn.addEventListener('click', builderPublish);
+    if (builderPageKey) builderPageKey.addEventListener('change', builderLoad);
 
     const mediaInput = document.getElementById('mediaInput');
     const mediaRefreshBtn = document.getElementById('mediaRefreshBtn');
@@ -3908,7 +4004,8 @@
       }
       refreshAll();
       loadDraft(); // Recupera bozza
-      switchSection('dashboard');
+      await applyInitialRoute();
+      if (!getInitialRoute().section) switchSection('dashboard');
     }
     if (isAuthed()) bootAuthed();
     else showLogin();

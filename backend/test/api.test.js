@@ -82,6 +82,11 @@ test('Login admin e upload immagine su /api/media', async () => {
   const fd = new FormData();
   fd.append('files', blob, 'test.png');
   const up = await fetch(`${API_BASE}/api/media`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: fd });
+  if (up.status === 503) {
+    const j = await up.json().catch(() => ({}));
+    assert.strictEqual(String(j && j.error || ''), 'DB_UNAVAILABLE');
+    return;
+  }
   assert.strictEqual(up.ok, true, 'Upload media deve riuscire');
   const arr = await up.json();
   assert.ok(Array.isArray(arr));
@@ -107,6 +112,11 @@ test('Creazione roulotte con foto su /api/roulottes', async () => {
   fd.append('anno', '2020');
   fd.append('photos', blob, 'test.png');
   const res = await fetch(`${API_BASE}/api/roulottes`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: fd });
+  if (res.status === 503) {
+    const j = await res.json().catch(() => ({}));
+    assert.strictEqual(String(j && j.error || ''), 'DB_UNAVAILABLE');
+    return;
+  }
   assert.ok([201, 500].includes(res.status), 'Creazione roulotte deve rispondere 201 o 500 in caso di storage non configurato');
   if (res.ok) {
     const body = await res.json();
@@ -139,6 +149,11 @@ test('Update roulotte: persistenza campi e conflitto 409', async () => {
   createFd.append('anno', String(createPayload.anno));
   createFd.append('provenienza', createPayload.provenienza);
   const created = await fetch(`${API_BASE}/api/roulottes`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: createFd });
+  if (created.status === 503) {
+    const j = await created.json().catch(() => ({}));
+    assert.strictEqual(String(j && j.error || ''), 'DB_UNAVAILABLE');
+    return;
+  }
   assert.strictEqual(created.ok, true);
   const createdBody = await created.json();
   assert.ok(createdBody && createdBody.id);

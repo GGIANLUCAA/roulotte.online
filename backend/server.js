@@ -548,7 +548,13 @@ async function insertRoulotteRevision(client, publicId, action, username) {
 }
 
 app.post('/api/admin/log', requireAdmin, async (req, res) => {
-  const client = await pool.connect();
+  let client = null;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    if (isDbUnavailable(err)) return res.json({ ok: true, skipped: true });
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
   try {
     const action = String(req.body.action || '').trim() || 'LOG';
     const details = req.body.details || {};
@@ -557,7 +563,7 @@ app.post('/api/admin/log', requireAdmin, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Errore interno del server' });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -572,6 +578,15 @@ function requireAdmin(req, res, next) {
   } catch (err) {
     return res.status(401).json({ error: 'UNAUTHORIZED' });
   }
+}
+
+function isDbUnavailable(err) {
+  const code = String(err && err.code || '');
+  if (code === 'DB_NOT_CONFIGURED') return true;
+  if (code === 'ENOTFOUND' || code === 'ECONNREFUSED' || code === 'ETIMEDOUT') return true;
+  const msg = String(err && err.message || '').toLowerCase();
+  if (msg.includes('getaddrinfo') || msg.includes('enotfound')) return true;
+  return false;
 }
 
 // Rotta di prova per verificare che il server sia online
@@ -697,13 +712,57 @@ app.post('/api/auth/google', async (req, res) => {
 });
 
 app.get('/api/content/:key', async (req, res) => {
+  const key = String(req.params.key || '').trim();
   try {
-    const key = String(req.params.key || '').trim();
     if (!key) return res.status(400).json({ error: 'BAD_REQUEST' });
+    let isAdmin = false;
+    try {
+      const auth = String(req.headers.authorization || '');
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      if (token) {
+        jwt.verify(token, JWT_SECRET);
+        isAdmin = true;
+      }
+    } catch {}
+
     const { rows } = await pool.query('SELECT content_key, content_type, published_data, updated_at FROM contents WHERE content_key = $1;', [key]);
-    if (!rows.length) return res.json({ content_key: key, content_type: 'html', data: '', updated_at: null });
-    res.json({ content_key: rows[0].content_key, content_type: rows[0].content_type, data: rows[0].published_data || '', updated_at: rows[0].updated_at });
+    const base = rows && rows[0] ? rows[0] : null;
+    const publishedData = String(base && base.published_data || '');
+    const publishedUpdatedAt = base && base.updated_at ? base.updated_at : null;
+    const publishedType = String(base && base.content_type || 'html') || 'html';
+
+    let draftData = '';
+    let draftType = '';
+    let draftCreatedAt = null;
+    if (isAdmin) {
+      try {
+        const dr = await pool.query(
+          'SELECT data, content_type, created_at FROM content_revisions WHERE content_key = $1 ORDER BY created_at DESC LIMIT 1;',
+          [key]
+        );
+        if (dr.rows && dr.rows[0]) {
+          draftData = String(dr.rows[0].data || '');
+          draftType = String(dr.rows[0].content_type || '');
+          draftCreatedAt = dr.rows[0].created_at || null;
+        }
+      } catch {}
+    }
+
+    const outType = (isAdmin ? (draftType || publishedType) : publishedType) || 'html';
+    const outData = isAdmin ? (draftData || publishedData) : publishedData;
+
+    res.json({
+      content_key: key,
+      content_type: outType,
+      data: outData || '',
+      published_data: publishedData || '',
+      updated_at: isAdmin ? (draftCreatedAt || publishedUpdatedAt) : publishedUpdatedAt,
+      published_updated_at: publishedUpdatedAt,
+    });
   } catch (err) {
+    if (key && isDbUnavailable(err)) {
+      return res.json({ content_key: key, content_type: 'html', data: '', published_data: '', updated_at: null, published_updated_at: null });
+    }
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -713,6 +772,7 @@ app.get('/api/contents', async (req, res) => {
     const { rows } = await pool.query('SELECT content_key, content_type, updated_at FROM contents ORDER BY content_key;');
     res.json(rows);
   } catch (err) {
+    if (isDbUnavailable(err)) return res.json([]);
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -749,7 +809,13 @@ app.post('/api/content', requireAdmin, async (req, res) => {
   const data = String(req.body.data || '');
   if (!key || !data) return res.status(400).json({ error: 'BAD_REQUEST' });
   if (data.length > 200000) return res.status(400).json({ error: 'CONTENT_TOO_LARGE' });
-  const client = await pool.connect();
+  let client = null;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
   try {
     await client.query('BEGIN');
     await client.query('INSERT INTO content_revisions (content_key, data, content_type, username) VALUES ($1, $2, $3, $4);', [key, data, type, req.adminUser || 'admin']);
@@ -764,10 +830,10 @@ app.post('/api/content', requireAdmin, async (req, res) => {
     wsEmitInvalidate('contents', { action: 'draft_saved', key, user: req.adminUser || 'admin' });
     res.json({ ok: true });
   } catch (err) {
-    await client.query('ROLLBACK');
+    try { await client.query('ROLLBACK'); } catch {}
     res.status(500).json({ error: 'Errore interno del server' });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -828,7 +894,13 @@ app.post('/api/deploy/trigger', requireAdmin, async (req, res) => {
 
 // Esportazione dati (JSON) protetta
 app.get('/api/export', requireAdmin, async (req, res) => {
-  const client = await pool.connect();
+  let client = null;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
   try {
     const out = {};
     const tables = [
@@ -847,7 +919,7 @@ app.get('/api/export', requireAdmin, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Errore interno del server' });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -861,7 +933,13 @@ app.get('/api/media', requireAdmin, async (req, res) => {
 });
 
 app.post('/api/media', requireAdmin, upload.array('files'), async (req, res) => {
-  const client = await pool.connect();
+  let client = null;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+    return res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
+  }
   try {
     if (!process.env.R2_BUCKET_NAME || !process.env.R2_PUBLIC_URL) {
       return res.status(500).json({ error: 'STORAGE_CONFIG' });
@@ -904,10 +982,10 @@ app.post('/api/media', requireAdmin, upload.array('files'), async (req, res) => 
     await client.query('COMMIT');
     res.json(out);
   } catch (err) {
-    await client.query('ROLLBACK');
+    try { await client.query('ROLLBACK'); } catch {}
     res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
@@ -964,6 +1042,7 @@ app.get('/api/roulottes', async (req, res) => {
     );
 
   } catch (err) {
+    if (isDbUnavailable(err)) return res.json([]);
     console.error('Errore durante il recupero delle roulotte:', err);
     res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
   }
@@ -1120,6 +1199,14 @@ app.get('/api/health', async (req, res) => {
       tables: (tables.rows || []).map((r) => r.table_name),
     });
   } catch (err) {
+    if (isDbUnavailable(err)) {
+      return res.json({
+        ok: true,
+        db: false,
+        tables: [],
+        error: 'DB_UNAVAILABLE',
+      });
+    }
     res.status(500).json({ ok: false, error: String(err && err.message ? err.message : err) });
   }
 });
@@ -1158,7 +1245,13 @@ async function generateNextPublicId(client) {
 
 // Rotta per creare una nuova roulotte con foto
 app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res) => {
-  const client = await pool.connect();
+  let client = null;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+    return res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
+  }
   try {
     await client.query('BEGIN'); // Inizia la transazione
 
@@ -1279,18 +1372,24 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
     res.status(201).json({ message: 'Roulotte creata con successo!', id: savedPublicId });
 
   } catch (err) {
-    await client.query('ROLLBACK'); // Annulla la transazione in caso di errore
+    try { await client.query('ROLLBACK'); } catch {}
     try { await adminLog(client, 'CREATE_ROULOTTE_ERROR', req.adminUser || 'admin', { error: String(err && err.message ? err.message : err) }); } catch {}
     console.error('Errore durante la creazione della roulotte:', err);
     res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
   } finally {
-    client.release(); // Rilascia la connessione al pool
+    if (client) client.release(); // Rilascia la connessione al pool
   }
 });
 
 // Rotta per aggiornare una roulotte esistente
 app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (req, res) => {
-  const client = await pool.connect();
+  let client = null;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+    return res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
+  }
   try {
     await client.query('BEGIN');
 
@@ -1444,17 +1543,23 @@ app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (r
     res.json({ ok: true, id: publicId });
 
   } catch (err) {
-    await client.query('ROLLBACK');
+    try { await client.query('ROLLBACK'); } catch {}
     try { await adminLog(client, 'UPDATE_ROULOTTE_ERROR', req.adminUser || 'admin', { id: String(req.params.id || ''), error: String(err && err.message ? err.message : err) }); } catch {}
     console.error('Errore update roulotte:', err);
     res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
 app.delete('/api/roulottes/:id', requireAdmin, async (req, res) => {
-  const client = await pool.connect();
+  let client = null;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
   try {
     const publicId = req.params.id;
     if (!publicId) return res.status(400).json({ error: 'BAD_REQUEST' });
@@ -1480,7 +1585,7 @@ app.delete('/api/roulottes/:id', requireAdmin, async (req, res) => {
     try { await adminLog(client, 'DELETE_ROULOTTE_ERROR', req.adminUser || 'admin', { id: String(req.params.id || ''), error: String(err && err.message ? err.message : err) }); } catch {}
     res.status(500).json({ error: 'Errore interno del server' });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 
