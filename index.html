@@ -1463,9 +1463,160 @@
       return null;
     }
 
+    const API_BASE_STORAGE_KEY = 'roulotte_api_base_url';
+    const DEFAULT_REMOTE_API_BASE_URL = 'https://roulotte-online-foto.onrender.com';
+
+    function normalizeApiBaseUrl(input) {
+      const s = String(input || '').trim();
+      if (!s) return '';
+      try {
+        const u = new URL(s);
+        u.pathname = '';
+        u.search = '';
+        u.hash = '';
+        return u.toString().replace(/\/+$/, '');
+      } catch {
+        return s.replace(/\/+$/, '');
+      }
+    }
+
+    function setApiBaseUrlOverride(baseUrl) {
+      const v = normalizeApiBaseUrl(baseUrl);
+      try {
+        if (!v) localStorage.removeItem(API_BASE_STORAGE_KEY);
+        else localStorage.setItem(API_BASE_STORAGE_KEY, v);
+      } catch {}
+      return v;
+    }
+
+    function getApiBaseUrlOverride() {
+      try {
+        const p = new URLSearchParams(location.search || '');
+        const qp = String(p.get('api') || p.get('api_base') || '').trim();
+        if (qp) return setApiBaseUrlOverride(qp);
+      } catch {}
+      try {
+        const v = String(localStorage.getItem(API_BASE_STORAGE_KEY) || '').trim();
+        return normalizeApiBaseUrl(v);
+      } catch {
+        return '';
+      }
+    }
+
     function getApiBaseUrl() {
       const isLocalHost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
-      return isLocalHost ? 'http://localhost:3001' : '';
+      if (isLocalHost) return 'http://localhost:3001';
+      if (location && location.protocol === 'file:') return DEFAULT_REMOTE_API_BASE_URL;
+      return getApiBaseUrlOverride() || '';
+    }
+
+    let posthogInitStarted = false;
+    let posthogReady = false;
+
+    function normalizePosthogHost(host) {
+      const h = String(host || '').trim();
+      if (!h) return '';
+      if (h.startsWith('http://') || h.startsWith('https://')) return h.replace(/\/+$/, '');
+      const proto = location.protocol === 'http:' ? 'http://' : 'https://';
+      return (proto + h).replace(/\/+$/, '');
+    }
+
+    function loadScriptOnce(src) {
+      return new Promise((resolve, reject) => {
+        const s = String(src || '').trim();
+        if (!s) return reject(new Error('missing_script_src'));
+        const existing = Array.from(document.getElementsByTagName('script')).some((x) => String(x && x.src || '').trim() === s);
+        if (existing) return resolve(true);
+        const el = document.createElement('script');
+        el.async = true;
+        el.src = s;
+        el.onload = () => resolve(true);
+        el.onerror = () => reject(new Error('script_load_error'));
+        document.head.appendChild(el);
+      });
+    }
+
+    async function fetchJsonWithTimeout(url, timeoutMs = 1800) {
+      const u = String(url || '').trim();
+      if (!u) return null;
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), Math.max(250, Number(timeoutMs) || 0));
+      try {
+        const r = await fetch(u, { headers: { 'Accept': 'application/json' }, signal: ctrl.signal });
+        if (!r.ok) return null;
+        const j = await r.json().catch(() => null);
+        return j && typeof j === 'object' ? j : null;
+      } catch {
+        return null;
+      } finally {
+        clearTimeout(t);
+      }
+    }
+
+    function posthogCapture(eventName, props) {
+      if (!posthogReady) return;
+      const ev = String(eventName || '').trim();
+      if (!ev) return;
+      try {
+        if (window.posthog && typeof window.posthog.capture === 'function') {
+          window.posthog.capture(ev, props && typeof props === 'object' ? props : {});
+        }
+      } catch {}
+    }
+
+    function bindContactClickTracking() {
+      if (window.__ph_contact_tracking_bound) return;
+      window.__ph_contact_tracking_bound = true;
+      document.addEventListener('click', (e) => {
+        const t = e && e.target ? e.target : null;
+        if (!t || !t.closest) return;
+        const a = t.closest('a');
+        if (!a) return;
+        const href = String(a.getAttribute('href') || '').trim();
+        if (!href) return;
+        const lower = href.toLowerCase();
+        let kind = '';
+        if (lower.startsWith('tel:')) kind = 'telefono';
+        else if (lower.includes('wa.me') || lower.includes('whatsapp')) kind = 'whatsapp';
+        else return;
+        posthogCapture('contact_click', {
+          kind,
+          roulotte_id: currentDetailId ? String(currentDetailId) : null
+        });
+      });
+    }
+
+    async function initPosthog() {
+      if (posthogInitStarted) return;
+      posthogInitStarted = true;
+      const cfg = await fetchJsonWithTimeout(getApiBaseUrl() + '/api/config', 2000);
+      const host = normalizePosthogHost(cfg && cfg.posthog_host);
+      const key = String(cfg && cfg.posthog_key || '').trim();
+      if (!host || !key) return;
+
+      try {
+        await loadScriptOnce(host + '/static/array.js');
+      } catch {
+        return;
+      }
+
+      if (!window.posthog || typeof window.posthog.init !== 'function') return;
+      try {
+        window.posthog.init(key, {
+          api_host: host,
+          autocapture: false,
+          capture_pageview: false,
+          persistence: 'memory',
+          disable_session_recording: true,
+          mask_all_text: true,
+          mask_all_element_attributes: true,
+        });
+        posthogReady = true;
+      } catch {
+        posthogReady = false;
+      }
+
+      if (posthogReady) bindContactClickTracking();
     }
 
     function formatBoolHuman(v) {
@@ -1735,11 +1886,23 @@
 
         ctx._lastKm = Number.isFinite(km) ? km : null;
 
+        posthogCapture('transport_calc_success', {
+          context: (ctx === transportDialog) ? 'dialog' : 'sezione',
+          roulotte_id: currentDetailId ? String(currentDetailId) : null,
+          distance_one_way_km: Number.isFinite(km) ? km : null,
+          duration_one_way_min: Number.isFinite(mins) ? mins : null
+        });
+
         drawRouteOnMap(ctx, json.from, json.to, json.geometry);
 
         if (ctx.status) ctx.status.textContent = '';
       } catch (e) {
         const msg = String(e && e.message ? e.message : e);
+        posthogCapture('transport_calc_error', {
+          context: (ctx === transportDialog) ? 'dialog' : 'sezione',
+          roulotte_id: currentDetailId ? String(currentDetailId) : null,
+          error: msg || 'unknown'
+        });
         if (ctx.status) {
           if (msg === 'ORS_NOT_CONFIGURED') ctx.status.textContent = 'Servizio di calcolo percorso non configurato.';
           else if (msg === 'FROM_NOT_FOUND') ctx.status.textContent = 'Indirizzo di partenza non trovato.';
@@ -2056,6 +2219,10 @@
       if (ctx.drawbarEdit) ctx.drawbarEdit.addEventListener('change', onEdit);
       if (ctx.perKmEdit) ctx.perKmEdit.addEventListener('input', onEdit);
       if (ctx.calcBtn) ctx.calcBtn.addEventListener('click', async () => {
+        posthogCapture('transport_calc_click', {
+          context: (ctx === transportDialog) ? 'dialog' : 'sezione',
+          roulotte_id: currentDetailId ? String(currentDetailId) : null
+        });
         const data = readTransportEdits(ctx);
         await runTransportCalc(ctx, data);
       });
@@ -2079,6 +2246,7 @@
       });
       detailPrice.textContent = formatPrice(r.prezzo);
       currentDetailId = r.id || null;
+      posthogCapture('roulotte_view', { roulotte_id: currentDetailId ? String(currentDetailId) : null });
       document.title = `${defaultTitle} – ${detailTitle.textContent}`;
       const firstPhotoForOg = Array.isArray(r.photos) && r.photos.length ? getPhotoUrl(r.photos[0], 'src') : '';
       let ogImg = document.querySelector('meta[property="og:image"]');
@@ -2614,6 +2782,7 @@
 
     async function boot() {
       await initI18n();
+      initPosthog();
       initTheme();
       const last = loadLastTransport();
       if (last && last.data) {

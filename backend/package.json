@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "lint": "node -c server.js && node -c db.js && node -c init-db.js && node -c s3-client.js && node -c test/api.test.js",
     "test": "node --test"
   },
   "dependencies": {

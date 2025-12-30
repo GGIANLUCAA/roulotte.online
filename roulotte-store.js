@@ -2,7 +2,54 @@
   const storageKey = 'roulotte_db_v1';
   // Rileva automaticamente se siamo in locale o in produzione
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  const API_BASE_URL = isLocal ? 'http://localhost:3001' : '';
+  const API_BASE_STORAGE_KEY = 'roulotte_api_base_url';
+  const DEFAULT_REMOTE_API_BASE_URL = 'https://roulotte-online-foto.onrender.com';
+
+  function normalizeApiBaseUrl(input) {
+    const s = String(input || '').trim();
+    if (!s) return '';
+    try {
+      const u = new URL(s);
+      u.pathname = '';
+      u.search = '';
+      u.hash = '';
+      return u.toString().replace(/\/+$/, '');
+    } catch {
+      return s.replace(/\/+$/, '');
+    }
+  }
+
+  function getApiBaseUrlOverride() {
+    try {
+      const p = new URLSearchParams(location.search || '');
+      const qp = String(p.get('api') || p.get('api_base') || '').trim();
+      if (qp) {
+        const v = normalizeApiBaseUrl(qp);
+        try {
+          if (!v) localStorage.removeItem(API_BASE_STORAGE_KEY);
+          else localStorage.setItem(API_BASE_STORAGE_KEY, v);
+        } catch {}
+        return v;
+      }
+    } catch {}
+
+    try {
+      const v = String(localStorage.getItem(API_BASE_STORAGE_KEY) || '').trim();
+      return normalizeApiBaseUrl(v);
+    } catch {
+      return '';
+    }
+  }
+
+  function getApiBaseUrl() {
+    if (isLocal) return 'http://localhost:3001';
+    if (isFileProtocol()) return DEFAULT_REMOTE_API_BASE_URL;
+    return getApiBaseUrlOverride() || '';
+  }
+
+  function apiUrl(path) {
+    return getApiBaseUrl() + String(path || '');
+  }
 
   function nowIso() {
     return new Date().toISOString();
@@ -72,7 +119,9 @@
 
   async function initializeStore() {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/roulottes`);
+      const token = authToken || (function(){ try { return String(sessionStorage.getItem('admin_jwt_token') || ''); } catch { return ''; } })();
+      const headers = token ? { 'Authorization': 'Bearer ' + token } : undefined;
+      const response = await fetch(apiUrl('/api/roulottes'), { headers });
       if (!response.ok) {
         throw new Error(`Errore nel caricamento dati: ${response.status}`);
       }
@@ -137,7 +186,7 @@
 
   async function serverGetDB(timeoutMs = 1500) {
     if (isFileProtocol()) throw new Error('file_protocol');
-    const res = await fetchWithTimeout('/api/db', { method: 'GET', headers: { 'Accept': 'application/json' } }, timeoutMs);
+    const res = await fetchWithTimeout(apiUrl('/api/db'), { method: 'GET', headers: { 'Accept': 'application/json' } }, timeoutMs);
     if (res.status === 404) {
       serverDbSupported = false;
       return null;
@@ -153,7 +202,7 @@
     if (isFileProtocol()) throw new Error('file_protocol');
     if (!isValidDbObject(db)) throw new Error('invalid_local_db');
     const body = JSON.stringify(db);
-    const res = await fetchWithTimeout('/api/db', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body }, timeoutMs);
+    const res = await fetchWithTimeout(apiUrl('/api/db'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body }, timeoutMs);
     if (!res.ok) throw new Error('server_put_failed');
     return true;
   }
@@ -190,7 +239,9 @@
 
   async function syncNow() {
     try {
-      const res = await fetchWithTimeout(`${API_BASE_URL}/api/roulottes`, { method: 'GET', headers: { 'Accept': 'application/json' } }, 2500);
+      const token = authToken || (function(){ try { return String(sessionStorage.getItem('admin_jwt_token') || ''); } catch { return ''; } })();
+      const headers = token ? { 'Accept': 'application/json', 'Authorization': 'Bearer ' + token } : { 'Accept': 'application/json' };
+      const res = await fetchWithTimeout(apiUrl('/api/roulottes'), { method: 'GET', headers }, 2500);
       if (!res.ok) throw new Error('roulottes_fetch_failed');
       const list = await res.json();
       const db = getDB();
@@ -368,7 +419,9 @@
 
   async function forceReloadRoulottes() {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/roulottes`);
+      const token = authToken || (typeof window !== 'undefined' && window.RoulotteStore && typeof window.RoulotteStore.getAuthToken === 'function' ? window.RoulotteStore.getAuthToken() : '') || (function(){ try { return String(sessionStorage.getItem('admin_jwt_token') || ''); } catch { return ''; } })();
+      const headers = token ? { 'Authorization': 'Bearer ' + token } : undefined;
+      const response = await fetch(apiUrl('/api/roulottes'), { headers });
       if (!response.ok) throw new Error('Reload failed');
       const list = await response.json();
       const db = getDB();
@@ -383,7 +436,7 @@
 
   async function searchRoulottes(params = {}, timeoutMs = 1500) {
     const q = String(params.q || '').trim();
-    const url = new URL(`${API_BASE_URL}/api/search`);
+    const url = new URL(apiUrl('/api/search'), location.origin);
     url.searchParams.set('q', q);
     if (params && typeof params === 'object') {
       const stato = String(params.stato || '').trim();
@@ -404,14 +457,14 @@
   }
 
   async function addRoulotte(input, photos = [], onProgress) {
-    const res = await sendRoulotteData('POST', `${API_BASE_URL}/api/roulottes`, input, photos, 'photos', onProgress);
+    const res = await sendRoulotteData('POST', apiUrl('/api/roulottes'), input, photos, 'photos', onProgress);
     await forceReloadRoulottes(); // Forza aggiornamento lista
     return res;
   }
 
   async function updateRoulotte(input, photos = [], onProgress) {
     if (!input || !input.id) throw new Error('ID mancante per modifica');
-    const res = await sendRoulotteData('PUT', `${API_BASE_URL}/api/roulottes/${input.id}`, input, photos, 'new_photos', onProgress);
+    const res = await sendRoulotteData('PUT', apiUrl(`/api/roulottes/${input.id}`), input, photos, 'new_photos', onProgress);
     await forceReloadRoulottes(); // Forza aggiornamento lista
     return res;
   }
@@ -420,7 +473,7 @@
     if (!id) throw new Error('ID mancante');
     const token = authToken || (typeof window !== 'undefined' && window.RoulotteStore && typeof window.RoulotteStore.getAuthToken === 'function' ? window.RoulotteStore.getAuthToken() : '');
     if (!token) throw new Error('UNAUTHORIZED');
-    const res = await fetch(`${API_BASE_URL}/api/roulottes/${id}`, {
+    const res = await fetch(apiUrl(`/api/roulottes/${id}`), {
       method: 'DELETE',
       headers: { 'Authorization': 'Bearer ' + token }
     });

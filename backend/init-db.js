@@ -173,6 +173,19 @@ async function createTables() {
     );
   `;
   await db.query(createAdminUsers);
+
+  const createAppSettings = `
+    CREATE TABLE IF NOT EXISTS app_settings (
+      id SERIAL PRIMARY KEY,
+      setting_key TEXT UNIQUE NOT NULL,
+      value TEXT,
+      is_secret BOOLEAN DEFAULT FALSE,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(setting_key);
+  `;
+  await db.query(createAppSettings);
 }
 
 module.exports = { createTables };

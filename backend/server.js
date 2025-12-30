@@ -41,14 +41,40 @@ app.use((req, res, next) => {
 });
 
 // Static files (serve admin UI e asset dal root del progetto)
-app.use(express.static(path.join(__dirname, '..')));
+const staticRoot = path.join(__dirname, '..');
+app.use(express.static(staticRoot, {
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    const p = String(filePath || '').toLowerCase();
+    if (p.endsWith('.html') || p.endsWith('.xml') || p.endsWith('.txt')) {
+      res.setHeader('Cache-Control', 'no-store');
+      if (p.endsWith('admin.html')) res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+      return;
+    }
+    if (p.endsWith('.js') || p.endsWith('.css') || p.endsWith('.png') || p.endsWith('.jpg') || p.endsWith('.jpeg') || p.endsWith('.webp') || p.endsWith('.svg') || p.endsWith('.ico')) {
+      const maxAge = Math.max(0, Math.floor(getSettingNumberFirst(['regole_tecniche.cache.asset_max_age_seconds', 'cache.asset_max_age_seconds'], 0)));
+      res.setHeader('Cache-Control', `public, max-age=${maxAge}`);
+      return;
+    }
+    const maxAge = Math.max(0, Math.floor(getSettingNumberFirst(['regole_tecniche.cache.other_max_age_seconds', 'cache.other_max_age_seconds'], 0)));
+    res.setHeader('Cache-Control', `public, max-age=${maxAge}`);
+  }
+}));
 app.get('/admin.html', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'admin.html'));
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  res.sendFile(path.join(staticRoot, 'admin.html'));
 });
 
 // Config pubblica (solo parametri non sensibili)
 app.get('/api/config', (req, res) => {
-  res.json({ google_client_id: GOOGLE_CLIENT_ID, ors_enabled: orsEnabled() });
+  res.json({
+    google_client_id: getGoogleClientId(),
+    ors_enabled: orsEnabled(),
+    posthog_host: getPosthogHost(),
+    posthog_key: getPosthogKey(),
+  });
 });
 
 const pool = require('./db'); // Importiamo la configurazione del database
@@ -58,14 +84,423 @@ const multer = require('multer');
 const crypto = require('crypto');
 const { createTables } = require('./init-db');
 
-// Configurazione Sicurezza (Default Fallback)
-const JWT_SECRET = process.env.JWT_SECRET || 'roulotte_secret_fallback_2025';
-const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-const ADMIN_PASS = process.env.ADMIN_PASS || 'admin';
-const ADMIN_RESET_TOKEN = process.env.ADMIN_RESET_TOKEN || 'reset_token_fallback_2025';
-const RENDER_API_KEY = process.env.RENDER_API_KEY || '';
-const RENDER_SERVICE_ID = process.env.RENDER_SERVICE_ID || 'srv-d54pt6i4d50c739h8ob0';
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const ENV_ADMIN_USER = String(process.env.ADMIN_USER || '').trim();
+const ENV_ADMIN_PASS = String(process.env.ADMIN_PASS || '');
+
+const settingsCache = new Map();
+
+function normalizeSettingKey(key) {
+  const k = String(key || '').trim();
+  if (!k) return '';
+  if (k.length > 160) return '';
+  if (!/^[a-z0-9_.-]+$/i.test(k)) return '';
+  return k.toLowerCase();
+}
+
+async function loadSettingsCache() {
+  try {
+    const { rows } = await pool.query('SELECT setting_key, value, is_secret, updated_at FROM app_settings ORDER BY setting_key ASC;');
+    settingsCache.clear();
+    for (const r of (rows || [])) {
+      const k = normalizeSettingKey(r.setting_key);
+      if (!k) continue;
+      settingsCache.set(k, {
+        value: r.value !== undefined && r.value !== null ? String(r.value) : '',
+        is_secret: r.is_secret === true,
+        updated_at: r.updated_at || null,
+      });
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function upsertSetting(key, value, isSecret) {
+  const k = normalizeSettingKey(key);
+  if (!k) return false;
+  const v = value !== undefined && value !== null ? String(value) : '';
+  const s = isSecret === true;
+  try {
+    const q = `
+      INSERT INTO app_settings (setting_key, value, is_secret, updated_at)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+      ON CONFLICT (setting_key)
+      DO UPDATE SET value = EXCLUDED.value, is_secret = EXCLUDED.is_secret, updated_at = CURRENT_TIMESTAMP
+      RETURNING setting_key, value, is_secret, updated_at;
+    `;
+    const { rows } = await pool.query(q, [k, v, s]);
+    const row = rows && rows[0] ? rows[0] : null;
+    if (row) {
+      settingsCache.set(k, { value: String(row.value || ''), is_secret: row.is_secret === true, updated_at: row.updated_at || null });
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureSetting(key, value, isSecret) {
+  const k = normalizeSettingKey(key);
+  if (!k) return false;
+  try {
+    const ex = await pool.query('SELECT setting_key FROM app_settings WHERE setting_key = $1 LIMIT 1;', [k]);
+    if (ex.rows && ex.rows.length) return true;
+    return await upsertSetting(k, value, isSecret);
+  } catch {
+    return false;
+  }
+}
+
+function getSettingString(key, fallback) {
+  const k = normalizeSettingKey(key);
+  if (!k) return String(fallback || '');
+  const rec = settingsCache.get(k);
+  if (!rec) return String(fallback || '');
+  return String(rec.value || '');
+}
+
+function getSettingNumber(key, fallback) {
+  const raw = getSettingString(key, '');
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function getSettingStringList(key, fallback) {
+  const raw = getSettingString(key, '');
+  if (!raw) return Array.isArray(fallback) ? fallback : [];
+  return raw.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function getSettingStringFirst(keys, fallback) {
+  const list = Array.isArray(keys) ? keys : [keys];
+  for (const k of list) {
+    const v = getSettingString(k, '');
+    if (String(v || '').trim()) return String(v);
+  }
+  return String(fallback || '');
+}
+
+function getSettingNumberFirst(keys, fallback) {
+  const raw = String(getSettingStringFirst(keys, '') || '').trim();
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function getSettingStringListFirst(keys, fallback) {
+  const raw = String(getSettingStringFirst(keys, '') || '').trim();
+  if (!raw) return Array.isArray(fallback) ? fallback : [];
+  return raw.split(',').map(s => String(s || '').trim()).filter(Boolean);
+}
+
+function setDeepValue(obj, path, value) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const parts = Array.isArray(path) ? path : String(path || '').split('.').filter(Boolean);
+  if (!parts.length) return obj;
+  let cur = obj;
+  for (let i = 0; i < parts.length; i++) {
+    const k = parts[i];
+    if (i === parts.length - 1) {
+      cur[k] = value;
+      return obj;
+    }
+    const next = cur[k];
+    if (!next || typeof next !== 'object' || Array.isArray(next)) {
+      cur[k] = {};
+    }
+    cur = cur[k];
+  }
+  return obj;
+}
+
+function getDeepValue(obj, path) {
+  if (!obj || typeof obj !== 'object') return undefined;
+  const parts = Array.isArray(path) ? path : String(path || '').split('.').filter(Boolean);
+  if (!parts.length) return undefined;
+  let cur = obj;
+  for (const k of parts) {
+    if (!cur || typeof cur !== 'object') return undefined;
+    cur = cur[k];
+  }
+  return cur;
+}
+
+function parseBool(v) {
+  if (v === true) return true;
+  if (v === false) return false;
+  const s = String(v || '').trim().toLowerCase();
+  if (s === '1' || s === 'true' || s === 'yes' || s === 'y' || s === 'on') return true;
+  if (s === '0' || s === 'false' || s === 'no' || s === 'n' || s === 'off') return false;
+  return null;
+}
+
+function parseTypedFromString(type, raw) {
+  const s = raw !== undefined && raw !== null ? String(raw) : '';
+  if (type === 'string') return s;
+  if (type === 'number') {
+    if (!String(s).trim()) return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (type === 'boolean') return parseBool(s);
+  if (type === 'string[]') {
+    if (!s) return [];
+    return s.split(',').map(x => String(x || '').trim()).filter(Boolean);
+  }
+  return s;
+}
+
+function serializeTypedToString(type, v) {
+  if (v === undefined || v === null) return '';
+  if (type === 'string') return String(v);
+  if (type === 'number') {
+    const n = typeof v === 'number' ? v : Number(v);
+    return Number.isFinite(n) ? String(n) : '';
+  }
+  if (type === 'boolean') {
+    const b = parseBool(v);
+    if (b === null) return '';
+    return b ? 'true' : 'false';
+  }
+  if (type === 'string[]') {
+    if (Array.isArray(v)) return v.map(x => String(x || '').trim()).filter(Boolean).join(',');
+    return String(v).split(',').map(x => String(x || '').trim()).filter(Boolean).join(',');
+  }
+  return String(v);
+}
+
+const SETTINGS_DEFS = [
+  { key: 'trasporto.routing.provider', type: 'string', is_secret: false, aliases: [] },
+  { key: 'trasporto.routing.ors.base_url', type: 'string', is_secret: false, aliases: [] },
+  { key: 'trasporto.routing.ors.api_key', type: 'string', is_secret: true, aliases: ['integrations.ors_api_key'] },
+  { key: 'trasporto.routing.ors.profile', type: 'string', is_secret: false, aliases: [] },
+  { key: 'trasporto.routing.ors.language', type: 'string', is_secret: false, aliases: [] },
+  { key: 'trasporto.routing.ors.units', type: 'string', is_secret: false, aliases: [] },
+  { key: 'trasporto.routing.ors.timeout_ms', type: 'number', is_secret: false, aliases: [] },
+  { key: 'trasporto.routing.ors.max_alternative_routes', type: 'number', is_secret: false, aliases: [] },
+  { key: 'trasporto.routing.ors.avoid_features', type: 'string[]', is_secret: false, aliases: [] },
+  { key: 'trasporto.routing.cache.enabled', type: 'boolean', is_secret: false, aliases: [] },
+  { key: 'trasporto.routing.cache.ttl_seconds', type: 'number', is_secret: false, aliases: [] },
+  { key: 'trasporto.pricing.enabled', type: 'boolean', is_secret: false, aliases: [] },
+  { key: 'trasporto.pricing.currency', type: 'string', is_secret: false, aliases: [] },
+  { key: 'trasporto.pricing.vat_percent', type: 'number', is_secret: false, aliases: [] },
+
+  { key: 'annunci.pubblicazione.enabled', type: 'boolean', is_secret: false, aliases: [] },
+  { key: 'annunci.pubblicazione.default_visibility', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.pubblicazione.require_photos_for_publish', type: 'boolean', is_secret: false, aliases: [] },
+  { key: 'annunci.pubblicazione.require_price_for_publish', type: 'boolean', is_secret: false, aliases: [] },
+  { key: 'annunci.homepage.featured_enabled', type: 'boolean', is_secret: false, aliases: [] },
+  { key: 'annunci.homepage.featured_ids', type: 'string[]', is_secret: false, aliases: [] },
+  { key: 'annunci.homepage.max_items', type: 'number', is_secret: false, aliases: [] },
+  { key: 'annunci.listing.default_sort', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.listing.page_size', type: 'number', is_secret: false, aliases: [] },
+  { key: 'annunci.listing.max_page_size', type: 'number', is_secret: false, aliases: [] },
+  { key: 'annunci.listing.filters.year_min', type: 'number', is_secret: false, aliases: [] },
+  { key: 'annunci.listing.filters.year_max', type: 'number', is_secret: false, aliases: [] },
+  { key: 'annunci.listing.filters.price_min', type: 'number', is_secret: false, aliases: [] },
+  { key: 'annunci.listing.filters.price_max', type: 'number', is_secret: false, aliases: [] },
+  { key: 'annunci.listing.filters.weight_min', type: 'number', is_secret: false, aliases: [] },
+  { key: 'annunci.listing.filters.weight_max', type: 'number', is_secret: false, aliases: [] },
+  { key: 'annunci.labels.badge_text', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.labels.contact_phone', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.labels.contact_email', type: 'string', is_secret: false, aliases: [] },
+
+  { key: 'regole_tecniche.upload.photo_max_bytes', type: 'number', is_secret: false, aliases: ['upload.photo_max_bytes'] },
+  { key: 'regole_tecniche.upload.photo_allowed_mimetypes', type: 'string[]', is_secret: false, aliases: ['upload.photo_allowed_mimetypes'] },
+  { key: 'regole_tecniche.upload.photo_max_width_px', type: 'number', is_secret: false, aliases: [] },
+  { key: 'regole_tecniche.upload.photo_max_height_px', type: 'number', is_secret: false, aliases: [] },
+  { key: 'regole_tecniche.upload.photo_max_count_per_annuncio', type: 'number', is_secret: false, aliases: ['upload.photo_max_files'] },
+
+  { key: 'regole_tecniche.sicurezza.admin_session_ttl_minutes', type: 'number', is_secret: false, aliases: [] },
+  { key: 'regole_tecniche.sicurezza.rate_limit.enabled', type: 'boolean', is_secret: false, aliases: [] },
+  { key: 'regole_tecniche.sicurezza.rate_limit.window_seconds', type: 'number', is_secret: false, aliases: [] },
+  { key: 'regole_tecniche.sicurezza.rate_limit.max_requests', type: 'number', is_secret: false, aliases: [] },
+  { key: 'regole_tecniche.sicurezza.cors.allowed_origins', type: 'string[]', is_secret: false, aliases: [] },
+
+  { key: 'regole_tecniche.cache.asset_max_age_seconds', type: 'number', is_secret: false, aliases: ['cache.asset_max_age_seconds'] },
+  { key: 'regole_tecniche.cache.other_max_age_seconds', type: 'number', is_secret: false, aliases: ['cache.other_max_age_seconds'] },
+
+  { key: 'regole_tecniche.integrazioni.directus.base_url', type: 'string', is_secret: false, aliases: ['integrations.directus_url'] },
+  { key: 'regole_tecniche.integrazioni.directus.token', type: 'string', is_secret: true, aliases: ['integrations.directus_token'] },
+  { key: 'regole_tecniche.integrazioni.directus.collection', type: 'string', is_secret: false, aliases: ['integrations.directus_collection'] },
+  { key: 'regole_tecniche.integrazioni.directus.asset_base_url', type: 'string', is_secret: false, aliases: ['integrations.directus_asset_base_url'] },
+  { key: 'regole_tecniche.integrazioni.directus.images_field', type: 'string', is_secret: false, aliases: ['integrations.directus_images_field'] },
+  { key: 'regole_tecniche.integrazioni.directus.desc_field', type: 'string', is_secret: false, aliases: ['integrations.directus_desc_field'] },
+  { key: 'regole_tecniche.integrazioni.directus.data_field', type: 'string', is_secret: false, aliases: ['integrations.directus_data_field'] },
+  { key: 'regole_tecniche.integrazioni.directus.images_write_mode', type: 'string', is_secret: false, aliases: ['integrations.directus_images_write_mode'] },
+
+  { key: 'regole_tecniche.integrazioni.meilisearch.host', type: 'string', is_secret: false, aliases: ['search.meili_url'] },
+  { key: 'regole_tecniche.integrazioni.meilisearch.api_key', type: 'string', is_secret: true, aliases: ['search.meili_api_key'] },
+  { key: 'regole_tecniche.integrazioni.meilisearch.index_name', type: 'string', is_secret: false, aliases: ['search.meili_index'] },
+
+  { key: 'regole_tecniche.integrazioni.render.api_key', type: 'string', is_secret: true, aliases: ['deploy.render_api_key'] },
+  { key: 'regole_tecniche.integrazioni.render.service_id', type: 'string', is_secret: false, aliases: ['deploy.render_service_id'] },
+
+  { key: 'regole_tecniche.public.google_client_id', type: 'string', is_secret: false, aliases: ['public.google_client_id'] },
+  { key: 'regole_tecniche.public.posthog_host', type: 'string', is_secret: false, aliases: ['public.posthog_host'] },
+  { key: 'regole_tecniche.public.posthog_key', type: 'string', is_secret: false, aliases: ['public.posthog_key'] },
+];
+
+const SETTINGS_DEF_BY_KEY = new Map(SETTINGS_DEFS.map(d => [d.key, d]));
+
+function findSettingRecordByKeyOrAliases(def) {
+  const keys = [def.key, ...(Array.isArray(def.aliases) ? def.aliases : [])].map(k => normalizeSettingKey(k)).filter(Boolean);
+  for (const k of keys) {
+    const rec = settingsCache.get(k);
+    if (rec) return { key: k, rec };
+  }
+  return null;
+}
+
+function buildSettingsForApi(opts = {}) {
+  const includeSecrets = opts && opts.includeSecrets === true;
+  const settings = {};
+  const secrets_set = [];
+  let updated_at = null;
+  for (const def of SETTINGS_DEFS) {
+    const found = findSettingRecordByKeyOrAliases(def);
+    const rec = found ? found.rec : null;
+    const raw = rec ? String(rec.value || '') : '';
+    const isSet = !!raw;
+    if (def.is_secret && isSet) secrets_set.push(def.key);
+    const valueOut = def.is_secret && !includeSecrets ? '' : parseTypedFromString(def.type, raw);
+    setDeepValue(settings, def.key, valueOut);
+    const ts = rec && rec.updated_at ? rec.updated_at : null;
+    if (ts && (!updated_at || String(ts) > String(updated_at))) updated_at = ts;
+  }
+  return { settings, secrets_set, updated_at };
+}
+
+function flattenSettingsInput(obj, prefix = '', out = {}) {
+  if (!obj || typeof obj !== 'object') return out;
+  if (Array.isArray(obj)) return out;
+  for (const [k, v] of Object.entries(obj)) {
+    const kk = String(k || '').trim();
+    if (!kk) continue;
+    const keyPath = prefix ? `${prefix}.${kk}` : kk;
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      flattenSettingsInput(v, keyPath, out);
+    } else {
+      out[keyPath] = v;
+    }
+  }
+  return out;
+}
+
+function validateAndSerializeForDef(def, rawValue) {
+  if (rawValue === undefined) return { ok: true, skip: true };
+  if (rawValue === null || rawValue === '') return { ok: true, value: '' };
+
+  if (def.type === 'number') {
+    const n = typeof rawValue === 'number' ? rawValue : Number(rawValue);
+    if (!Number.isFinite(n)) return { ok: false, error: 'INVALID_NUMBER' };
+    return { ok: true, value: String(n) };
+  }
+  if (def.type === 'boolean') {
+    const b = parseBool(rawValue);
+    if (b === null) return { ok: false, error: 'INVALID_BOOLEAN' };
+    return { ok: true, value: b ? 'true' : 'false' };
+  }
+  if (def.type === 'string[]') {
+    const s = serializeTypedToString('string[]', rawValue);
+    return { ok: true, value: s };
+  }
+  return { ok: true, value: serializeTypedToString('string', rawValue) };
+}
+
+function pickFirstNonEmpty(values) {
+  const arr = Array.isArray(values) ? values : [values];
+  for (const v of arr) {
+    const s = String(v === undefined || v === null ? '' : v).trim();
+    if (s) return s;
+  }
+  return '';
+}
+
+async function bootstrapCentralSettings() {
+  const envOrsKey = String(process.env.ORS_API_KEY || process.env.OPENROUTESERVICE_API_KEY || process.env.ORS_KEY || '').trim();
+  const envPosthogKey = String(process.env.POSTHOG_KEY || process.env.POSTHOG_PUBLIC_KEY || '').trim();
+  const envJwtSecret = String(process.env.JWT_SECRET || '').trim();
+  const envJwtExpiresIn = String(process.env.JWT_EXPIRES_IN || '').trim();
+  const envAdminResetToken = String(process.env.ADMIN_RESET_TOKEN || '').trim();
+
+  const seeds = [
+    { key: 'security.jwt_secret', value: pickFirstNonEmpty([getSettingString('security.jwt_secret', ''), envJwtSecret]), is_secret: true },
+    { key: 'security.jwt_expires_in', value: pickFirstNonEmpty([getSettingString('security.jwt_expires_in', ''), envJwtExpiresIn, '12h']), is_secret: false },
+    { key: 'security.admin_reset_token', value: pickFirstNonEmpty([getSettingString('security.admin_reset_token', ''), envAdminResetToken]), is_secret: true },
+
+    { key: 'trasporto.routing.provider', value: pickFirstNonEmpty([getSettingString('trasporto.routing.provider', ''), 'ors']), is_secret: false },
+    { key: 'trasporto.routing.ors.base_url', value: pickFirstNonEmpty([getSettingString('trasporto.routing.ors.base_url', ''), 'https://api.openrouteservice.org']), is_secret: false },
+    { key: 'trasporto.routing.ors.profile', value: pickFirstNonEmpty([getSettingString('trasporto.routing.ors.profile', ''), 'driving-car']), is_secret: false },
+    { key: 'trasporto.routing.ors.api_key', value: pickFirstNonEmpty([getSettingString('trasporto.routing.ors.api_key', ''), getSettingString('integrations.ors_api_key', ''), envOrsKey]), is_secret: true },
+
+    { key: 'regole_tecniche.cache.asset_max_age_seconds', value: pickFirstNonEmpty([getSettingString('regole_tecniche.cache.asset_max_age_seconds', ''), getSettingString('cache.asset_max_age_seconds', ''), '86400']), is_secret: false },
+    { key: 'regole_tecniche.cache.other_max_age_seconds', value: pickFirstNonEmpty([getSettingString('regole_tecniche.cache.other_max_age_seconds', ''), getSettingString('cache.other_max_age_seconds', ''), '3600']), is_secret: false },
+
+    { key: 'regole_tecniche.upload.photo_allowed_mimetypes', value: pickFirstNonEmpty([getSettingString('regole_tecniche.upload.photo_allowed_mimetypes', ''), getSettingString('upload.photo_allowed_mimetypes', ''), 'image/jpeg,image/png,image/webp']), is_secret: false },
+    { key: 'regole_tecniche.upload.photo_max_bytes', value: pickFirstNonEmpty([getSettingString('regole_tecniche.upload.photo_max_bytes', ''), getSettingString('upload.photo_max_bytes', ''), String(10 * 1024 * 1024)]), is_secret: false },
+    { key: 'regole_tecniche.upload.photo_max_count_per_annuncio', value: pickFirstNonEmpty([getSettingString('regole_tecniche.upload.photo_max_count_per_annuncio', ''), getSettingString('upload.photo_max_files', ''), '20']), is_secret: false },
+
+    { key: 'regole_tecniche.integrazioni.directus.base_url', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.base_url', ''), getSettingString('integrations.directus_url', ''), String(process.env.DIRECTUS_URL || '')]), is_secret: false },
+    { key: 'regole_tecniche.integrazioni.directus.token', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.token', ''), getSettingString('integrations.directus_token', ''), String(process.env.DIRECTUS_TOKEN || '')]), is_secret: true },
+    { key: 'regole_tecniche.integrazioni.directus.collection', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.collection', ''), getSettingString('integrations.directus_collection', ''), String(process.env.DIRECTUS_COLLECTION || 'roulottes')]), is_secret: false },
+    { key: 'regole_tecniche.integrazioni.directus.asset_base_url', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.asset_base_url', ''), getSettingString('integrations.directus_asset_base_url', ''), String(process.env.DIRECTUS_ASSET_BASE_URL || process.env.DIRECTUS_URL || '')]), is_secret: false },
+    { key: 'regole_tecniche.integrazioni.directus.images_field', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.images_field', ''), getSettingString('integrations.directus_images_field', ''), String(process.env.DIRECTUS_IMAGES_FIELD || 'immagini')]), is_secret: false },
+    { key: 'regole_tecniche.integrazioni.directus.desc_field', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.desc_field', ''), getSettingString('integrations.directus_desc_field', ''), String(process.env.DIRECTUS_DESC_FIELD || 'descrizione')]), is_secret: false },
+    { key: 'regole_tecniche.integrazioni.directus.data_field', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.data_field', ''), getSettingString('integrations.directus_data_field', ''), String(process.env.DIRECTUS_DATA_FIELD || 'data')]), is_secret: false },
+    { key: 'regole_tecniche.integrazioni.directus.images_write_mode', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.images_write_mode', ''), getSettingString('integrations.directus_images_write_mode', ''), String(process.env.DIRECTUS_IMAGES_WRITE_MODE || 'm2m')]), is_secret: false },
+
+    { key: 'regole_tecniche.integrazioni.meilisearch.host', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.meilisearch.host', ''), getSettingString('search.meili_url', ''), String(process.env.MEILI_URL || '')]), is_secret: false },
+    { key: 'regole_tecniche.integrazioni.meilisearch.api_key', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.meilisearch.api_key', ''), getSettingString('search.meili_api_key', ''), String(process.env.MEILI_API_KEY || '')]), is_secret: true },
+    { key: 'regole_tecniche.integrazioni.meilisearch.index_name', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.meilisearch.index_name', ''), getSettingString('search.meili_index', ''), String(process.env.MEILI_INDEX || 'roulottes')]), is_secret: false },
+
+    { key: 'regole_tecniche.integrazioni.render.api_key', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.render.api_key', ''), getSettingString('deploy.render_api_key', ''), String(process.env.RENDER_API_KEY || '')]), is_secret: true },
+    { key: 'regole_tecniche.integrazioni.render.service_id', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.render.service_id', ''), getSettingString('deploy.render_service_id', ''), String(process.env.RENDER_SERVICE_ID || '')]), is_secret: false },
+
+    { key: 'regole_tecniche.public.google_client_id', value: pickFirstNonEmpty([getSettingString('regole_tecniche.public.google_client_id', ''), getSettingString('public.google_client_id', ''), String(process.env.GOOGLE_CLIENT_ID || '')]), is_secret: false },
+    { key: 'regole_tecniche.public.posthog_host', value: pickFirstNonEmpty([getSettingString('regole_tecniche.public.posthog_host', ''), getSettingString('public.posthog_host', ''), String(process.env.POSTHOG_HOST || '')]), is_secret: false },
+    { key: 'regole_tecniche.public.posthog_key', value: pickFirstNonEmpty([getSettingString('regole_tecniche.public.posthog_key', ''), getSettingString('public.posthog_key', ''), envPosthogKey]), is_secret: false },
+  ];
+
+  for (const s of seeds) {
+    const key = String(s && s.key || '').trim();
+    if (!key) continue;
+    await ensureSetting(key, String(s.value || ''), s.is_secret === true);
+  }
+}
+
+function getJwtSecret() {
+  return getSettingString('security.jwt_secret', String(process.env.JWT_SECRET || ''));
+}
+
+function getJwtExpiresIn() {
+  return getSettingString('security.jwt_expires_in', String(process.env.JWT_EXPIRES_IN || '12h'));
+}
+
+function getAdminResetToken() {
+  return getSettingString('security.admin_reset_token', String(process.env.ADMIN_RESET_TOKEN || ''));
+}
+
+function getGoogleClientId() {
+  return getSettingStringFirst(['regole_tecniche.public.google_client_id', 'public.google_client_id'], String(process.env.GOOGLE_CLIENT_ID || '')).trim();
+}
+
+function getPosthogHost() {
+  return getSettingStringFirst(['regole_tecniche.public.posthog_host', 'public.posthog_host'], String(process.env.POSTHOG_HOST || '')).trim();
+}
+
+function getPosthogKey() {
+  return getSettingStringFirst(['regole_tecniche.public.posthog_key', 'public.posthog_key'], String(process.env.POSTHOG_KEY || process.env.POSTHOG_PUBLIC_KEY || '')).trim();
+}
+
+function getRenderApiKey() {
+  return getSettingStringFirst(['regole_tecniche.integrazioni.render.api_key', 'deploy.render_api_key'], String(process.env.RENDER_API_KEY || '')).trim();
+}
+
+function getRenderServiceId() {
+  return getSettingStringFirst(['regole_tecniche.integrazioni.render.service_id', 'deploy.render_service_id'], String(process.env.RENDER_SERVICE_ID || '')).trim();
+}
 
 const serverWss = new WebSocketServer({ server, path: '/ws' });
 
@@ -164,11 +599,16 @@ serverWss.on('connection', (ws, req) => {
   let role = 'public';
   let user = null;
   if (token) {
+    const jwtSecret = getJwtSecret();
+    if (!jwtSecret) {
+      ws._meta = { role: 'public', user: null };
+    } else {
     try {
-      const payload = jwt.verify(token, JWT_SECRET);
+      const payload = jwt.verify(token, jwtSecret);
       role = 'admin';
       user = payload && payload.user ? String(payload.user) : 'admin';
     } catch {}
+    }
   }
 
   ws._meta = { role, user };
@@ -212,14 +652,38 @@ setInterval(wsCleanupExpiredLocks, 10000).unref();
 
 // Configurazione di Multer per gestire l'upload di file in memoria
 const storage = multer.memoryStorage();
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024, files: 20 },
-  fileFilter: (req, file, cb) => {
-    const ok = ['image/jpeg','image/png','image/webp'].includes(String(file.mimetype || '').toLowerCase());
-    cb(null, ok);
-  }
-});
+
+function getUploadAllowedMimes() {
+  const fromSettings = getSettingStringListFirst(['regole_tecniche.upload.photo_allowed_mimetypes', 'upload.photo_allowed_mimetypes'], []);
+  return fromSettings.map(s => String(s || '').trim().toLowerCase()).filter(Boolean);
+}
+
+function getUploadMaxBytes() {
+  return Math.max(0, Math.floor(getSettingNumberFirst(['regole_tecniche.upload.photo_max_bytes', 'upload.photo_max_bytes'], 0)));
+}
+
+function getUploadMaxFiles() {
+  return Math.max(0, Math.floor(getSettingNumberFirst(['regole_tecniche.upload.photo_max_count_per_annuncio', 'upload.photo_max_files'], 0)));
+}
+
+function makeUpload() {
+  const allowed = new Set(getUploadAllowedMimes());
+  return multer({
+    storage: storage,
+    limits: { fileSize: getUploadMaxBytes(), files: getUploadMaxFiles() },
+    fileFilter: (req, file, cb) => {
+      const mt = String(file && file.mimetype || '').toLowerCase();
+      cb(null, allowed.has(mt));
+    }
+  });
+}
+
+function uploadArray(field, maxCount) {
+  return (req, res, next) => {
+    const u = makeUpload();
+    return u.array(field, maxCount)(req, res, next);
+  };
+}
 
 // Funzione per generare un nome file univoco
 const generateFileName = (bytes = 32) => crypto.randomBytes(bytes).toString('hex');
@@ -264,58 +728,92 @@ function parseJsonOrNull(v) {
   try { return JSON.parse(String(v || '')); } catch { return null; }
 }
 
-const DIRECTUS_URL = String(process.env.DIRECTUS_URL || '').trim();
-const DIRECTUS_TOKEN = String(process.env.DIRECTUS_TOKEN || '').trim();
-const DIRECTUS_COLLECTION = String(process.env.DIRECTUS_COLLECTION || 'roulottes').trim() || 'roulottes';
-const DIRECTUS_ASSET_BASE_URL = String(process.env.DIRECTUS_ASSET_BASE_URL || process.env.DIRECTUS_URL || '').trim();
-const DIRECTUS_IMAGES_FIELD = String(process.env.DIRECTUS_IMAGES_FIELD || 'immagini').trim() || 'immagini';
-const DIRECTUS_DESC_FIELD = String(process.env.DIRECTUS_DESC_FIELD || 'descrizione').trim() || 'descrizione';
+function getDirectusUrl() {
+  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.base_url', 'integrations.directus_url'], '').trim();
+}
+function getDirectusToken() {
+  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.token', 'integrations.directus_token'], String(process.env.DIRECTUS_TOKEN || '')).trim();
+}
+function getDirectusCollection() {
+  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.collection', 'integrations.directus_collection'], String(process.env.DIRECTUS_COLLECTION || 'roulottes')).trim();
+}
+function getDirectusAssetBaseUrl() {
+  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.asset_base_url', 'integrations.directus_asset_base_url'], String(process.env.DIRECTUS_ASSET_BASE_URL || process.env.DIRECTUS_URL || '')).trim();
+}
+function getDirectusImagesField() {
+  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.images_field', 'integrations.directus_images_field'], String(process.env.DIRECTUS_IMAGES_FIELD || 'immagini')).trim();
+}
+function getDirectusDescField() {
+  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.desc_field', 'integrations.directus_desc_field'], String(process.env.DIRECTUS_DESC_FIELD || 'descrizione')).trim();
+}
+function getDirectusDataField() {
+  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.data_field', 'integrations.directus_data_field'], String(process.env.DIRECTUS_DATA_FIELD || 'data')).trim();
+}
+function getDirectusImagesWriteMode(fallback) {
+  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.images_write_mode', 'integrations.directus_images_write_mode'], String(fallback || process.env.DIRECTUS_IMAGES_WRITE_MODE || 'm2m')).trim();
+}
 
-const MEILI_URL = String(process.env.MEILI_URL || '').trim();
-const MEILI_API_KEY = String(process.env.MEILI_API_KEY || '').trim();
-const MEILI_INDEX = String(process.env.MEILI_INDEX || 'roulottes').trim() || 'roulottes';
+function getMeiliUrl() {
+  return getSettingStringFirst(['regole_tecniche.integrazioni.meilisearch.host', 'search.meili_url'], String(process.env.MEILI_URL || '')).trim();
+}
+function getMeiliApiKey() {
+  return getSettingStringFirst(['regole_tecniche.integrazioni.meilisearch.api_key', 'search.meili_api_key'], String(process.env.MEILI_API_KEY || '')).trim();
+}
+function getMeiliIndex() {
+  return getSettingStringFirst(['regole_tecniche.integrazioni.meilisearch.index_name', 'search.meili_index'], String(process.env.MEILI_INDEX || 'roulottes')).trim();
+}
 
-// OpenRouteService: la chiave resta sul backend (non esposta al frontend)
-const ORS_API_KEY = String(
-  process.env.ORS_API_KEY ||
-  process.env.OPENROUTESERVICE_API_KEY ||
-  process.env.ORS_KEY ||
-  ''
-).trim();
+function getOrsApiKey() {
+  const envFallback = String(process.env.ORS_API_KEY || process.env.OPENROUTESERVICE_API_KEY || process.env.ORS_KEY || '').trim();
+  return getSettingStringFirst(['trasporto.routing.ors.api_key', 'integrations.ors_api_key'], envFallback).trim();
+}
+
+function getOrsBaseUrl() {
+  return getSettingStringFirst(['trasporto.routing.ors.base_url'], '').trim();
+}
+
+function getOrsProfile() {
+  return getSettingStringFirst(['trasporto.routing.ors.profile'], '').trim();
+}
 
 function directusEnabled() {
-  return !!DIRECTUS_URL;
+  return !!getDirectusUrl();
+}
+
+function directusWriteEnabled() {
+  return !!getDirectusUrl() && !!getDirectusToken();
 }
 
 function meiliEnabled() {
-  return !!MEILI_URL;
+  return !!getMeiliUrl();
 }
 
 function orsEnabled() {
-  return !!ORS_API_KEY;
+  return !!getOrsApiKey();
 }
 
 let meiliClient = null;
 function getMeiliClient() {
   if (!meiliEnabled()) return null;
   if (meiliClient) return meiliClient;
-  meiliClient = new MeiliSearch({ host: MEILI_URL, apiKey: MEILI_API_KEY || undefined });
+  meiliClient = new MeiliSearch({ host: getMeiliUrl(), apiKey: getMeiliApiKey() || undefined });
   return meiliClient;
 }
 
 async function orsFetchJson(url, init) {
+  const apiKey = getOrsApiKey();
   let finalUrl = String(url || '');
   try {
     const u = new URL(finalUrl);
-    if (u.hostname === 'api.openrouteservice.org' && ORS_API_KEY && !u.searchParams.get('api_key')) {
-      u.searchParams.set('api_key', ORS_API_KEY);
+    if (apiKey && !u.searchParams.get('api_key')) {
+      u.searchParams.set('api_key', apiKey);
       finalUrl = u.toString();
     }
   } catch {}
 
   const headers = { 'Accept': 'application/json, application/geo+json' };
   if (init && init.headers && typeof init.headers === 'object') Object.assign(headers, init.headers);
-  if (ORS_API_KEY) headers['Authorization'] = ORS_API_KEY;
+  if (apiKey) headers['Authorization'] = apiKey;
 
   const res = await fetch(finalUrl, { ...(init || {}), headers });
   if (!res.ok) {
@@ -357,7 +855,9 @@ async function orsGeocodeOne(text) {
   const q = String(text || '').trim();
   if (!q) return null;
   try {
-    const url = new URL('https://api.openrouteservice.org/geocode/search');
+    const baseUrl = getOrsBaseUrl();
+    if (!baseUrl) return await nominatimGeocodeOne(q);
+    const url = new URL(joinUrl(baseUrl, 'geocode/search'));
     url.searchParams.set('text', q);
     url.searchParams.set('size', '1');
     const json = await orsFetchJson(url.toString(), { method: 'GET' });
@@ -381,7 +881,13 @@ async function orsGeocodeOne(text) {
 }
 
 function buildDirectusUrl(pathname, params) {
-  const base = joinUrl(DIRECTUS_URL, pathname);
+  const baseUrl = getDirectusUrl();
+  if (!baseUrl) {
+    const err = new Error('DIRECTUS_NOT_CONFIGURED');
+    err.status = 400;
+    throw err;
+  }
+  const base = joinUrl(baseUrl, pathname);
   const url = new URL(base);
   if (params && typeof params === 'object') {
     for (const [k, v] of Object.entries(params)) {
@@ -395,7 +901,9 @@ function buildDirectusUrl(pathname, params) {
 function buildDirectusAssetUrl(fileId, opts) {
   const id = String(fileId || '').trim();
   if (!id) return '';
-  const base = joinUrl(DIRECTUS_ASSET_BASE_URL, `assets/${encodeURIComponent(id)}`);
+  const assetBase = getDirectusAssetBaseUrl() || getDirectusUrl();
+  if (!assetBase) return '';
+  const base = joinUrl(assetBase, `assets/${encodeURIComponent(id)}`);
   const url = new URL(base);
   const o = (opts && typeof opts === 'object') ? opts : {};
   for (const [k, v] of Object.entries(o)) {
@@ -408,7 +916,8 @@ function buildDirectusAssetUrl(fileId, opts) {
 async function directusFetchJson(pathname, params) {
   const url = buildDirectusUrl(pathname, params);
   const headers = { 'Accept': 'application/json' };
-  if (DIRECTUS_TOKEN) headers['Authorization'] = `Bearer ${DIRECTUS_TOKEN}`;
+  const token = getDirectusToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(url, { headers });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -421,27 +930,239 @@ async function directusFetchJson(pathname, params) {
   return await res.json();
 }
 
+async function directusRequestJson(method, pathname, opts) {
+  const o = (opts && typeof opts === 'object') ? opts : {};
+  const url = buildDirectusUrl(pathname, o.params);
+  const headers = { 'Accept': 'application/json' };
+  const token = getDirectusToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (o.headers && typeof o.headers === 'object') Object.assign(headers, o.headers);
+  const init = { method: String(method || 'GET').toUpperCase(), headers };
+  if (o.body !== undefined) {
+    if (typeof FormData !== 'undefined' && o.body instanceof FormData) {
+      init.body = o.body;
+    } else if (typeof o.body === 'string') {
+      init.body = o.body;
+      if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    } else {
+      init.body = JSON.stringify(o.body);
+      if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    }
+  }
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    const detail = body ? body.slice(0, 1200) : '';
+    const err = new Error(`directus_http_${res.status}`);
+    err.status = res.status;
+    err.detail = detail;
+    throw err;
+  }
+  if (res.status === 204) return null;
+  return await res.json().catch(() => null);
+}
+
+function parseDirectusAssetIdFromUrl(input) {
+  const s = String(input || '').trim();
+  if (!s) return '';
+  try {
+    const u = new URL(s);
+    const parts = String(u.pathname || '').split('/').filter(Boolean);
+    const idx = parts.findIndex(p => p === 'assets');
+    if (idx >= 0 && parts[idx + 1]) return decodeURIComponent(parts[idx + 1]);
+  } catch {}
+  const m = s.match(/assets\/([^/?#]+)/i);
+  return m && m[1] ? decodeURIComponent(m[1]) : '';
+}
+
+function normalizeDirectusImageIdsFromField(imagesFieldValue) {
+  const raw = imagesFieldValue;
+  const out = [];
+  const pushId = (v) => {
+    const id = String(v || '').trim();
+    if (!id) return;
+    out.push(id);
+  };
+  const fromItem = (it) => {
+    if (!it) return;
+    if (typeof it === 'string' || typeof it === 'number') return pushId(it);
+    if (typeof it !== 'object') return;
+    if (it.directus_files_id) {
+      const df = it.directus_files_id;
+      if (typeof df === 'string' || typeof df === 'number') return pushId(df);
+      if (df && typeof df === 'object') return pushId(df.id);
+    }
+    if (it.id) return pushId(it.id);
+    if (it.file) return pushId(it.file);
+  };
+  if (Array.isArray(raw)) {
+    raw.forEach(fromItem);
+  } else if (raw) {
+    fromItem(raw);
+  }
+  return out.filter(Boolean);
+}
+
+function buildDirectusImagesWriteValue(fileIds, mode) {
+  const ids = Array.isArray(fileIds) ? fileIds.map(x => String(x || '').trim()).filter(Boolean) : [];
+  const m = String(mode || getDirectusImagesWriteMode() || 'm2m').trim().toLowerCase();
+  if (m === 'ids' || m === 'array' || m === 'json') return ids;
+  return ids.map((id) => ({ directus_files_id: id }));
+}
+
+async function directusUploadMulterFiles(files) {
+  const arr = Array.isArray(files) ? files : [];
+  const out = [];
+  for (const f of arr) {
+    if (!f || !f.buffer) continue;
+    const mt = String(f.mimetype || '').toLowerCase();
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(mt)) {
+      const err = new Error('UNSUPPORTED_FORMAT');
+      err.status = 415;
+      throw err;
+    }
+    const sz = Number(f.size || 0);
+    if (sz > (10 * 1024 * 1024)) {
+      const err = new Error('FILE_TOO_LARGE');
+      err.status = 413;
+      throw err;
+    }
+    const fd = new FormData();
+    const blob = new Blob([f.buffer], { type: mt || 'application/octet-stream' });
+    const name = String(f.originalname || '').trim() || ('upload_' + Date.now() + '.bin');
+    fd.append('file', blob, name);
+    const res = await directusRequestJson('POST', 'files', { body: fd });
+    const id = res && typeof res === 'object' && res.data && typeof res.data === 'object' ? String(res.data.id || '').trim() : '';
+    if (!id) {
+      const err = new Error('DIRECTUS_UPLOAD_FAILED');
+      err.status = 502;
+      throw err;
+    }
+    out.push(id);
+  }
+  return out;
+}
+
+function buildDirectusWriteDataFromIncoming(raw) {
+  const src = (raw && typeof raw === 'object') ? raw : {};
+  const out = {};
+  const descField = getDirectusDescField();
+  const dataField = getDirectusDataField();
+  const copyIfPresent = (k) => {
+    if (src[k] === undefined) return;
+    out[k] = src[k];
+  };
+  copyIfPresent('marca');
+  copyIfPresent('modello');
+  copyIfPresent('stato');
+  copyIfPresent('anno');
+  copyIfPresent('categoryId');
+  copyIfPresent('prezzo');
+  copyIfPresent('lunghezza');
+  copyIfPresent('larghezza');
+  copyIfPresent('doppio_asse');
+  copyIfPresent('trainabile');
+  copyIfPresent('revisionata');
+  copyIfPresent('stato_annuncio');
+  copyIfPresent('dipendente_creatore');
+  copyIfPresent('data_creazione');
+  copyIfPresent('data_pubblicazione');
+  copyIfPresent('visibile');
+
+  const note = src.note ?? src.descrizione ?? src.description;
+  if (note !== undefined) out[descField] = String(note || '');
+
+  const extra = { ...src };
+  delete extra.payload;
+  delete extra.existing_photos;
+  delete extra.new_photos;
+  delete extra.photos;
+  delete extra.id;
+  delete extra.updatedAt;
+  [
+    'marca',
+    'modello',
+    'stato',
+    'anno',
+    'categoryId',
+    'prezzo',
+    'lunghezza',
+    'larghezza',
+    'doppio_asse',
+    'trainabile',
+    'revisionata',
+    'stato_annuncio',
+    'dipendente_creatore',
+    'data_creazione',
+    'data_pubblicazione',
+    'visibile',
+  ].forEach((k) => { try { delete extra[k]; } catch {} });
+
+  if (dataField) {
+    const keys = Object.keys(extra || {});
+    if (keys.length > 0) out[dataField] = extra;
+  }
+  return out;
+}
+
 function mapDirectusItemToRoulotte(item) {
   const src = (item && typeof item === 'object') ? item : {};
-  const marca = String(src.marca || '').trim();
-  const modello = String(src.modello || '').trim();
-  const stato = String(src.stato || '').trim();
-  const prezzo = src.prezzo !== undefined ? Number(src.prezzo) : null;
+  const dataField = getDirectusDataField();
+  const descField = getDirectusDescField();
+  const imagesField = getDirectusImagesField();
+  const blob = src[dataField];
+  const dataBlob = (blob && typeof blob === 'object' && !Array.isArray(blob)) ? blob : {};
+  const marca = String(src.marca || dataBlob.marca || '').trim();
+  const modello = String(src.modello || dataBlob.modello || '').trim();
+  const stato = String(src.stato || src.condizione || dataBlob.stato || dataBlob.condizione || '').trim();
+  const stato_annuncio = String(src.stato_annuncio || src.statoAnnuncio || dataBlob.stato_annuncio || dataBlob.statoAnnuncio || '').trim();
+  const prezzo =
+    src.prezzo !== undefined ? Number(src.prezzo) :
+    (dataBlob.prezzo !== undefined ? Number(dataBlob.prezzo) : null);
   const anno =
     src.anno !== undefined ? Number(src.anno) :
-    (src.year !== undefined ? Number(src.year) : null);
-  const lunghezza = src.lunghezza !== undefined ? Number(src.lunghezza) : null;
-  const larghezza = src.larghezza !== undefined ? Number(src.larghezza) : null;
-  const note = String(src[DIRECTUS_DESC_FIELD] || '').trim();
+    (src.year !== undefined ? Number(src.year) :
+      (dataBlob.anno !== undefined ? Number(dataBlob.anno) :
+        (dataBlob.year !== undefined ? Number(dataBlob.year) : null)));
+  const lunghezza =
+    src.lunghezza !== undefined ? Number(src.lunghezza) :
+    (dataBlob.lunghezza !== undefined ? Number(dataBlob.lunghezza) : null);
+  const larghezza =
+    src.larghezza !== undefined ? Number(src.larghezza) :
+    (dataBlob.larghezza !== undefined ? Number(dataBlob.larghezza) : null);
+  const note = String(src[descField] || dataBlob.note || dataBlob.descrizione || dataBlob.description || '').trim();
+  const categoryId = String(src.categoryId || src.category_id || src.categoria || dataBlob.categoryId || dataBlob.category_id || dataBlob.categoria || '').trim() || null;
+  const doppio_asse =
+    (src.doppio_asse !== undefined && src.doppio_asse !== null) ? !!src.doppio_asse :
+    ((dataBlob.doppio_asse === undefined || dataBlob.doppio_asse === null) ? null : !!dataBlob.doppio_asse);
+  const trainabile =
+    (src.trainabile !== undefined && src.trainabile !== null) ? !!src.trainabile :
+    ((dataBlob.trainabile === undefined || dataBlob.trainabile === null) ? null : !!dataBlob.trainabile);
+  const revisionata =
+    (src.revisionata !== undefined && src.revisionata !== null) ? !!src.revisionata :
+    ((dataBlob.revisionata === undefined || dataBlob.revisionata === null) ? null : !!dataBlob.revisionata);
+
+  const dipendente_creatore_raw = src.dipendente_creatore || src.user_created || null;
+  const dipendente_creatore =
+    (dipendente_creatore_raw && typeof dipendente_creatore_raw === 'object')
+      ? String(dipendente_creatore_raw.id || dipendente_creatore_raw.email || dipendente_creatore_raw.first_name || dipendente_creatore_raw.last_name || '').trim() || null
+      : (dipendente_creatore_raw ? String(dipendente_creatore_raw).trim() : null);
+
+  const data_creazione = src.data_creazione || src.date_created || src.created_at || src.createdAt || null;
+  const data_pubblicazione = src.data_pubblicazione || src.date_published || src.published_at || null;
 
   const createdAt = src.date_created || src.created_at || src.createdAt || null;
   const updatedAt = src.date_updated || src.updated_at || src.updatedAt || createdAt || null;
+  const statoAnnLower = stato_annuncio ? String(stato_annuncio).trim().toLowerCase() : '';
+  const statoFinal = (stato || '').trim() ? stato : (statoAnnLower === 'venduto' ? 'Venduto' : null);
+  const dataCreazioneFinal = data_creazione || createdAt || null;
+  const dataPubblicazioneFinal = data_pubblicazione || ((statoAnnLower === 'pubblicato' || statoAnnLower === 'venduto') ? (dataCreazioneFinal || null) : null);
 
   const id =
     String(src.public_id || src.publicId || src.id || '').trim() ||
     ('D-' + crypto.randomBytes(6).toString('hex'));
 
-  const imagesRaw = src[DIRECTUS_IMAGES_FIELD];
+  const imagesRaw = src[imagesField];
   const photos = [];
 
   const pushFile = (file) => {
@@ -466,15 +1187,24 @@ function mapDirectusItemToRoulotte(item) {
   }
 
   return {
+    ...dataBlob,
     id,
     marca,
     modello,
     prezzo: Number.isFinite(prezzo) ? prezzo : null,
     anno: Number.isFinite(anno) ? anno : null,
-    stato: stato || null,
+    stato: statoFinal,
     lunghezza: Number.isFinite(lunghezza) ? lunghezza : null,
     larghezza: Number.isFinite(larghezza) ? larghezza : null,
     note,
+    categoryId,
+    doppio_asse,
+    trainabile,
+    revisionata,
+    stato_annuncio: stato_annuncio || null,
+    dipendente_creatore,
+    data_creazione: dataCreazioneFinal,
+    data_pubblicazione: dataPubblicazioneFinal,
     photos,
     visibile: src.visibile === undefined || src.visibile === null ? true : !!src.visibile,
     createdAt,
@@ -483,13 +1213,36 @@ function mapDirectusItemToRoulotte(item) {
 }
 
 async function fetchDirectusRoulottes() {
-  const payload = await directusFetchJson(`items/${encodeURIComponent(DIRECTUS_COLLECTION)}`, {
+  const collection = getDirectusCollection();
+  const payload = await directusFetchJson(`items/${encodeURIComponent(collection)}`, {
     limit: '-1',
     fields: '*.*.*'
   });
   const items = payload && typeof payload === 'object' ? payload.data : [];
   const list = Array.isArray(items) ? items.map(mapDirectusItemToRoulotte) : [];
-  return list.filter(r => r && typeof r === 'object');
+  const allowedStatus = new Set(['pubblicato', 'venduto']);
+  const now = Date.now();
+  return list.filter(r => {
+    if (!r || typeof r !== 'object') return false;
+    const s = String(r.stato_annuncio || '').trim().toLowerCase();
+    if (!allowedStatus.has(s)) return false;
+    if (s === 'pubblicato' && r.data_pubblicazione) {
+      const t = Date.parse(String(r.data_pubblicazione));
+      if (Number.isFinite(t) && t > now) return false;
+    }
+    return true;
+  });
+}
+
+async function fetchDirectusRoulottesForAdmin() {
+  const collection = getDirectusCollection();
+  const payload = await directusFetchJson(`items/${encodeURIComponent(collection)}`, {
+    limit: '-1',
+    fields: '*.*.*'
+  });
+  const items = payload && typeof payload === 'object' ? payload.data : [];
+  const list = Array.isArray(items) ? items.map(mapDirectusItemToRoulotte) : [];
+  return list;
 }
 
 function adminLog(client, action, username, details) {
@@ -571,14 +1324,85 @@ function requireAdmin(req, res, next) {
   const auth = String(req.headers.authorization || '');
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   if (!token) return res.status(401).json({ error: 'UNAUTHORIZED' });
+  const jwtSecret = getJwtSecret();
+  if (!jwtSecret) return res.status(500).json({ error: 'JWT_NOT_CONFIGURED' });
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, jwtSecret);
     req.adminUser = payload && payload.user ? String(payload.user) : 'admin';
+    req.adminRole = payload && payload.role ? String(payload.role) : '';
     next();
   } catch (err) {
     return res.status(401).json({ error: 'UNAUTHORIZED' });
   }
 }
+
+function tryGetAdminFromReq(req) {
+  const auth = String(req && req.headers && req.headers.authorization || '');
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!token) return null;
+  const jwtSecret = getJwtSecret();
+  if (!jwtSecret) return null;
+  try {
+    const payload = jwt.verify(token, jwtSecret);
+    return {
+      user: payload && payload.user ? String(payload.user) : 'admin',
+      role: payload && payload.role ? String(payload.role) : '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function requireSuperuser(req, res, next) {
+  if (req && req.adminRole === 'superuser') return next();
+  return res.status(403).json({ error: 'FORBIDDEN' });
+}
+
+app.get('/api/settings', requireAdmin, (req, res) => {
+  const includeSecrets = String(req.query && req.query.include_secrets || '') === '1' && req.adminRole === 'superuser';
+  const base = buildSettingsForApi({ includeSecrets });
+  res.json({
+    ...base,
+    defs: SETTINGS_DEFS.map(d => ({ key: d.key, type: d.type, is_secret: d.is_secret, aliases: Array.isArray(d.aliases) ? d.aliases : [] })),
+  });
+});
+
+app.put('/api/settings', requireAdmin, async (req, res) => {
+  const body = req && req.body && typeof req.body === 'object' ? req.body : null;
+  const input = body && body.settings && typeof body.settings === 'object' ? body.settings : body;
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return res.status(400).json({ error: 'BAD_REQUEST' });
+
+  const flat = flattenSettingsInput(input);
+  const written = [];
+  const errors = {};
+
+  for (const [k, v] of Object.entries(flat)) {
+    const key = String(k || '').trim();
+    const def = SETTINGS_DEF_BY_KEY.get(key);
+    if (!def) continue;
+    const r = validateAndSerializeForDef(def, v);
+    if (!r.ok) {
+      errors[key] = r.error || 'INVALID_VALUE';
+      continue;
+    }
+    if (r.skip) continue;
+    const ok = await upsertSetting(def.key, r.value, def.is_secret);
+    if (!ok) {
+      errors[key] = 'WRITE_FAILED';
+      continue;
+    }
+    written.push(def.key);
+  }
+
+  if (Object.keys(errors).length) return res.status(400).json({ error: 'VALIDATION_ERROR', errors, written });
+  try { wsEmitInvalidate('settings', { action: 'updated', keys: written, user: req.adminUser || 'admin' }); } catch {}
+  res.json({
+    ok: true,
+    written,
+    ...buildSettingsForApi({ includeSecrets: false }),
+    defs: SETTINGS_DEFS.map(d => ({ key: d.key, type: d.type, is_secret: d.is_secret, aliases: Array.isArray(d.aliases) ? d.aliases : [] })),
+  });
+});
 
 function isDbUnavailable(err) {
   const code = String(err && err.code || '');
@@ -622,21 +1446,25 @@ app.post('/api/auth/login', async (req, res) => {
   if (rec.count >= limit) return res.status(429).json({ error: 'TOO_MANY_ATTEMPTS' });
 
   // 1. Super User / Fallback (Env Vars) - Check FIRST (Master Override)
-  const okU = ADMIN_USER;
-  const okP = ADMIN_PASS;
+  const okU = ENV_ADMIN_USER;
+  const okP = ENV_ADMIN_PASS;
   if (okU && okP && u === okU && p === okP) {
-    const token = jwt.sign({ user: u, role: 'superuser' }, JWT_SECRET, { expiresIn: '12h' });
+    const jwtSecret = getJwtSecret();
+    if (!jwtSecret) return res.status(500).json({ error: 'JWT_NOT_CONFIGURED' });
+    const token = jwt.sign({ user: u, role: 'superuser' }, jwtSecret, { expiresIn: getJwtExpiresIn() });
     return res.json({ token });
   }
 
   // 2. DB Users
   try {
-    const { rows } = await pool.query('SELECT username, password_hash FROM admin_users LIMIT 1;');
+    const { rows } = await pool.query('SELECT username, password_hash FROM admin_users WHERE username = $1 LIMIT 1;', [u]);
     if (rows.length) {
-      const row = rows.find(r => String(r.username) === u) || rows[0];
-      const ok = (String(row.username) === u) && verifyPassword(p, String(row.password_hash));
+      const row = rows[0];
+      const ok = verifyPassword(p, String(row.password_hash));
       if (!ok) { rec.count++; global.__loginAttempts.set(key, rec); return res.status(401).json({ error: 'INVALID_CREDENTIALS' }); }
-      const token = jwt.sign({ user: u }, JWT_SECRET, { expiresIn: '12h' });
+      const jwtSecret = getJwtSecret();
+      if (!jwtSecret) return res.status(500).json({ error: 'JWT_NOT_CONFIGURED' });
+      const token = jwt.sign({ user: u }, jwtSecret, { expiresIn: getJwtExpiresIn() });
       return res.json({ token });
     }
   } catch {}
@@ -663,7 +1491,9 @@ app.post('/api/auth/setup', async (req, res) => {
 
 app.post('/api/auth/reset', async (req, res) => {
   const code = String(req.headers['x-admin-reset'] || '');
-  const tokenOk = code && (code === ADMIN_RESET_TOKEN || code === JWT_SECRET);
+  const jwtSecret = getJwtSecret();
+  const resetToken = getAdminResetToken();
+  const tokenOk = code && (code === resetToken || (jwtSecret && code === jwtSecret));
   if (!tokenOk) return res.status(401).json({ error: 'UNAUTHORIZED' });
   const u = String(req.body.username || '').trim();
   const p = String(req.body.password || '');
@@ -682,6 +1512,69 @@ app.post('/api/auth/reset', async (req, res) => {
   }
 });
 
+app.get('/api/admin/whoami', requireAdmin, (req, res) => {
+  res.json({ user: req.adminUser || 'admin', role: req.adminRole || '' });
+});
+
+app.get('/api/admin/users', requireAdmin, requireSuperuser, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT username, created_at, updated_at FROM admin_users ORDER BY username ASC;');
+    res.json((rows || []).map(r => ({
+      username: String(r.username || ''),
+      created_at: r.created_at || null,
+      updated_at: r.updated_at || null,
+    })));
+  } catch (err) {
+    if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+    res.status(500).json({ error: 'SERVER_ERROR' });
+  }
+});
+
+app.post('/api/admin/users', requireAdmin, requireSuperuser, async (req, res) => {
+  const username = String(req.body && req.body.username || '').trim();
+  const password = String(req.body && req.body.password || '');
+  if (!username || !password) return res.status(400).json({ error: 'BAD_REQUEST' });
+  if (username.length > 120) return res.status(400).json({ error: 'BAD_REQUEST' });
+
+  try {
+    const h = hashPassword(password);
+    await pool.query('INSERT INTO admin_users (username, password_hash) VALUES ($1, $2);', [username, h]);
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    if (String(err && err.code || '') === '23505') return res.status(409).json({ error: 'EXISTS' });
+    if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+    res.status(500).json({ error: 'SERVER_ERROR' });
+  }
+});
+
+app.delete('/api/admin/users/:username', requireAdmin, requireSuperuser, async (req, res) => {
+  const username = String(req.params.username || '').trim();
+  if (!username) return res.status(400).json({ error: 'BAD_REQUEST' });
+  try {
+    const r = await pool.query('DELETE FROM admin_users WHERE username = $1;', [username]);
+    if (r.rowCount === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    res.json({ ok: true });
+  } catch (err) {
+    if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+    res.status(500).json({ error: 'SERVER_ERROR' });
+  }
+});
+
+app.post('/api/admin/users/:username/password', requireAdmin, requireSuperuser, async (req, res) => {
+  const username = String(req.params.username || '').trim();
+  const password = String(req.body && req.body.password || '');
+  if (!username || !password) return res.status(400).json({ error: 'BAD_REQUEST' });
+  try {
+    const h = hashPassword(password);
+    const r = await pool.query('UPDATE admin_users SET password_hash = $2, updated_at = CURRENT_TIMESTAMP WHERE username = $1;', [username, h]);
+    if (r.rowCount === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    res.json({ ok: true });
+  } catch (err) {
+    if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+    res.status(500).json({ error: 'SERVER_ERROR' });
+  }
+});
+
 // Login con Google: riceve id_token dal client, valida tramite tokeninfo e rilascia JWT
 app.post('/api/auth/google', async (req, res) => {
   try {
@@ -694,7 +1587,8 @@ app.post('/api/auth/google', async (req, res) => {
     const aud = String(info && info.aud || '');
     const email = String(info && info.email || '');
     const emailVerified = String(info && info.email_verified || '') === 'true';
-    if (!GOOGLE_CLIENT_ID || aud !== GOOGLE_CLIENT_ID) return res.status(401).json({ error: 'UNAUTHORIZED' });
+    const googleClientId = getGoogleClientId();
+    if (!googleClientId || aud !== googleClientId) return res.status(401).json({ error: 'UNAUTHORIZED' });
     if (!email || !emailVerified) return res.status(401).json({ error: 'UNAUTHORIZED' });
 
     // Sicurezza: Whitelist email
@@ -704,7 +1598,9 @@ app.post('/api/auth/google', async (req, res) => {
       return res.status(403).json({ error: 'FORBIDDEN_EMAIL' });
     }
 
-    const token = jwt.sign({ user: email, provider: 'google' }, JWT_SECRET, { expiresIn: '12h' });
+    const jwtSecret = getJwtSecret();
+    if (!jwtSecret) return res.status(500).json({ error: 'JWT_NOT_CONFIGURED' });
+    const token = jwt.sign({ user: email, provider: 'google' }, jwtSecret, { expiresIn: getJwtExpiresIn() });
     res.json({ token, email });
   } catch (err) {
     res.status(500).json({ error: 'Errore interno del server' });
@@ -720,8 +1616,11 @@ app.get('/api/content/:key', async (req, res) => {
       const auth = String(req.headers.authorization || '');
       const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
       if (token) {
-        jwt.verify(token, JWT_SECRET);
-        isAdmin = true;
+        const jwtSecret = getJwtSecret();
+        if (jwtSecret) {
+          jwt.verify(token, jwtSecret);
+          isAdmin = true;
+        }
       }
     } catch {}
 
@@ -881,9 +1780,11 @@ app.post('/api/content/:key/publish_revision', requireAdmin, async (req, res) =>
 
 app.post('/api/deploy/trigger', requireAdmin, async (req, res) => {
   try {
-    if (!RENDER_API_KEY || !RENDER_SERVICE_ID) return res.status(500).json({ error: 'RENDER_CONFIG' });
-    const url = `https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys`;
-    const r = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${RENDER_API_KEY}` } });
+    const renderApiKey = getRenderApiKey();
+    const renderServiceId = getRenderServiceId();
+    if (!renderApiKey || !renderServiceId) return res.status(500).json({ error: 'RENDER_CONFIG' });
+    const url = `https://api.render.com/v1/services/${renderServiceId}/deploys`;
+    const r = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${renderApiKey}` } });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) return res.status(r.status).json({ error: 'RENDER_ERROR', detail: j });
     res.json({ ok: true, deploy: j });
@@ -1002,9 +1903,12 @@ app.delete('/api/media/:id', requireAdmin, async (req, res) => {
 // Rotta per ottenere tutte le roulotte con le loro foto
 app.get('/api/roulottes', async (req, res) => {
   try {
+    const admin = tryGetAdminFromReq(req);
+    const isAdmin = !!admin;
+
     if (directusEnabled()) {
       try {
-        const list = await fetchDirectusRoulottes();
+        const list = isAdmin ? await fetchDirectusRoulottesForAdmin() : await fetchDirectusRoulottes();
         return res.json(list);
       } catch (e) {
         console.warn('Directus non disponibile, fallback al DB:', String(e && e.message ? e.message : e));
@@ -1030,16 +1934,34 @@ app.get('/api/roulottes', async (req, res) => {
     `;
 
     const result = await pool.query(query);
-    res.json(
-      result.rows.map((row) => ({
+    const now = Date.now();
+    const list = result.rows.map((row) => ({
         ...(row.data || {}),
         id: row.id,
         photos: (row.photos || []).map(normalizePhotoUrlToCurrentPublicBase),
         visibile: row.visibile !== undefined && row.visibile !== null ? row.visibile : true,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
-      }))
-    );
+      }));
+
+    if (isAdmin) return res.json(list);
+
+    const allowed = new Set(['pubblicato', 'venduto']);
+    const out = list.filter((r) => {
+      if (!r || typeof r !== 'object') return false;
+      if (r.visibile === false) return false;
+      const sRaw = r.stato_annuncio !== undefined && r.stato_annuncio !== null ? String(r.stato_annuncio) : '';
+      const fallback = String(r.stato || '') === 'Venduto' ? 'venduto' : 'pubblicato';
+      const s = (sRaw || fallback).trim().toLowerCase();
+      if (!allowed.has(s)) return false;
+      if (s === 'pubblicato' && r.data_pubblicazione) {
+        const t = Date.parse(String(r.data_pubblicazione));
+        if (Number.isFinite(t) && t > now) return false;
+      }
+      return true;
+    });
+
+    res.json(out);
 
   } catch (err) {
     if (isDbUnavailable(err)) return res.json([]);
@@ -1060,7 +1982,7 @@ app.get('/api/search', async (req, res) => {
 
     const client = getMeiliClient();
     if (!client) return res.status(404).json({ error: 'NOT_CONFIGURED' });
-    const index = client.index(MEILI_INDEX);
+    const index = client.index(getMeiliIndex());
 
     const filters = [];
     if (stato) filters.push(`stato = "${stato.replace(/"/g, '\\"')}"`);
@@ -1127,7 +2049,7 @@ app.post('/api/meili/reindex', requireAdmin, async (req, res) => {
       };
     });
 
-    const index = client.index(MEILI_INDEX);
+    const index = client.index(getMeiliIndex());
     await index.updateSettings({
       searchableAttributes: ['marca', 'modello', 'note', 'descrizione', 'id', 'stato'],
       filterableAttributes: ['stato', 'hasPhoto', 'prezzo', 'anno'],
@@ -1145,6 +2067,10 @@ app.post('/api/transport/route', async (req, res) => {
   try {
     if (!orsEnabled()) return res.status(400).json({ error: 'ORS_NOT_CONFIGURED' });
 
+    const orsBaseUrl = getOrsBaseUrl();
+    const orsProfile = getOrsProfile();
+    if (!orsBaseUrl || !orsProfile) return res.status(400).json({ error: 'ORS_NOT_CONFIGURED' });
+
     const body = (req && req.body && typeof req.body === 'object') ? req.body : {};
     const fromAddress = String(body.fromAddress || body.from || '').trim();
     const toAddress = String(body.toAddress || body.to || '').trim();
@@ -1155,8 +2081,7 @@ app.post('/api/transport/route', async (req, res) => {
     const to = await orsGeocodeOne(toAddress);
     if (!to) return res.status(404).json({ error: 'TO_NOT_FOUND' });
 
-    const routeUrl = new URL('https://api.openrouteservice.org/v2/directions/driving-car/geojson');
-    if (ORS_API_KEY && !routeUrl.searchParams.get('api_key')) routeUrl.searchParams.set('api_key', ORS_API_KEY);
+    const routeUrl = new URL(joinUrl(orsBaseUrl, `v2/directions/${encodeURIComponent(orsProfile)}/geojson`));
     const route = await orsFetchJson(routeUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1245,6 +2170,82 @@ async function generateNextPublicId(client) {
 
 // Rotta per creare una nuova roulotte con foto
 app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res) => {
+  if (directusEnabled()) {
+    if (!directusWriteEnabled()) return res.status(400).json({ error: 'DIRECTUS_TOKEN_MISSING' });
+    try {
+      const collection = getDirectusCollection();
+      const imagesField = getDirectusImagesField();
+      const dataField = getDirectusDataField();
+      const incoming = req.body || {};
+      let raw = incoming;
+      if (incoming && incoming.payload) {
+        const parsed = safeJsonParse(incoming.payload);
+        if (parsed && typeof parsed === 'object') raw = parsed;
+      }
+
+      const data = buildDirectusWriteDataFromIncoming(raw);
+      if (data.prezzo !== undefined) data.prezzo = parseNumberLike(data.prezzo);
+      if (data.lunghezza !== undefined) data.lunghezza = parseNumberLike(data.lunghezza);
+      if (data.larghezza !== undefined) data.larghezza = parseNumberLike(data.larghezza);
+      if (data.doppio_asse !== undefined) data.doppio_asse = parseBooleanLike(data.doppio_asse, null);
+      if (data.trainabile !== undefined) data.trainabile = parseBooleanLike(data.trainabile, null);
+      if (data.revisionata !== undefined) data.revisionata = parseBooleanLike(data.revisionata, null);
+
+      const newFileIds = await directusUploadMulterFiles(req.files);
+      if (newFileIds.length > 0) {
+        data[imagesField] = buildDirectusImagesWriteValue(newFileIds);
+      }
+
+      const createPath = `items/${encodeURIComponent(collection)}`;
+      let created = null;
+      try {
+        created = await directusRequestJson('POST', createPath, { body: data });
+      } catch (err) {
+        const status = Number(err && err.status !== undefined ? err.status : NaN);
+        if (status !== 400) throw err;
+
+        const tries = [];
+        tries.push({ ...data });
+        if (data[imagesField]) {
+          tries.push({ ...data, [imagesField]: buildDirectusImagesWriteValue(newFileIds, 'ids') });
+        }
+        if (dataField && data[dataField] !== undefined) {
+          const noData = { ...data };
+          delete noData[dataField];
+          tries.push(noData);
+          if (data[imagesField]) {
+            tries.push({ ...noData, [imagesField]: buildDirectusImagesWriteValue(newFileIds, 'ids') });
+          }
+        }
+
+        let lastErr = err;
+        for (const body of tries) {
+          try {
+            created = await directusRequestJson('POST', createPath, { body });
+            lastErr = null;
+            break;
+          } catch (e2) {
+            lastErr = e2;
+          }
+        }
+        if (lastErr) throw lastErr;
+      }
+
+      const createdId =
+        created && typeof created === 'object' && created.data && typeof created.data === 'object'
+          ? String(created.data.id || '').trim()
+          : '';
+      if (!createdId) return res.status(502).json({ error: 'DIRECTUS_ERROR' });
+
+      wsEmitInvalidate('roulottes', { action: 'created', id: createdId, user: req.adminUser || 'admin' });
+      return res.status(201).json({ message: 'Roulotte creata con successo!', id: createdId });
+    } catch (err) {
+      const st = Number(err && err.status !== undefined ? err.status : 502);
+      const code = st === 413 ? 'FILE_TOO_LARGE' : (st === 415 ? 'UNSUPPORTED_FORMAT' : 'DIRECTUS_ERROR');
+      return res.status(Number.isFinite(st) ? st : 502).json({ error: code, detail: String(err && err.detail ? err.detail : (err && err.message ? err.message : err)) });
+    }
+  }
+
   let client = null;
   try {
     client = await pool.connect();
@@ -1279,6 +2280,13 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
 
     const data = { ...raw };
     delete data.photos;
+    const nowIso = new Date().toISOString();
+    const statoAnnRaw = data.stato_annuncio !== undefined && data.stato_annuncio !== null ? String(data.stato_annuncio) : '';
+    const statoAnn = (statoAnnRaw || 'bozza').trim().toLowerCase();
+    data.stato_annuncio = statoAnn;
+    if (!data.dipendente_creatore) data.dipendente_creatore = req.adminUser || 'admin';
+    if (!data.data_creazione) data.data_creazione = nowIso;
+    if ((statoAnn === 'pubblicato' || statoAnn === 'venduto') && !data.data_pubblicazione) data.data_pubblicazione = nowIso;
 
     // 1. Inserisci la roulotte nel database
     const roulotteQuery = `
@@ -1383,6 +2391,116 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
 
 // Rotta per aggiornare una roulotte esistente
 app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (req, res) => {
+  if (directusEnabled()) {
+    if (!directusWriteEnabled()) return res.status(400).json({ error: 'DIRECTUS_TOKEN_MISSING' });
+    try {
+      const id = String(req.params.id || '').trim();
+      if (!id) return res.status(400).json({ error: 'BAD_REQUEST' });
+      const collection = getDirectusCollection();
+      const imagesField = getDirectusImagesField();
+      const dataField = getDirectusDataField();
+
+      const incoming = req.body || {};
+      let raw = incoming;
+      if (incoming && incoming.payload) {
+        const parsed = safeJsonParse(incoming.payload);
+        if (parsed && typeof parsed === 'object') raw = parsed;
+      }
+
+      const itemPath = `items/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`;
+      const fields = ['id', 'date_updated', imagesField + '.*.*.*', dataField].join(',');
+      let itemRes = null;
+      try {
+        itemRes = await directusRequestJson('GET', itemPath, { params: { fields } });
+      } catch (err) {
+        const status = Number(err && err.status !== undefined ? err.status : NaN);
+        if (status !== 400) throw err;
+        itemRes = await directusRequestJson('GET', itemPath);
+      }
+      const current = itemRes && typeof itemRes === 'object' ? itemRes.data : null;
+      if (!current) return res.status(404).json({ error: 'NOT_FOUND' });
+
+      const currentUpdatedAt = current.date_updated ? new Date(current.date_updated).toISOString() : null;
+      const expectedUpdatedAt = String(req.headers['x-if-updated-at'] || raw.updatedAt || '').trim();
+      if (expectedUpdatedAt && currentUpdatedAt) {
+        const e = Date.parse(expectedUpdatedAt);
+        const c = Date.parse(currentUpdatedAt);
+        if (Number.isFinite(e) && Number.isFinite(c) && e < c) {
+          return res.status(409).json({ error: 'CONFLICT', currentUpdatedAt });
+        }
+      }
+
+      const patch = buildDirectusWriteDataFromIncoming(raw);
+      if (patch.prezzo !== undefined) patch.prezzo = parseNumberLike(patch.prezzo);
+      if (patch.lunghezza !== undefined) patch.lunghezza = parseNumberLike(patch.lunghezza);
+      if (patch.larghezza !== undefined) patch.larghezza = parseNumberLike(patch.larghezza);
+      if (patch.doppio_asse !== undefined) patch.doppio_asse = parseBooleanLike(patch.doppio_asse, null);
+      if (patch.trainabile !== undefined) patch.trainabile = parseBooleanLike(patch.trainabile, null);
+      if (patch.revisionata !== undefined) patch.revisionata = parseBooleanLike(patch.revisionata, null);
+
+      const currentIds = normalizeDirectusImageIdsFromField(current[imagesField]);
+
+      let keptIds = currentIds;
+      if (raw.existing_photos !== undefined) {
+        keptIds = [];
+        const parsed = parseJsonOrNull(raw.existing_photos);
+        const list = Array.isArray(parsed) ? parsed : [];
+        for (const u of list) {
+          const fid = parseDirectusAssetIdFromUrl(u);
+          if (fid) keptIds.push(fid);
+        }
+      }
+
+      const newFileIds = await directusUploadMulterFiles(req.files);
+      const finalIds = [...(keptIds || []), ...(newFileIds || [])].map(x => String(x || '').trim()).filter(Boolean);
+      const uniq = Array.from(new Set(finalIds));
+      if (raw.existing_photos !== undefined || newFileIds.length > 0) {
+        patch[imagesField] = buildDirectusImagesWriteValue(uniq);
+      }
+
+      const updPath = `items/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`;
+      try {
+        await directusRequestJson('PATCH', updPath, { body: patch });
+      } catch (err) {
+        const status = Number(err && err.status !== undefined ? err.status : NaN);
+        if (status !== 400) throw err;
+
+        const tries = [];
+        tries.push({ ...patch });
+        if (patch[imagesField]) {
+          tries.push({ ...patch, [imagesField]: buildDirectusImagesWriteValue(uniq, 'ids') });
+        }
+        if (dataField && patch[dataField] !== undefined) {
+          const noData = { ...patch };
+          delete noData[dataField];
+          tries.push(noData);
+          if (patch[imagesField]) {
+            tries.push({ ...noData, [imagesField]: buildDirectusImagesWriteValue(uniq, 'ids') });
+          }
+        }
+
+        let lastErr = err;
+        for (const body of tries) {
+          try {
+            await directusRequestJson('PATCH', updPath, { body });
+            lastErr = null;
+            break;
+          } catch (e2) {
+            lastErr = e2;
+          }
+        }
+        if (lastErr) throw lastErr;
+      }
+
+      wsEmitInvalidate('roulottes', { action: 'updated', id, user: req.adminUser || 'admin' });
+      return res.json({ ok: true, id });
+    } catch (err) {
+      const st = Number(err && err.status !== undefined ? err.status : 502);
+      const code = st === 413 ? 'FILE_TOO_LARGE' : (st === 415 ? 'UNSUPPORTED_FORMAT' : 'DIRECTUS_ERROR');
+      return res.status(Number.isFinite(st) ? st : 502).json({ error: code, detail: String(err && err.detail ? err.detail : (err && err.message ? err.message : err)) });
+    }
+  }
+
   let client = null;
   try {
     client = await pool.connect();
@@ -1404,13 +2522,15 @@ app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (r
     }
 
     // Verifica esistenza
-    const check = await client.query('SELECT id, updated_at FROM roulottes WHERE public_id = $1', [publicId]);
+    const check = await client.query('SELECT id, updated_at, created_at, data FROM roulottes WHERE public_id = $1', [publicId]);
     if (check.rows.length === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'NOT_FOUND' });
     }
     const dbId = check.rows[0].id;
     const currentUpdatedAt = check.rows[0].updated_at ? new Date(check.rows[0].updated_at).toISOString() : null;
+    const currentCreatedAt = check.rows[0].created_at ? new Date(check.rows[0].created_at).toISOString() : null;
+    const currentData = (check.rows[0].data && typeof check.rows[0].data === 'object') ? check.rows[0].data : {};
 
     const expectedUpdatedAt = String(req.headers['x-if-updated-at'] || raw.updatedAt || '').trim();
     if (expectedUpdatedAt && currentUpdatedAt) {
@@ -1441,6 +2561,21 @@ app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (r
     delete data.new_photos;
     delete data.existing_photos;
     delete data.photos;
+    const nowIso = new Date().toISOString();
+    const prevStatoAnnRaw = currentData.stato_annuncio !== undefined && currentData.stato_annuncio !== null ? String(currentData.stato_annuncio) : '';
+    const prevFallback = String(currentData.stato || '') === 'Venduto' ? 'venduto' : '';
+    const prevStatoAnn = (prevStatoAnnRaw || prevFallback).trim().toLowerCase();
+    const nextStatoAnnRaw = data.stato_annuncio !== undefined && data.stato_annuncio !== null ? String(data.stato_annuncio) : '';
+    const nextStatoAnn = (nextStatoAnnRaw || prevStatoAnn || 'bozza').trim().toLowerCase();
+    data.stato_annuncio = nextStatoAnn;
+    if (!data.dipendente_creatore) data.dipendente_creatore = currentData.dipendente_creatore || (req.adminUser || 'admin');
+    if (!data.data_creazione) data.data_creazione = currentData.data_creazione || currentCreatedAt || nowIso;
+    if ((nextStatoAnn === 'pubblicato' || nextStatoAnn === 'venduto')) {
+      const hadPub = !!(currentData && currentData.data_pubblicazione);
+      if (!data.data_pubblicazione && (!hadPub || (prevStatoAnn !== 'pubblicato' && prevStatoAnn !== 'venduto'))) {
+        data.data_pubblicazione = nowIso;
+      }
+    }
 
     // 1. Aggiorna dati testuali
     const updateQuery = `
@@ -1553,6 +2688,22 @@ app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (r
 });
 
 app.delete('/api/roulottes/:id', requireAdmin, async (req, res) => {
+  if (directusEnabled()) {
+    if (!directusWriteEnabled()) return res.status(400).json({ error: 'DIRECTUS_TOKEN_MISSING' });
+    try {
+      const id = String(req.params.id || '').trim();
+      if (!id) return res.status(400).json({ error: 'BAD_REQUEST' });
+      const collection = getDirectusCollection();
+      await directusRequestJson('DELETE', `items/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`);
+      wsEmitInvalidate('roulottes', { action: 'deleted', id, user: req.adminUser || 'admin' });
+      return res.json({ ok: true });
+    } catch (err) {
+      const st = Number(err && err.status !== undefined ? err.status : 502);
+      const code = st === 404 ? 'NOT_FOUND' : 'DIRECTUS_ERROR';
+      return res.status(Number.isFinite(st) ? st : 502).json({ error: code, detail: String(err && err.detail ? err.detail : (err && err.message ? err.message : err)) });
+    }
+  }
+
   let client = null;
   try {
     client = await pool.connect();
@@ -1623,7 +2774,12 @@ app.patch('/api/photos/:id', requireAdmin, async (req, res) => {
 const PORT = process.env.PORT || 3001; // Render userà la variabile d'ambiente PORT
 
 createTables()
-  .then(() => console.log('Tabelle database pronte.'))
+  .then(async () => {
+    console.log('Tabelle database pronte.');
+    await loadSettingsCache();
+    await bootstrapCentralSettings();
+    await loadSettingsCache();
+  })
   .catch((err) => console.error('Errore durante la preparazione delle tabelle:', err));
 
 server.listen(PORT, () => {

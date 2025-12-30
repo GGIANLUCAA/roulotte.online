@@ -627,6 +627,12 @@
           <button class="btn btn-primary" type="submit">Entra</button>
         </div>
         <div id="loginError" class="error" hidden>Credenziali non valide.</div>
+        <div id="loginDiag" style="margin-top:10px;font-size:0.85rem;color:var(--muted);display:grid;gap:4px">
+          <div>API: <span id="loginApiBase">—</span></div>
+          <div>WS: <span id="loginWsBase">—</span></div>
+          <div>Stato: <span id="loginApiHealth">—</span></div>
+          <button class="btn" type="button" id="clearApiOverrideBtn" style="justify-content:center;display:none;margin-top:6px">Ripristina API</button>
+        </div>
       </form>
       <form id="recoveryForm" style="margin-top:14px">
         <div class="field">
@@ -837,6 +843,15 @@
                   <option value="Da sistemare">Da sistemare</option>
                   <option value="Nuovo">Nuovo</option>
                   <option value="Venduto">Venduto</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="stato_annuncio">Pubblicazione</label>
+                <select id="stato_annuncio" name="stato_annuncio">
+                  <option value="bozza">Bozza</option>
+                  <option value="verifica">Verifica</option>
+                  <option value="pubblicato">Pubblicato</option>
+                  <option value="venduto">Venduto</option>
                 </select>
               </div>
               <div class="field">
@@ -1399,6 +1414,16 @@
                   <option value="Venduto">Venduto</option>
                 </select>
               </div>
+              <div class="field">
+                <label for="listAnnuncio">Pubblicazione</label>
+                <select id="listAnnuncio" name="listAnnuncio">
+                  <option value="">Tutte</option>
+                  <option value="bozza">Bozza</option>
+                  <option value="verifica">Verifica</option>
+                  <option value="pubblicato">Pubblicato</option>
+                  <option value="venduto">Venduto</option>
+                </select>
+              </div>
               <div class="field" style="min-width:auto">
                 <label class="sr-only" for="listReset">Reset</label>
                 <button class="btn" type="button" id="listReset">Reset</button>
@@ -1414,6 +1439,7 @@
                   <th>Anno</th>
                   <th>Prezzo</th>
                   <th>Stato</th>
+                  <th>Pubblicazione</th>
                   <th>Azioni</th>
                 </tr>
               </thead>
@@ -1592,6 +1618,34 @@
             </div>
             <div id="syncMsg" class="error ok" hidden style="background:rgba(16,185,129,.16);border-color:rgba(16,185,129,.35);color:#a7f3d0"></div>
           </div>
+          <div class="card span-12" id="adminUsersCard" hidden>
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+              <div>
+                <div style="font-weight:900;font-size:1.05rem">Utenti Admin</div>
+                <div class="hint" style="margin-top:6px">Crea e gestisci gli accessi per più persone.</div>
+              </div>
+              <div class="row-actions" style="justify-content:flex-start;align-items:center;flex-wrap:wrap">
+                <button class="btn" type="button" id="adminUsersRefreshBtn">Aggiorna</button>
+              </div>
+            </div>
+            <div id="adminUsersMsg" class="error" hidden style="margin-top:10px"></div>
+
+            <form id="adminUsersCreateForm" style="margin-top:12px">
+              <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">
+                <div class="field">
+                  <label for="adminNewUsername">Username</label>
+                  <input id="adminNewUsername" autocomplete="off" required />
+                </div>
+                <div class="field">
+                  <label for="adminNewPassword">Password</label>
+                  <input id="adminNewPassword" type="password" autocomplete="new-password" required />
+                </div>
+                <button class="btn btn-primary" type="submit">Crea utente</button>
+              </div>
+            </form>
+
+            <div id="adminUsersList" style="margin-top:14px"></div>
+          </div>
           <div class="card span-12">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
               <div>
@@ -1620,6 +1674,10 @@
     const loginError = document.getElementById('loginError');
     const userEl = document.getElementById('user');
     const passEl = document.getElementById('pass');
+    const loginApiBaseEl = document.getElementById('loginApiBase');
+    const loginWsBaseEl = document.getElementById('loginWsBase');
+    const loginApiHealthEl = document.getElementById('loginApiHealth');
+    const clearApiOverrideBtn = document.getElementById('clearApiOverrideBtn');
 
     const app = document.getElementById('app');
     const pageTitle = document.getElementById('pageTitle');
@@ -1648,6 +1706,7 @@
     const marcaEl = document.getElementById('marca');
     const modelloEl = document.getElementById('modello');
     const statoEl = document.getElementById('stato');
+    const statoAnnuncioEl = document.getElementById('stato_annuncio');
     const categoryIdEl = document.getElementById('categoryId'); 
     const prezzoEl = document.getElementById('prezzo');
     const annoEl = document.getElementById('anno');
@@ -1737,6 +1796,13 @@
     const newAuthUser = document.getElementById('newAuthUser');
     const newAuthPass = document.getElementById('newAuthPass');
     const secMsg = document.getElementById('secMsg');
+    const adminUsersCard = document.getElementById('adminUsersCard');
+    const adminUsersRefreshBtn = document.getElementById('adminUsersRefreshBtn');
+    const adminUsersMsg = document.getElementById('adminUsersMsg');
+    const adminUsersCreateForm = document.getElementById('adminUsersCreateForm');
+    const adminNewUsername = document.getElementById('adminNewUsername');
+    const adminNewPassword = document.getElementById('adminNewPassword');
+    const adminUsersList = document.getElementById('adminUsersList');
     const exportBtn = document.getElementById('exportBtn');
     const importInput = document.getElementById('importInput');
     const importBtn = document.getElementById('importBtn');
@@ -1758,6 +1824,7 @@
     const listQ = document.getElementById('listQ');
     const listCategory = document.getElementById('listCategory');
     const listStato = document.getElementById('listStato');
+    const listAnnuncio = document.getElementById('listAnnuncio');
     const listReset = document.getElementById('listReset');
     const tableBody = document.getElementById('tableBody');
 
@@ -1856,6 +1923,7 @@
       setAuthed(false);
       showLogin();
       try { if (typeof window.RoulotteStore?.setAuthToken === 'function') window.RoulotteStore.setAuthToken(''); } catch {}
+      try { sessionStorage.removeItem('admin_jwt_token'); } catch {}
       try { if (adminWs) adminWs.close(); } catch {}
       adminWs = null;
       loginForm.reset();
@@ -1866,8 +1934,50 @@
       return (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
     }
 
+    const API_BASE_STORAGE_KEY = 'roulotte_api_base_url';
+    const DEFAULT_REMOTE_API_BASE_URL = 'https://roulotte-online-foto.onrender.com';
+
+    function normalizeApiBaseUrl(input) {
+      const s = String(input || '').trim();
+      if (!s) return '';
+      try {
+        const u = new URL(s);
+        u.pathname = '';
+        u.search = '';
+        u.hash = '';
+        return u.toString().replace(/\/+$/, '');
+      } catch {
+        return s.replace(/\/+$/, '');
+      }
+    }
+
+    function setApiBaseUrlOverride(baseUrl) {
+      const v = normalizeApiBaseUrl(baseUrl);
+      try {
+        if (!v) localStorage.removeItem(API_BASE_STORAGE_KEY);
+        else localStorage.setItem(API_BASE_STORAGE_KEY, v);
+      } catch {}
+      return v;
+    }
+
+    function getApiBaseUrlOverride() {
+      try {
+        const p = new URLSearchParams(location.search || '');
+        const qp = String(p.get('api') || p.get('api_base') || '').trim();
+        if (qp) return setApiBaseUrlOverride(qp);
+      } catch {}
+      try {
+        const v = String(localStorage.getItem(API_BASE_STORAGE_KEY) || '').trim();
+        return normalizeApiBaseUrl(v);
+      } catch {
+        return '';
+      }
+    }
+
     function getApiBaseUrl() {
-      return isLocalHost() ? 'http://localhost:3001' : '';
+      if (isLocalHost()) return 'http://localhost:3001';
+      if (location && location.protocol === 'file:') return DEFAULT_REMOTE_API_BASE_URL;
+      return getApiBaseUrlOverride() || DEFAULT_REMOTE_API_BASE_URL;
     }
 
     function apiUrl(path) {
@@ -1876,8 +1986,62 @@
 
     function getWsBaseUrl() {
       if (isLocalHost()) return 'ws://localhost:3001';
+      const apiBase = getApiBaseUrl();
+      try {
+        const u = new URL(apiBase);
+        const proto = u.protocol === 'https:' ? 'wss' : 'ws';
+        return proto + '//' + u.host;
+      } catch {}
       const proto = (location.protocol === 'https:') ? 'wss' : 'ws';
       return proto + '://' + location.host;
+    }
+
+    function getApiBaseLabel() {
+      const b = getApiBaseUrl();
+      if (b) return b;
+      try { return window.location.origin + ' (stessa origine)'; } catch { return '(stessa origine)'; }
+    }
+
+    function updateLoginDiagnostics() {
+      if (loginApiBaseEl) loginApiBaseEl.textContent = getApiBaseLabel();
+      if (loginWsBaseEl) loginWsBaseEl.textContent = getWsBaseUrl();
+
+      const hasOverride = !!getApiBaseUrlOverride() || (location && location.protocol === 'file:');
+      if (clearApiOverrideBtn) clearApiOverrideBtn.style.display = (hasOverride && !isLocalHost()) ? '' : 'none';
+    }
+
+    async function checkLoginApiHealth(timeoutMs = 1500) {
+      if (!loginApiHealthEl) return;
+      updateLoginDiagnostics();
+      loginApiHealthEl.textContent = 'Verifica…';
+      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const t = ctrl ? setTimeout(() => ctrl.abort(), Math.max(300, Number(timeoutMs) || 0)) : null;
+      try {
+        const r = await fetch(apiUrl('/api/health'), {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          signal: ctrl ? ctrl.signal : undefined
+        });
+        if (!r.ok) {
+          loginApiHealthEl.textContent = 'Errore (' + r.status + ')';
+          return;
+        }
+        const j = await r.json().catch(() => null);
+        if (j && typeof j === 'object' && j.ok === true) loginApiHealthEl.textContent = 'Online';
+        else loginApiHealthEl.textContent = 'Online (DB KO)';
+      } catch {
+        loginApiHealthEl.textContent = 'Offline';
+      } finally {
+        if (t) clearTimeout(t);
+      }
+    }
+
+    if (clearApiOverrideBtn) {
+      clearApiOverrideBtn.addEventListener('click', async () => {
+        setApiBaseUrlOverride('');
+        updateLoginDiagnostics();
+        await checkLoginApiHealth(1500);
+      });
     }
 
     function getInitialRoute() {
@@ -1909,16 +2073,19 @@
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
+        const username = userEl.value;
+        const password = passEl.value;
+
         const loginUrl = apiUrl('/api/auth/login');
         
         const response = await fetch(loginUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: userEl.value, password: passEl.value })
+          body: JSON.stringify({ username, password })
         });
         if (!response.ok) {
           if (isLocalHost()) {
-            const resLocal = window.RoulotteStore.checkLogin(userEl.value, passEl.value);
+            const resLocal = window.RoulotteStore.checkLogin(username, password);
             if (resLocal.success) {
               setAuthed(true);
               showApp();
@@ -1937,6 +2104,7 @@
         const data = await response.json();
         if (data && data.token) {
           window.RoulotteStore.setAuthToken(data.token);
+          try { sessionStorage.setItem('admin_jwt_token', String(data.token)); } catch {}
           setAuthed(true);
           showApp();
           refreshAll();
@@ -1958,10 +2126,40 @@
             return;
           }
         }
+        if (!isLocalHost()) {
+          try {
+            const username = userEl.value;
+            const password = passEl.value;
+            const fallbackBase = setApiBaseUrlOverride(DEFAULT_REMOTE_API_BASE_URL);
+            const loginUrl2 = fallbackBase + '/api/auth/login';
+            const r2 = await fetch(loginUrl2, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ username, password })
+            });
+            if (r2.ok) {
+              const data = await r2.json().catch(() => ({}));
+              if (data && data.token) {
+                window.RoulotteStore.setAuthToken(data.token);
+                try { sessionStorage.setItem('admin_jwt_token', String(data.token)); } catch {}
+                setAuthed(true);
+                showApp();
+                refreshAll();
+                await applyInitialRoute();
+                if (!getInitialRoute().section) switchSection('dashboard');
+                return;
+              }
+            }
+          } catch {}
+        }
         loginError.hidden = false;
-        loginError.textContent = 'Errore di rete o server non raggiungibile.';
+        loginError.textContent = 'Errore di rete o server non raggiungibile. Controlla la voce "API" sopra e, se serve, premi "Ripristina API".';
       }
     });
+
+    updateLoginDiagnostics();
+    checkLoginApiHealth(1500);
+    setInterval(() => { checkLoginApiHealth(1500); }, 60000);
     // Login con Google
     (async function initGoogleLogin(){
       try {
@@ -2120,6 +2318,9 @@
           builderStatus.textContent = 'Editor pronto';
         } catch {}
       }
+      if (sectionId === 'settings') {
+        try { ensureCentralSettingsPanel(); } catch {}
+      }
     }
     navButtons.forEach(btn => btn.addEventListener('click', () => switchSection(btn.dataset.section)));
     refreshBtn.addEventListener('click', () => refreshAll());
@@ -2156,6 +2357,85 @@
       } else {
         contentPreviewEl.innerHTML = d;
       }
+    }
+
+    let adminWhoami = { user: '', role: '' };
+
+    function setAdminUsersMsg(text, ok) {
+      if (!adminUsersMsg) return;
+      const t = String(text || '').trim();
+      if (!t) { adminUsersMsg.hidden = true; adminUsersMsg.textContent = ''; return; }
+      adminUsersMsg.hidden = false;
+      adminUsersMsg.className = ok ? 'error ok' : 'error';
+      adminUsersMsg.textContent = t;
+    }
+
+    async function fetchWhoami() {
+      const token = window.RoulotteStore.getAuthToken();
+      if (!token) return { user: '', role: '' };
+      const r = await fetch(apiUrl('/api/admin/whoami'), { headers: { 'Authorization': 'Bearer ' + token } });
+      if (r.status === 401) { logout(); return { user: '', role: '' }; }
+      if (!r.ok) return { user: '', role: '' };
+      const j = await r.json().catch(() => ({}));
+      return { user: String(j && j.user || ''), role: String(j && j.role || '') };
+    }
+
+    function renderAdminUsersList(users) {
+      if (!adminUsersList) return;
+      const arr = Array.isArray(users) ? users : [];
+      if (!arr.length) {
+        adminUsersList.innerHTML = '<div class="hint">Nessun utente presente.</div>';
+        return;
+      }
+      const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;');
+      adminUsersList.innerHTML = `
+        <div style="display:grid;gap:10px">
+          ${arr.map(u => `
+            <div class="card" style="padding:12px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+                <div>
+                  <div style="font-weight:900">${esc(u.username)}</div>
+                  <div class="hint" style="margin-top:4px">Creato: ${u.created_at ? esc(new Date(u.created_at).toLocaleString()) : '—'} · Aggiornato: ${u.updated_at ? esc(new Date(u.updated_at).toLocaleString()) : '—'}</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                  <input type="password" data-user-pass="${esc(u.username)}" placeholder="Nuova password" style="min-width:220px" />
+                  <button class="btn" type="button" data-user-action="setpass" data-user="${esc(u.username)}">Cambia password</button>
+                  <button class="btn btn-danger" type="button" data-user-action="delete" data-user="${esc(u.username)}">Elimina</button>
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    async function loadAdminUsers() {
+      if (!adminUsersCard) return;
+      const token = window.RoulotteStore.getAuthToken();
+      if (!token) { adminUsersCard.hidden = true; return; }
+      setAdminUsersMsg('', true);
+      try {
+        const r = await fetch(apiUrl('/api/admin/users'), { headers: { 'Authorization': 'Bearer ' + token } });
+        if (r.status === 401) { logout(); return; }
+        if (r.status === 403) { adminUsersCard.hidden = true; return; }
+        if (!r.ok) { setAdminUsersMsg('Impossibile caricare gli utenti.', false); return; }
+        const arr = await r.json().catch(() => []);
+        renderAdminUsersList(arr);
+      } catch {
+        setAdminUsersMsg('Errore di rete durante il caricamento utenti.', false);
+      }
+    }
+
+    async function ensureAdminUsersPanel() {
+      if (!adminUsersCard) return;
+      try {
+        adminWhoami = await fetchWhoami();
+      } catch {
+        adminWhoami = { user: '', role: '' };
+      }
+      const isSuper = String(adminWhoami && adminWhoami.role || '') === 'superuser';
+      adminUsersCard.hidden = !isSuper;
+      if (isSuper) await loadAdminUsers();
     }
     async function saveContentDraft() {
       const key = String(contentKeyEl?.value || '').trim();
@@ -2813,6 +3093,7 @@
         modello: modelloEl.value,
         versione: versioneEl.value,
         stato: statoEl.value,
+        stato_annuncio: statoAnnuncioEl ? statoAnnuncioEl.value : '',
         categoryId: categoryIdEl.value,
         prezzo: prezzoEl.value,
         anno: annoEl.value,
@@ -2893,6 +3174,7 @@
           if(d.modello) modelloEl.value = d.modello;
           if(d.versione !== undefined) versioneEl.value = d.versione ?? '';
           if(d.stato) statoEl.value = d.stato;
+          if(d.stato_annuncio !== undefined && statoAnnuncioEl) statoAnnuncioEl.value = String(d.stato_annuncio ?? 'bozza');
           if(d.categoryId) categoryIdEl.value = d.categoryId;
           if(d.prezzo) prezzoEl.value = d.prezzo;
           if(d.anno) annoEl.value = d.anno;
@@ -3280,6 +3562,7 @@
         modello, 
         versione: toNullIfEmpty(versioneEl.value),
         stato: statoEl.value, 
+        stato_annuncio: String((statoAnnuncioEl && statoAnnuncioEl.value) ? statoAnnuncioEl.value : 'bozza'),
         categoryId: categoryIdEl.value,
         prezzo, 
         anno, 
@@ -3463,6 +3746,493 @@
         newAuthPass.value = '';
       }
     });
+
+    if (adminUsersRefreshBtn) {
+      adminUsersRefreshBtn.addEventListener('click', async () => {
+        try { await ensureAdminUsersPanel(); } catch {}
+      });
+    }
+    if (adminUsersCreateForm) {
+      adminUsersCreateForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const token = window.RoulotteStore.getAuthToken();
+        if (!token) { logout(); return; }
+        const username = String(adminNewUsername && adminNewUsername.value || '').trim();
+        const password = String(adminNewPassword && adminNewPassword.value || '');
+        if (!username || !password) { setAdminUsersMsg('Compila username e password.', false); return; }
+        try {
+          const r = await fetch(apiUrl('/api/admin/users'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ username, password })
+          });
+          if (r.status === 401) { logout(); return; }
+          if (r.status === 403) { setAdminUsersMsg('Non autorizzato.', false); return; }
+          if (r.status === 409) { setAdminUsersMsg('Username già esistente.', false); return; }
+          if (!r.ok) { setAdminUsersMsg('Errore durante la creazione utente.', false); return; }
+          if (adminNewUsername) adminNewUsername.value = '';
+          if (adminNewPassword) adminNewPassword.value = '';
+          setAdminUsersMsg('Utente creato con successo.', true);
+          await loadAdminUsers();
+        } catch {
+          setAdminUsersMsg('Errore di rete durante la creazione utente.', false);
+        }
+      });
+    }
+    if (adminUsersList) {
+      adminUsersList.addEventListener('click', async (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest('[data-user-action]') : null;
+        if (!btn) return;
+        e.preventDefault();
+        const action = String(btn.getAttribute('data-user-action') || '').trim();
+        const username = String(btn.getAttribute('data-user') || '').trim();
+        if (!action || !username) return;
+        const token = window.RoulotteStore.getAuthToken();
+        if (!token) { logout(); return; }
+
+        if (action === 'delete') {
+          const ok = confirm(`Eliminare l'utente "${username}"?`);
+          if (!ok) return;
+          try {
+            const r = await fetch(apiUrl('/api/admin/users/' + encodeURIComponent(username)), {
+              method: 'DELETE',
+              headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (r.status === 401) { logout(); return; }
+            if (r.status === 403) { setAdminUsersMsg('Non autorizzato.', false); return; }
+            if (r.status === 404) { setAdminUsersMsg('Utente non trovato.', false); return; }
+            if (!r.ok) { setAdminUsersMsg('Errore durante eliminazione utente.', false); return; }
+            setAdminUsersMsg('Utente eliminato.', true);
+            await loadAdminUsers();
+          } catch {
+            setAdminUsersMsg('Errore di rete durante eliminazione utente.', false);
+          }
+          return;
+        }
+
+        if (action === 'setpass') {
+          const input = adminUsersList.querySelector(`input[data-user-pass="${CSS.escape(username)}"]`);
+          const password = String(input && input.value || '');
+          if (!password) { setAdminUsersMsg('Inserisci una nuova password.', false); return; }
+          try {
+            const r = await fetch(apiUrl('/api/admin/users/' + encodeURIComponent(username) + '/password'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+              body: JSON.stringify({ password })
+            });
+            if (r.status === 401) { logout(); return; }
+            if (r.status === 403) { setAdminUsersMsg('Non autorizzato.', false); return; }
+            if (r.status === 404) { setAdminUsersMsg('Utente non trovato.', false); return; }
+            if (!r.ok) { setAdminUsersMsg('Errore durante cambio password.', false); return; }
+            if (input) input.value = '';
+            setAdminUsersMsg('Password aggiornata.', true);
+            await loadAdminUsers();
+          } catch {
+            setAdminUsersMsg('Errore di rete durante cambio password.', false);
+          }
+          return;
+        }
+      });
+    }
+
+    let centralSettingsPanel = null;
+
+    function csGetDeep(obj, path) {
+      if (!obj || typeof obj !== 'object') return undefined;
+      const parts = String(path || '').split('.').filter(Boolean);
+      if (!parts.length) return undefined;
+      let cur = obj;
+      for (const k of parts) {
+        if (!cur || typeof cur !== 'object') return undefined;
+        cur = cur[k];
+      }
+      return cur;
+    }
+
+    function csGroupLabel(groupKey) {
+      const k = String(groupKey || '').trim();
+      if (k === 'trasporto') return 'Trasporto';
+      if (k === 'annunci') return 'Annunci';
+      if (k === 'regole_tecniche') return 'Regole tecniche';
+      return k || 'Altro';
+    }
+
+    function csValueToInputString(type, value) {
+      if (value === undefined || value === null) return '';
+      if (type === 'string[]') {
+        if (!Array.isArray(value)) return '';
+        return value.map(x => String(x ?? '').trim()).filter(Boolean).join(', ');
+      }
+      if (type === 'boolean') return value === true ? 'true' : value === false ? 'false' : '';
+      return String(value);
+    }
+
+    function csParseInputValue(type, el) {
+      if (!el) return undefined;
+      if (type === 'boolean') {
+        const v = String(el.value || '');
+        if (v === '') return '';
+        if (v === 'true') return true;
+        if (v === 'false') return false;
+        return undefined;
+      }
+      if (type === 'number') {
+        const raw = String(el.value || '').trim();
+        if (!raw) return '';
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return undefined;
+        return n;
+      }
+      if (type === 'string[]') {
+        const raw = String(el.value || '').trim();
+        if (!raw) return '';
+        return raw.split(',').map(x => String(x ?? '').trim()).filter(Boolean);
+      }
+      return String(el.value ?? '');
+    }
+
+    function csCanonical(type, value) {
+      if (value === undefined) return '__undefined__';
+      if (value === '') return '__empty__';
+      if (type === 'string[]') {
+        const arr = Array.isArray(value) ? value.map(x => String(x ?? '').trim()).filter(Boolean) : [];
+        return 'list:' + JSON.stringify(arr);
+      }
+      if (type === 'number') return 'num:' + String(value);
+      if (type === 'boolean') return 'bool:' + String(value);
+      return 'str:' + String(value);
+    }
+
+    function csSetMsg(text, ok) {
+      if (!centralSettingsPanel || !centralSettingsPanel.msgEl) return;
+      const t = String(text || '').trim();
+      if (!t) {
+        centralSettingsPanel.msgEl.hidden = true;
+        centralSettingsPanel.msgEl.textContent = '';
+        return;
+      }
+      centralSettingsPanel.msgEl.hidden = false;
+      centralSettingsPanel.msgEl.className = ok ? 'error ok' : 'error';
+      centralSettingsPanel.msgEl.textContent = t;
+    }
+
+    function csEnsurePanelUi() {
+      if (centralSettingsPanel) return centralSettingsPanel;
+      const grid = document.querySelector('#settings .grid');
+      if (!grid) return null;
+
+      const card = document.createElement('div');
+      card.className = 'card span-12';
+
+      const header = document.createElement('div');
+      header.style.display = 'flex';
+      header.style.justifyContent = 'space-between';
+      header.style.alignItems = 'flex-start';
+      header.style.gap = '12px';
+      header.style.flexWrap = 'wrap';
+
+      const left = document.createElement('div');
+      const title = document.createElement('div');
+      title.style.fontWeight = '900';
+      title.style.fontSize = '1.05rem';
+      title.textContent = 'Configurazione centrale';
+      const hint = document.createElement('div');
+      hint.className = 'hint';
+      hint.style.marginTop = '6px';
+      hint.textContent = 'Gestisci i parametri del sito (trasporto, annunci, regole tecniche).';
+      left.appendChild(title);
+      left.appendChild(hint);
+
+      const actions = document.createElement('div');
+      actions.className = 'row-actions';
+      actions.style.justifyContent = 'flex-start';
+      actions.style.alignItems = 'center';
+      actions.style.flexWrap = 'wrap';
+
+      const reloadBtn = document.createElement('button');
+      reloadBtn.className = 'btn';
+      reloadBtn.type = 'button';
+      reloadBtn.textContent = 'Ricarica';
+
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'btn btn-primary';
+      saveBtn.type = 'button';
+      saveBtn.textContent = 'Salva';
+
+      actions.appendChild(reloadBtn);
+      actions.appendChild(saveBtn);
+
+      header.appendChild(left);
+      header.appendChild(actions);
+
+      const meta = document.createElement('div');
+      meta.className = 'hint';
+      meta.style.marginTop = '8px';
+
+      const msg = document.createElement('div');
+      msg.className = 'error';
+      msg.hidden = true;
+      msg.style.marginTop = '10px';
+
+      const groups = document.createElement('div');
+      groups.style.marginTop = '12px';
+      groups.style.display = 'grid';
+      groups.style.gap = '10px';
+
+      card.appendChild(header);
+      card.appendChild(meta);
+      card.appendChild(msg);
+      card.appendChild(groups);
+
+      grid.appendChild(card);
+
+      centralSettingsPanel = {
+        card,
+        metaEl: meta,
+        msgEl: msg,
+        groupsEl: groups,
+        reloadBtn,
+        saveBtn,
+        loaded: false,
+        role: '',
+        defs: [],
+        settings: {},
+        secretsSet: new Set(),
+        snapshot: new Map(),
+      };
+      return centralSettingsPanel;
+    }
+
+    function csRenderPanel() {
+      const p = centralSettingsPanel;
+      if (!p) return;
+
+      const defs = Array.isArray(p.defs) ? p.defs : [];
+      const allowedPrefixes = ['trasporto.', 'annunci.', 'regole_tecniche.'];
+      const visibleDefs = defs
+        .filter(d => d && typeof d === 'object' && allowedPrefixes.some(pref => String(d.key || '').startsWith(pref)))
+        .sort((a, b) => String(a.key || '').localeCompare(String(b.key || '')));
+
+      const byGroup = new Map();
+      for (const def of visibleDefs) {
+        const key = String(def.key || '');
+        const groupKey = key.split('.')[0] || '';
+        if (!byGroup.has(groupKey)) byGroup.set(groupKey, []);
+        byGroup.get(groupKey).push(def);
+      }
+
+      p.groupsEl.innerHTML = '';
+      p.snapshot.clear();
+
+      const isSuperuser = String(p.role || '') === 'superuser';
+
+      for (const [groupKey, defsInGroup] of Array.from(byGroup.entries()).sort((a, b) => String(a[0] || '').localeCompare(String(b[0] || '')))) {
+        const details = document.createElement('details');
+        details.open = true;
+        details.style.border = '1px solid var(--border)';
+        details.style.borderRadius = '14px';
+        details.style.padding = '10px 12px';
+        details.style.background = 'rgba(255,255,255,.35)';
+
+        const summary = document.createElement('summary');
+        summary.style.cursor = 'pointer';
+        summary.style.fontWeight = '900';
+        summary.textContent = csGroupLabel(groupKey);
+        details.appendChild(summary);
+
+        const body = document.createElement('div');
+        body.style.marginTop = '10px';
+        body.style.display = 'grid';
+        body.style.gap = '10px';
+
+        for (const def of defsInGroup) {
+          const key = String(def.key || '').trim();
+          const type = String(def.type || 'string').trim();
+          const isSecret = def.is_secret === true;
+
+          const row = document.createElement('div');
+          row.style.display = 'grid';
+          row.style.gridTemplateColumns = 'minmax(260px, 2fr) minmax(220px, 1fr)';
+          row.style.gap = '10px';
+          row.style.alignItems = 'end';
+
+          const left = document.createElement('div');
+          left.className = 'field';
+          const label = document.createElement('label');
+          label.textContent = key;
+          const meta = document.createElement('div');
+          meta.className = 'hint';
+          meta.style.marginTop = '4px';
+          meta.textContent = (isSecret ? 'Segreto' : 'Pubblico') + ' · ' + type;
+          left.appendChild(label);
+          left.appendChild(meta);
+
+          const right = document.createElement('div');
+          right.className = 'field';
+
+          let input = null;
+          if (type === 'boolean') {
+            const sel = document.createElement('select');
+            sel.innerHTML = '<option value="">Non impostato</option><option value="true">Sì</option><option value="false">No</option>';
+            input = sel;
+          } else {
+            const inp = document.createElement('input');
+            if (type === 'number') {
+              inp.type = 'number';
+              inp.step = 'any';
+            } else {
+              inp.type = isSecret ? 'password' : 'text';
+            }
+            input = inp;
+          }
+
+          input.setAttribute('data-cs-key', key);
+          input.setAttribute('data-cs-type', type);
+          input.setAttribute('data-cs-secret', isSecret ? '1' : '0');
+
+          if (isSecret && !isSuperuser) {
+            input.disabled = true;
+            input.placeholder = p.secretsSet.has(key) ? 'Impostato (nascosto)' : 'Non impostato';
+          } else {
+            const v = csGetDeep(p.settings, key);
+            input.value = csValueToInputString(type, v);
+          }
+
+          const currentValueForSnap = isSecret ? '' : csGetDeep(p.settings, key);
+          p.snapshot.set(key, csCanonical(type, currentValueForSnap));
+
+          right.appendChild(input);
+          row.appendChild(left);
+          row.appendChild(right);
+          body.appendChild(row);
+        }
+
+        details.appendChild(body);
+        p.groupsEl.appendChild(details);
+      }
+    }
+
+    async function csLoadSettings() {
+      const p = csEnsurePanelUi();
+      if (!p) return;
+      csSetMsg('', true);
+      p.metaEl.textContent = 'Caricamento…';
+      p.reloadBtn.disabled = true;
+      p.saveBtn.disabled = true;
+
+      try {
+        try { adminWhoami = await fetchWhoami(); } catch { adminWhoami = { user: '', role: '' }; }
+        p.role = String(adminWhoami && adminWhoami.role || '');
+
+        const token = window.RoulotteStore.getAuthToken();
+        if (!token) { logout(); return; }
+        const includeSecrets = String(p.role || '') === 'superuser';
+        const r = await fetch(apiUrl('/api/settings' + (includeSecrets ? '?include_secrets=1' : '')), { headers: { 'Authorization': 'Bearer ' + token } });
+        if (r.status === 401) { logout(); return; }
+        if (r.status === 403) { csSetMsg('Non autorizzato.', false); return; }
+        if (!r.ok) { csSetMsg('Errore durante il caricamento delle impostazioni.', false); return; }
+        const j = await r.json().catch(() => ({}));
+        p.defs = Array.isArray(j && j.defs) ? j.defs : [];
+        p.settings = (j && j.settings && typeof j.settings === 'object') ? j.settings : {};
+        const secretsArr = Array.isArray(j && j.secrets_set) ? j.secrets_set : [];
+        p.secretsSet = new Set(secretsArr.map(x => String(x || '').trim()).filter(Boolean));
+        const updatedAt = String(j && j.updated_at || '').trim();
+        const roleLabel = p.role ? `Ruolo: ${p.role}` : 'Ruolo: —';
+        const updatedLabel = updatedAt ? `Ultimo aggiornamento: ${updatedAt}` : 'Ultimo aggiornamento: —';
+        p.metaEl.textContent = `${roleLabel} · ${updatedLabel}`;
+        csRenderPanel();
+        p.loaded = true;
+      } catch {
+        csSetMsg('Errore di rete durante il caricamento delle impostazioni.', false);
+        if (p.metaEl) p.metaEl.textContent = '';
+      } finally {
+        p.reloadBtn.disabled = false;
+        p.saveBtn.disabled = false;
+      }
+    }
+
+    async function csSaveSettings() {
+      const p = csEnsurePanelUi();
+      if (!p) return;
+      csSetMsg('', true);
+      p.saveBtn.disabled = true;
+      try {
+        const token = window.RoulotteStore.getAuthToken();
+        if (!token) { logout(); return; }
+
+        const inputs = Array.from(p.card.querySelectorAll('[data-cs-key]'));
+        const payload = {};
+        const errors = [];
+        for (const el of inputs) {
+          const key = String(el.getAttribute('data-cs-key') || '').trim();
+          const type = String(el.getAttribute('data-cs-type') || 'string').trim();
+          const isSecret = String(el.getAttribute('data-cs-secret') || '') === '1';
+          if (!key) continue;
+          if (el.disabled) continue;
+
+          const value = csParseInputValue(type, el);
+          if (value === undefined) { errors.push(key); continue; }
+          if (isSecret) {
+            const raw = String(el.value || '').trim();
+            if (!raw) continue;
+          }
+
+          const snap = p.snapshot.get(key) || '__undefined__';
+          const can = csCanonical(type, isSecret ? '' : value);
+          if (!isSecret && can === snap) continue;
+          if (isSecret) payload[key] = String(el.value || '');
+          else payload[key] = value;
+        }
+
+        if (errors.length) {
+          csSetMsg('Valori non validi: ' + errors.join(', '), false);
+          return;
+        }
+
+        const keys = Object.keys(payload);
+        if (!keys.length) {
+          csSetMsg('Nessuna modifica da salvare.', true);
+          return;
+        }
+
+        const r = await fetch(apiUrl('/api/settings'), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ settings: payload })
+        });
+        if (r.status === 401) { logout(); return; }
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          if (j && j.errors && typeof j.errors === 'object') {
+            const pairs = Object.entries(j.errors).map(([k, v]) => `${k}: ${v}`);
+            csSetMsg('Errore validazione: ' + pairs.join(' · '), false);
+            return;
+          }
+          csSetMsg('Errore durante il salvataggio.', false);
+          return;
+        }
+        csSetMsg('Impostazioni salvate.', true);
+        await csLoadSettings();
+      } catch {
+        csSetMsg('Errore di rete durante il salvataggio.', false);
+      } finally {
+        p.saveBtn.disabled = false;
+      }
+    }
+
+    async function ensureCentralSettingsPanel() {
+      const p = csEnsurePanelUi();
+      if (!p) return;
+      if (!p.reloadBtn._csBound) {
+        p.reloadBtn._csBound = true;
+        p.reloadBtn.addEventListener('click', () => { csLoadSettings(); });
+      }
+      if (!p.saveBtn._csBound) {
+        p.saveBtn._csBound = true;
+        p.saveBtn.addEventListener('click', () => { csSaveSettings(); });
+      }
+      if (!p.loaded) await csLoadSettings();
+    }
     (function(){
       const settingsSection = document.getElementById('settings');
       if (settingsSection) {
@@ -3744,7 +4514,7 @@
       try {
         const db = window.RoulotteStore.getDB();
         const r = (db.roulottes || []).find(x => x.id === safeId);
-        await window.RoulotteStore.updateRoulotte({ id: safeId, stato: 'Venduto', updatedAt: (r && (r.updatedAt || r.updated_at)) ? (r.updatedAt || r.updated_at) : null });
+        await window.RoulotteStore.updateRoulotte({ id: safeId, stato: 'Venduto', stato_annuncio: 'venduto', updatedAt: (r && (r.updatedAt || r.updated_at)) ? (r.updatedAt || r.updated_at) : null });
         refreshAll();
         if (currentDetailId === safeId) renderDetail(safeId);
       } catch (e) {
