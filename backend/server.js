@@ -3,6 +3,7 @@ const cors = require('cors');
 const compression = require('compression');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { WebSocketServer } = require('ws');
@@ -41,8 +42,39 @@ app.use((req, res, next) => {
 });
 
 // Static files (serve admin UI e asset dal root del progetto)
-const staticRoot = path.join(__dirname, '..');
-app.use(express.static(staticRoot, {
+const repoStaticRoot = path.join(__dirname, '..');
+const publicStaticRoot = path.join(__dirname, 'public');
+
+function trySyncStaticAssets() {
+  try {
+    fs.mkdirSync(publicStaticRoot, { recursive: true });
+  } catch {}
+
+  const files = [
+    'admin.html',
+    'admin.css',
+    'index.html',
+    'robots.txt',
+    'sitemap.xml',
+    'roulotte-store.js',
+    'live-reload.js',
+    'Untitled-1.html',
+  ];
+
+  for (const f of files) {
+    const src = path.join(repoStaticRoot, f);
+    const dst = path.join(publicStaticRoot, f);
+    try {
+      if (!fs.existsSync(src)) continue;
+      fs.copyFileSync(src, dst);
+    } catch {}
+  }
+}
+
+trySyncStaticAssets();
+
+const staticRoots = [publicStaticRoot, repoStaticRoot];
+const staticOptions = {
   etag: true,
   lastModified: true,
   setHeaders: (res, filePath) => {
@@ -60,11 +92,27 @@ app.use(express.static(staticRoot, {
     const maxAge = Math.max(0, Math.floor(getSettingNumberFirst(['regole_tecniche.cache.other_max_age_seconds', 'cache.other_max_age_seconds'], 0)));
     res.setHeader('Cache-Control', `public, max-age=${maxAge}`);
   }
-}));
+};
+
+for (const root of staticRoots) {
+  app.use(express.static(root, staticOptions));
+}
+
+function resolveStaticFile(filename) {
+  const f = String(filename || '').replace(/^[\\/]+/, '');
+  for (const root of staticRoots) {
+    try {
+      const fullPath = path.join(root, f);
+      if (fs.existsSync(fullPath)) return fullPath;
+    } catch {}
+  }
+  return path.join(repoStaticRoot, f);
+}
+
 app.get('/admin.html', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
-  res.sendFile(path.join(staticRoot, 'admin.html'));
+  res.sendFile(resolveStaticFile('admin.html'));
 });
 
 // Config pubblica (solo parametri non sensibili)
@@ -336,6 +384,7 @@ const SETTINGS_DEFS = [
 
   { key: 'regole_tecniche.integrazioni.render.api_key', type: 'string', is_secret: true, aliases: ['deploy.render_api_key'] },
   { key: 'regole_tecniche.integrazioni.render.service_id', type: 'string', is_secret: false, aliases: ['deploy.render_service_id'] },
+  { key: 'regole_tecniche.integrazioni.render.deploy_hook_url', type: 'string', is_secret: true, aliases: ['deploy.render_deploy_hook_url'] },
 
   { key: 'regole_tecniche.public.google_client_id', type: 'string', is_secret: false, aliases: ['public.google_client_id'] },
   { key: 'regole_tecniche.public.posthog_host', type: 'string', is_secret: false, aliases: ['public.posthog_host'] },
@@ -421,42 +470,44 @@ function pickFirstNonEmpty(values) {
 async function bootstrapCentralSettings() {
   const envOrsKey = String(process.env.ORS_API_KEY || process.env.OPENROUTESERVICE_API_KEY || process.env.ORS_KEY || '').trim();
   const envPosthogKey = String(process.env.POSTHOG_KEY || process.env.POSTHOG_PUBLIC_KEY || '').trim();
+  const envRenderDeployHookUrl = String(process.env.RENDER_DEPLOY_HOOK_URL || process.env.RENDER_DEPLOY_HOOK || '').trim();
   const envJwtSecret = String(process.env.JWT_SECRET || '').trim();
   const envJwtExpiresIn = String(process.env.JWT_EXPIRES_IN || '').trim();
   const envAdminResetToken = String(process.env.ADMIN_RESET_TOKEN || '').trim();
 
   const seeds = [
     { key: 'security.jwt_secret', value: pickFirstNonEmpty([getSettingString('security.jwt_secret', ''), envJwtSecret]), is_secret: true },
-    { key: 'security.jwt_expires_in', value: pickFirstNonEmpty([getSettingString('security.jwt_expires_in', ''), envJwtExpiresIn, '12h']), is_secret: false },
+    { key: 'security.jwt_expires_in', value: pickFirstNonEmpty([getSettingString('security.jwt_expires_in', ''), envJwtExpiresIn]), is_secret: false },
     { key: 'security.admin_reset_token', value: pickFirstNonEmpty([getSettingString('security.admin_reset_token', ''), envAdminResetToken]), is_secret: true },
 
-    { key: 'trasporto.routing.provider', value: pickFirstNonEmpty([getSettingString('trasporto.routing.provider', ''), 'ors']), is_secret: false },
-    { key: 'trasporto.routing.ors.base_url', value: pickFirstNonEmpty([getSettingString('trasporto.routing.ors.base_url', ''), 'https://api.openrouteservice.org']), is_secret: false },
-    { key: 'trasporto.routing.ors.profile', value: pickFirstNonEmpty([getSettingString('trasporto.routing.ors.profile', ''), 'driving-car']), is_secret: false },
+    { key: 'trasporto.routing.provider', value: pickFirstNonEmpty([getSettingString('trasporto.routing.provider', '')]), is_secret: false },
+    { key: 'trasporto.routing.ors.base_url', value: pickFirstNonEmpty([getSettingString('trasporto.routing.ors.base_url', '')]), is_secret: false },
+    { key: 'trasporto.routing.ors.profile', value: pickFirstNonEmpty([getSettingString('trasporto.routing.ors.profile', '')]), is_secret: false },
     { key: 'trasporto.routing.ors.api_key', value: pickFirstNonEmpty([getSettingString('trasporto.routing.ors.api_key', ''), getSettingString('integrations.ors_api_key', ''), envOrsKey]), is_secret: true },
 
-    { key: 'regole_tecniche.cache.asset_max_age_seconds', value: pickFirstNonEmpty([getSettingString('regole_tecniche.cache.asset_max_age_seconds', ''), getSettingString('cache.asset_max_age_seconds', ''), '86400']), is_secret: false },
-    { key: 'regole_tecniche.cache.other_max_age_seconds', value: pickFirstNonEmpty([getSettingString('regole_tecniche.cache.other_max_age_seconds', ''), getSettingString('cache.other_max_age_seconds', ''), '3600']), is_secret: false },
+    { key: 'regole_tecniche.cache.asset_max_age_seconds', value: pickFirstNonEmpty([getSettingString('regole_tecniche.cache.asset_max_age_seconds', ''), getSettingString('cache.asset_max_age_seconds', '')]), is_secret: false },
+    { key: 'regole_tecniche.cache.other_max_age_seconds', value: pickFirstNonEmpty([getSettingString('regole_tecniche.cache.other_max_age_seconds', ''), getSettingString('cache.other_max_age_seconds', '')]), is_secret: false },
 
-    { key: 'regole_tecniche.upload.photo_allowed_mimetypes', value: pickFirstNonEmpty([getSettingString('regole_tecniche.upload.photo_allowed_mimetypes', ''), getSettingString('upload.photo_allowed_mimetypes', ''), 'image/jpeg,image/png,image/webp']), is_secret: false },
-    { key: 'regole_tecniche.upload.photo_max_bytes', value: pickFirstNonEmpty([getSettingString('regole_tecniche.upload.photo_max_bytes', ''), getSettingString('upload.photo_max_bytes', ''), String(10 * 1024 * 1024)]), is_secret: false },
-    { key: 'regole_tecniche.upload.photo_max_count_per_annuncio', value: pickFirstNonEmpty([getSettingString('regole_tecniche.upload.photo_max_count_per_annuncio', ''), getSettingString('upload.photo_max_files', ''), '20']), is_secret: false },
+    { key: 'regole_tecniche.upload.photo_allowed_mimetypes', value: pickFirstNonEmpty([getSettingString('regole_tecniche.upload.photo_allowed_mimetypes', ''), getSettingString('upload.photo_allowed_mimetypes', '')]), is_secret: false },
+    { key: 'regole_tecniche.upload.photo_max_bytes', value: pickFirstNonEmpty([getSettingString('regole_tecniche.upload.photo_max_bytes', ''), getSettingString('upload.photo_max_bytes', '')]), is_secret: false },
+    { key: 'regole_tecniche.upload.photo_max_count_per_annuncio', value: pickFirstNonEmpty([getSettingString('regole_tecniche.upload.photo_max_count_per_annuncio', ''), getSettingString('upload.photo_max_files', '')]), is_secret: false },
 
     { key: 'regole_tecniche.integrazioni.directus.base_url', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.base_url', ''), getSettingString('integrations.directus_url', ''), String(process.env.DIRECTUS_URL || '')]), is_secret: false },
     { key: 'regole_tecniche.integrazioni.directus.token', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.token', ''), getSettingString('integrations.directus_token', ''), String(process.env.DIRECTUS_TOKEN || '')]), is_secret: true },
-    { key: 'regole_tecniche.integrazioni.directus.collection', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.collection', ''), getSettingString('integrations.directus_collection', ''), String(process.env.DIRECTUS_COLLECTION || 'roulottes')]), is_secret: false },
+    { key: 'regole_tecniche.integrazioni.directus.collection', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.collection', ''), getSettingString('integrations.directus_collection', ''), String(process.env.DIRECTUS_COLLECTION || '')]), is_secret: false },
     { key: 'regole_tecniche.integrazioni.directus.asset_base_url', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.asset_base_url', ''), getSettingString('integrations.directus_asset_base_url', ''), String(process.env.DIRECTUS_ASSET_BASE_URL || process.env.DIRECTUS_URL || '')]), is_secret: false },
-    { key: 'regole_tecniche.integrazioni.directus.images_field', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.images_field', ''), getSettingString('integrations.directus_images_field', ''), String(process.env.DIRECTUS_IMAGES_FIELD || 'immagini')]), is_secret: false },
-    { key: 'regole_tecniche.integrazioni.directus.desc_field', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.desc_field', ''), getSettingString('integrations.directus_desc_field', ''), String(process.env.DIRECTUS_DESC_FIELD || 'descrizione')]), is_secret: false },
-    { key: 'regole_tecniche.integrazioni.directus.data_field', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.data_field', ''), getSettingString('integrations.directus_data_field', ''), String(process.env.DIRECTUS_DATA_FIELD || 'data')]), is_secret: false },
-    { key: 'regole_tecniche.integrazioni.directus.images_write_mode', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.images_write_mode', ''), getSettingString('integrations.directus_images_write_mode', ''), String(process.env.DIRECTUS_IMAGES_WRITE_MODE || 'm2m')]), is_secret: false },
+    { key: 'regole_tecniche.integrazioni.directus.images_field', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.images_field', ''), getSettingString('integrations.directus_images_field', ''), String(process.env.DIRECTUS_IMAGES_FIELD || '')]), is_secret: false },
+    { key: 'regole_tecniche.integrazioni.directus.desc_field', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.desc_field', ''), getSettingString('integrations.directus_desc_field', ''), String(process.env.DIRECTUS_DESC_FIELD || '')]), is_secret: false },
+    { key: 'regole_tecniche.integrazioni.directus.data_field', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.data_field', ''), getSettingString('integrations.directus_data_field', ''), String(process.env.DIRECTUS_DATA_FIELD || '')]), is_secret: false },
+    { key: 'regole_tecniche.integrazioni.directus.images_write_mode', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.directus.images_write_mode', ''), getSettingString('integrations.directus_images_write_mode', ''), String(process.env.DIRECTUS_IMAGES_WRITE_MODE || '')]), is_secret: false },
 
     { key: 'regole_tecniche.integrazioni.meilisearch.host', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.meilisearch.host', ''), getSettingString('search.meili_url', ''), String(process.env.MEILI_URL || '')]), is_secret: false },
     { key: 'regole_tecniche.integrazioni.meilisearch.api_key', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.meilisearch.api_key', ''), getSettingString('search.meili_api_key', ''), String(process.env.MEILI_API_KEY || '')]), is_secret: true },
-    { key: 'regole_tecniche.integrazioni.meilisearch.index_name', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.meilisearch.index_name', ''), getSettingString('search.meili_index', ''), String(process.env.MEILI_INDEX || 'roulottes')]), is_secret: false },
+    { key: 'regole_tecniche.integrazioni.meilisearch.index_name', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.meilisearch.index_name', ''), getSettingString('search.meili_index', ''), String(process.env.MEILI_INDEX || '')]), is_secret: false },
 
     { key: 'regole_tecniche.integrazioni.render.api_key', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.render.api_key', ''), getSettingString('deploy.render_api_key', ''), String(process.env.RENDER_API_KEY || '')]), is_secret: true },
     { key: 'regole_tecniche.integrazioni.render.service_id', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.render.service_id', ''), getSettingString('deploy.render_service_id', ''), String(process.env.RENDER_SERVICE_ID || '')]), is_secret: false },
+    { key: 'regole_tecniche.integrazioni.render.deploy_hook_url', value: pickFirstNonEmpty([getSettingString('regole_tecniche.integrazioni.render.deploy_hook_url', ''), getSettingString('deploy.render_deploy_hook_url', ''), envRenderDeployHookUrl]), is_secret: true },
 
     { key: 'regole_tecniche.public.google_client_id', value: pickFirstNonEmpty([getSettingString('regole_tecniche.public.google_client_id', ''), getSettingString('public.google_client_id', ''), String(process.env.GOOGLE_CLIENT_ID || '')]), is_secret: false },
     { key: 'regole_tecniche.public.posthog_host', value: pickFirstNonEmpty([getSettingString('regole_tecniche.public.posthog_host', ''), getSettingString('public.posthog_host', ''), String(process.env.POSTHOG_HOST || '')]), is_secret: false },
@@ -466,7 +517,9 @@ async function bootstrapCentralSettings() {
   for (const s of seeds) {
     const key = String(s && s.key || '').trim();
     if (!key) continue;
-    await ensureSetting(key, String(s.value || ''), s.is_secret === true);
+    const value = String(s.value || '').trim();
+    if (!value) continue;
+    await ensureSetting(key, value, s.is_secret === true);
   }
 }
 
@@ -475,7 +528,7 @@ function getJwtSecret() {
 }
 
 function getJwtExpiresIn() {
-  return getSettingString('security.jwt_expires_in', String(process.env.JWT_EXPIRES_IN || '12h'));
+  return getSettingString('security.jwt_expires_in', String(process.env.JWT_EXPIRES_IN || ''));
 }
 
 function getAdminResetToken() {
@@ -500,6 +553,13 @@ function getRenderApiKey() {
 
 function getRenderServiceId() {
   return getSettingStringFirst(['regole_tecniche.integrazioni.render.service_id', 'deploy.render_service_id'], String(process.env.RENDER_SERVICE_ID || '')).trim();
+}
+
+function getRenderDeployHookUrl() {
+  return getSettingStringFirst(
+    ['regole_tecniche.integrazioni.render.deploy_hook_url', 'deploy.render_deploy_hook_url'],
+    String(process.env.RENDER_DEPLOY_HOOK_URL || process.env.RENDER_DEPLOY_HOOK || '')
+  ).trim();
 }
 
 const serverWss = new WebSocketServer({ server, path: '/ws' });
@@ -666,6 +726,13 @@ function getUploadMaxFiles() {
   return Math.max(0, Math.floor(getSettingNumberFirst(['regole_tecniche.upload.photo_max_count_per_annuncio', 'upload.photo_max_files'], 0)));
 }
 
+function getUploadConfig() {
+  const allowed = getUploadAllowedMimes();
+  const maxBytes = getUploadMaxBytes();
+  const maxFiles = getUploadMaxFiles();
+  return { allowed, maxBytes, maxFiles };
+}
+
 function makeUpload() {
   const allowed = new Set(getUploadAllowedMimes());
   return multer({
@@ -673,15 +740,33 @@ function makeUpload() {
     limits: { fileSize: getUploadMaxBytes(), files: getUploadMaxFiles() },
     fileFilter: (req, file, cb) => {
       const mt = String(file && file.mimetype || '').toLowerCase();
-      cb(null, allowed.has(mt));
+      if (allowed.has(mt)) return cb(null, true);
+      const err = new Error('UNSUPPORTED_FORMAT');
+      err.status = 415;
+      return cb(err);
     }
   });
 }
 
 function uploadArray(field, maxCount) {
   return (req, res, next) => {
+    const cfg = getUploadConfig();
+    if (!cfg.allowed.length || cfg.maxBytes <= 0 || cfg.maxFiles <= 0) {
+      return res.status(500).json({ error: 'UPLOAD_NOT_CONFIGURED' });
+    }
     const u = makeUpload();
-    return u.array(field, maxCount)(req, res, next);
+    const count = Math.max(0, Math.min(Number(maxCount || 0) || 0, cfg.maxFiles));
+    return u.array(field, count)(req, res, (err) => {
+      if (!err) return next();
+      const msg = String(err && err.message ? err.message : err);
+      const code = String(err && err.code ? err.code : '');
+      if (msg === 'UNSUPPORTED_FORMAT') return res.status(415).json({ error: 'UNSUPPORTED_FORMAT' });
+      if (code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'FILE_TOO_LARGE' });
+      if (code === 'LIMIT_FILE_COUNT') return res.status(400).json({ error: 'TOO_MANY_FILES' });
+      if (code === 'LIMIT_UNEXPECTED_FILE') return res.status(400).json({ error: 'UNEXPECTED_FILE' });
+      const st = Number(err && err.status !== undefined ? err.status : 400);
+      return res.status(Number.isFinite(st) ? st : 400).json({ error: 'UPLOAD_ERROR', detail: msg });
+    });
   };
 }
 
@@ -735,22 +820,22 @@ function getDirectusToken() {
   return getSettingStringFirst(['regole_tecniche.integrazioni.directus.token', 'integrations.directus_token'], String(process.env.DIRECTUS_TOKEN || '')).trim();
 }
 function getDirectusCollection() {
-  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.collection', 'integrations.directus_collection'], String(process.env.DIRECTUS_COLLECTION || 'roulottes')).trim();
+  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.collection', 'integrations.directus_collection'], String(process.env.DIRECTUS_COLLECTION || '')).trim();
 }
 function getDirectusAssetBaseUrl() {
   return getSettingStringFirst(['regole_tecniche.integrazioni.directus.asset_base_url', 'integrations.directus_asset_base_url'], String(process.env.DIRECTUS_ASSET_BASE_URL || process.env.DIRECTUS_URL || '')).trim();
 }
 function getDirectusImagesField() {
-  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.images_field', 'integrations.directus_images_field'], String(process.env.DIRECTUS_IMAGES_FIELD || 'immagini')).trim();
+  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.images_field', 'integrations.directus_images_field'], String(process.env.DIRECTUS_IMAGES_FIELD || '')).trim();
 }
 function getDirectusDescField() {
-  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.desc_field', 'integrations.directus_desc_field'], String(process.env.DIRECTUS_DESC_FIELD || 'descrizione')).trim();
+  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.desc_field', 'integrations.directus_desc_field'], String(process.env.DIRECTUS_DESC_FIELD || '')).trim();
 }
 function getDirectusDataField() {
-  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.data_field', 'integrations.directus_data_field'], String(process.env.DIRECTUS_DATA_FIELD || 'data')).trim();
+  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.data_field', 'integrations.directus_data_field'], String(process.env.DIRECTUS_DATA_FIELD || '')).trim();
 }
 function getDirectusImagesWriteMode(fallback) {
-  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.images_write_mode', 'integrations.directus_images_write_mode'], String(fallback || process.env.DIRECTUS_IMAGES_WRITE_MODE || 'm2m')).trim();
+  return getSettingStringFirst(['regole_tecniche.integrazioni.directus.images_write_mode', 'integrations.directus_images_write_mode'], String(fallback || process.env.DIRECTUS_IMAGES_WRITE_MODE || '')).trim();
 }
 
 function getMeiliUrl() {
@@ -760,12 +845,11 @@ function getMeiliApiKey() {
   return getSettingStringFirst(['regole_tecniche.integrazioni.meilisearch.api_key', 'search.meili_api_key'], String(process.env.MEILI_API_KEY || '')).trim();
 }
 function getMeiliIndex() {
-  return getSettingStringFirst(['regole_tecniche.integrazioni.meilisearch.index_name', 'search.meili_index'], String(process.env.MEILI_INDEX || 'roulottes')).trim();
+  return getSettingStringFirst(['regole_tecniche.integrazioni.meilisearch.index_name', 'search.meili_index'], String(process.env.MEILI_INDEX || '')).trim();
 }
 
 function getOrsApiKey() {
-  const envFallback = String(process.env.ORS_API_KEY || process.env.OPENROUTESERVICE_API_KEY || process.env.ORS_KEY || '').trim();
-  return getSettingStringFirst(['trasporto.routing.ors.api_key', 'integrations.ors_api_key'], envFallback).trim();
+  return getSettingStringFirst(['trasporto.routing.ors.api_key', 'integrations.ors_api_key'], '').trim();
 }
 
 function getOrsBaseUrl() {
@@ -777,15 +861,15 @@ function getOrsProfile() {
 }
 
 function directusEnabled() {
-  return !!getDirectusUrl();
+  return !!getDirectusUrl() && !!getDirectusCollection() && !!getDirectusDataField();
 }
 
 function directusWriteEnabled() {
-  return !!getDirectusUrl() && !!getDirectusToken();
+  return directusEnabled() && !!getDirectusToken() && !!getDirectusImagesField() && !!getDirectusImagesWriteMode();
 }
 
 function meiliEnabled() {
-  return !!getMeiliUrl();
+  return !!getMeiliUrl() && !!getMeiliIndex();
 }
 
 function orsEnabled() {
@@ -1005,7 +1089,12 @@ function normalizeDirectusImageIdsFromField(imagesFieldValue) {
 
 function buildDirectusImagesWriteValue(fileIds, mode) {
   const ids = Array.isArray(fileIds) ? fileIds.map(x => String(x || '').trim()).filter(Boolean) : [];
-  const m = String(mode || getDirectusImagesWriteMode() || 'm2m').trim().toLowerCase();
+  const m = String(mode || getDirectusImagesWriteMode() || '').trim().toLowerCase();
+  if (!m) {
+    const err = new Error('DIRECTUS_NOT_CONFIGURED');
+    err.status = 500;
+    throw err;
+  }
   if (m === 'ids' || m === 'array' || m === 'json') return ids;
   return ids.map((id) => ({ directus_files_id: id }));
 }
@@ -1013,16 +1102,23 @@ function buildDirectusImagesWriteValue(fileIds, mode) {
 async function directusUploadMulterFiles(files) {
   const arr = Array.isArray(files) ? files : [];
   const out = [];
+  const cfg = getUploadConfig();
+  const allowed = new Set(cfg.allowed);
+  if (!allowed.size || cfg.maxBytes <= 0) {
+    const err = new Error('UPLOAD_NOT_CONFIGURED');
+    err.status = 500;
+    throw err;
+  }
   for (const f of arr) {
     if (!f || !f.buffer) continue;
     const mt = String(f.mimetype || '').toLowerCase();
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(mt)) {
+    if (!allowed.has(mt)) {
       const err = new Error('UNSUPPORTED_FORMAT');
       err.status = 415;
       throw err;
     }
     const sz = Number(f.size || 0);
-    if (sz > (10 * 1024 * 1024)) {
+    if (sz > cfg.maxBytes) {
       const err = new Error('FILE_TOO_LARGE');
       err.status = 413;
       throw err;
@@ -1780,14 +1876,64 @@ app.post('/api/content/:key/publish_revision', requireAdmin, async (req, res) =>
 
 app.post('/api/deploy/trigger', requireAdmin, async (req, res) => {
   try {
+    const deployHookUrl = getRenderDeployHookUrl();
     const renderApiKey = getRenderApiKey();
     const renderServiceId = getRenderServiceId();
-    if (!renderApiKey || !renderServiceId) return res.status(500).json({ error: 'RENDER_CONFIG' });
+
+    if (deployHookUrl) {
+      let parsedHook = null;
+      try {
+        const u = new URL(deployHookUrl);
+        const host = String(u.hostname || '').toLowerCase();
+        if (u.protocol !== 'https:') return res.status(400).json({ error: 'RENDER_CONFIG', detail: 'DEPLOY_HOOK_URL_NOT_HTTPS' });
+        if (host !== 'api.render.com') return res.status(400).json({ error: 'RENDER_CONFIG', detail: 'DEPLOY_HOOK_URL_HOST_NOT_ALLOWED' });
+        parsedHook = u.toString();
+      } catch {
+        return res.status(400).json({ error: 'RENDER_CONFIG', detail: 'DEPLOY_HOOK_URL_INVALID' });
+      }
+
+      const controller = new AbortController();
+      const tId = setTimeout(() => controller.abort(), 15000);
+      let r = null;
+      try {
+        r = await fetch(parsedHook, { method: 'POST', signal: controller.signal });
+      } catch (err) {
+        clearTimeout(tId);
+        return res.status(502).json({ error: 'RENDER_HOOK_ERROR', detail: String(err && err.message ? err.message : err) });
+      }
+      clearTimeout(tId);
+      if (!r.ok) {
+        const t = await r.text().catch(() => '');
+        return res.status(r.status).json({ error: 'RENDER_HOOK_ERROR', detail: t || r.statusText || '' });
+      }
+      return res.json({ ok: true, mode: 'hook' });
+    }
+
+    if (!renderApiKey || !renderServiceId) {
+      return res.status(500).json({
+        error: 'RENDER_CONFIG',
+        missing: {
+          api_key: !renderApiKey,
+          service_id: !renderServiceId,
+          deploy_hook_url: true,
+        }
+      });
+    }
+
     const url = `https://api.render.com/v1/services/${renderServiceId}/deploys`;
-    const r = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${renderApiKey}` } });
+    const controller = new AbortController();
+    const tId = setTimeout(() => controller.abort(), 15000);
+    let r = null;
+    try {
+      r = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${renderApiKey}` }, signal: controller.signal });
+    } catch (err) {
+      clearTimeout(tId);
+      return res.status(502).json({ error: 'RENDER_ERROR', detail: String(err && err.message ? err.message : err) });
+    }
+    clearTimeout(tId);
     const j = await r.json().catch(() => ({}));
     if (!r.ok) return res.status(r.status).json({ error: 'RENDER_ERROR', detail: j });
-    res.json({ ok: true, deploy: j });
+    res.json({ ok: true, mode: 'api', deploy: j });
   } catch (err) {
     res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
   }
@@ -1833,7 +1979,7 @@ app.get('/api/media', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/media', requireAdmin, upload.array('files'), async (req, res) => {
+app.post('/api/media', requireAdmin, uploadArray('files', getUploadMaxFiles()), async (req, res) => {
   let client = null;
   try {
     client = await pool.connect();
@@ -1852,14 +1998,16 @@ app.post('/api/media', requireAdmin, upload.array('files'), async (req, res) => 
       return res.status(400).json({ error: 'NO_FILES' });
     }
     if (req.files) {
+      const allowed = new Set(getUploadAllowedMimes());
+      const maxBytes = getUploadMaxBytes();
       for (const file of req.files) {
         const mt = String(file.mimetype || '').toLowerCase();
         const sz = Number(file.size || 0);
-        if (!['image/jpeg','image/png','image/webp'].includes(mt)) {
+        if (!allowed.has(mt)) {
           await client.query('ROLLBACK');
           return res.status(415).json({ error: 'UNSUPPORTED_FORMAT' });
         }
-        if (sz > (10 * 1024 * 1024)) {
+        if (sz > maxBytes) {
           await client.query('ROLLBACK');
           return res.status(413).json({ error: 'FILE_TOO_LARGE' });
         }
@@ -2169,7 +2317,7 @@ async function generateNextPublicId(client) {
 }
 
 // Rotta per creare una nuova roulotte con foto
-app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res) => {
+app.post('/api/roulottes', requireAdmin, uploadArray('photos', getUploadMaxFiles()), async (req, res) => {
   if (directusEnabled()) {
     if (!directusWriteEnabled()) return res.status(400).json({ error: 'DIRECTUS_TOKEN_MISSING' });
     try {
@@ -2315,14 +2463,16 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
         await client.query('ROLLBACK');
         return res.status(500).json({ error: 'STORAGE_CONFIG_MISSING', detail: 'Mancano le variabili R2_BUCKET_NAME o R2_PUBLIC_URL su Render.' });
       }
+      const allowed = new Set(getUploadAllowedMimes());
+      const maxBytes = getUploadMaxBytes();
       for (const [index, file] of req.files.entries()) {
         const mt = String(file.mimetype || '').toLowerCase();
         const sz = Number(file.size || 0);
-        if (!['image/jpeg','image/png','image/webp'].includes(mt)) {
+        if (!allowed.has(mt)) {
           await client.query('ROLLBACK');
           return res.status(415).json({ error: 'UNSUPPORTED_FORMAT' });
         }
-        if (sz > (10 * 1024 * 1024)) {
+        if (sz > maxBytes) {
           await client.query('ROLLBACK');
           return res.status(413).json({ error: 'FILE_TOO_LARGE' });
         }
@@ -2390,7 +2540,7 @@ app.post('/api/roulottes', requireAdmin, upload.array('photos'), async (req, res
 });
 
 // Rotta per aggiornare una roulotte esistente
-app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (req, res) => {
+app.put('/api/roulottes/:id', requireAdmin, uploadArray('new_photos', getUploadMaxFiles()), async (req, res) => {
   if (directusEnabled()) {
     if (!directusWriteEnabled()) return res.status(400).json({ error: 'DIRECTUS_TOKEN_MISSING' });
     try {
@@ -2633,10 +2783,13 @@ app.put('/api/roulottes/:id', requireAdmin, upload.array('new_photos'), async (r
       const ordRes = await client.query('SELECT MAX(sort_order) as m FROM photos WHERE roulotte_id = $1', [dbId]);
       let maxOrd = Number(ordRes.rows[0]?.m || 0);
 
+      const allowed = new Set(getUploadAllowedMimes());
+      const maxBytes = getUploadMaxBytes();
       for (const file of req.files) {
         const mt = String(file.mimetype || '').toLowerCase();
         const sz = Number(file.size || 0);
-        if (!['image/jpeg','image/png','image/webp'].includes(mt)) continue; // Skip invalid
+        if (!allowed.has(mt)) continue;
+        if (sz > maxBytes) continue;
         
         const fileName = generateFileName();
         const params = {

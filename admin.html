@@ -4130,6 +4130,7 @@
         const r = await fetch(apiUrl('/api/settings' + (includeSecrets ? '?include_secrets=1' : '')), { headers: { 'Authorization': 'Bearer ' + token } });
         if (r.status === 401) { logout(); return; }
         if (r.status === 403) { csSetMsg('Non autorizzato.', false); return; }
+        if (r.status === 404) { csSetMsg('Funzione non disponibile: backend non aggiornato (endpoint /api/settings mancante). Avvia un deploy su Render e riprova.', false); return; }
         if (!r.ok) { csSetMsg('Errore durante il caricamento delle impostazioni.', false); return; }
         const j = await r.json().catch(() => ({}));
         p.defs = Array.isArray(j && j.defs) ? j.defs : [];
@@ -4201,6 +4202,7 @@
           body: JSON.stringify({ settings: payload })
         });
         if (r.status === 401) { logout(); return; }
+        if (r.status === 404) { csSetMsg('Funzione non disponibile: backend non aggiornato (endpoint /api/settings mancante). Avvia un deploy su Render e riprova.', false); return; }
         const j = await r.json().catch(() => ({}));
         if (!r.ok) {
           if (j && j.errors && typeof j.errors === 'object') {
@@ -4260,7 +4262,15 @@
               msg.style.color = 'var(--danger)';
               try {
                 const j = await r.json();
-                msg.textContent = 'Errore aggiornamento: ' + (j && j.error ? j.error : r.status);
+                let base = 'Errore aggiornamento: ' + (j && j.error ? j.error : r.status);
+                const detail = j && j.detail ? String(j.detail) : '';
+                if (detail) base += ' (' + detail.slice(0, 220) + ')';
+                const missingObj = j && j.missing && typeof j.missing === 'object' ? j.missing : null;
+                if (missingObj) {
+                  const missing = Object.entries(missingObj).filter(e => e && e[1]).map(e => String(e[0] || '')).filter(Boolean);
+                  if (missing.length) base += ' — manca: ' + missing.join(', ');
+                }
+                msg.textContent = base;
               } catch {
                 msg.textContent = 'Errore aggiornamento.';
               }
