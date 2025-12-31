@@ -4265,10 +4265,20 @@
                 let base = 'Errore aggiornamento: ' + (j && j.error ? j.error : r.status);
                 const detail = j && j.detail ? String(j.detail) : '';
                 if (detail) base += ' (' + detail.slice(0, 220) + ')';
-                const missingObj = j && j.missing && typeof j.missing === 'object' ? j.missing : null;
-                if (missingObj) {
-                  const missing = Object.entries(missingObj).filter(e => e && e[1]).map(e => String(e[0] || '')).filter(Boolean);
-                  if (missing.length) base += ' — manca: ' + missing.join(', ');
+                const needOneOf = j && Array.isArray(j.need_one_of) ? j.need_one_of : null;
+                if (j && j.error === 'RENDER_CONFIG' && needOneOf) {
+                  base = 'Errore aggiornamento: RENDER_CONFIG — imposta Deploy Hook URL oppure API key + Service ID';
+                  const haveObj = j && j.have && typeof j.have === 'object' ? j.have : null;
+                  if (haveObj) {
+                    const have = Object.entries(haveObj).filter(e => e && e[1]).map(e => String(e[0] || '')).filter(Boolean);
+                    if (have.length) base += ' (configurato: ' + have.join(', ') + ')';
+                  }
+                } else {
+                  const missingObj = j && j.missing && typeof j.missing === 'object' ? j.missing : null;
+                  if (missingObj) {
+                    const missing = Object.entries(missingObj).filter(e => e && e[1]).map(e => String(e[0] || '')).filter(Boolean);
+                    if (missing.length) base += ' — manca: ' + missing.join(', ');
+                  }
                 }
                 msg.textContent = base;
               } catch {

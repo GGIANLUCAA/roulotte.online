@@ -1912,11 +1912,15 @@ app.post('/api/deploy/trigger', requireAdmin, async (req, res) => {
     if (!renderApiKey || !renderServiceId) {
       return res.status(500).json({
         error: 'RENDER_CONFIG',
-        missing: {
-          api_key: !renderApiKey,
-          service_id: !renderServiceId,
-          deploy_hook_url: true,
-        }
+        have: {
+          deploy_hook_url: !!deployHookUrl,
+          api_key: !!renderApiKey,
+          service_id: !!renderServiceId,
+        },
+        need_one_of: [
+          { deploy_hook_url: true },
+          { api_key: true, service_id: true },
+        ],
       });
     }
 
