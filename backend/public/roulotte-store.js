@@ -492,6 +492,23 @@
     return true;
   }
 
+  async function getRoulotteById(publicId, timeoutMs = 2500) {
+    const id = String(publicId || '').trim();
+    if (!id) return null;
+    const db = getDB();
+    const local = Array.isArray(db.roulottes) ? db.roulottes.find(r => String(r.id || '') === id) : null;
+    if (local) return local;
+    try {
+      const res = await fetchWithTimeout(apiUrl('/api/roulottes/' + encodeURIComponent(id)), { method: 'GET', headers: { 'Accept': 'application/json' } }, Math.max(500, Number(timeoutMs) || 0));
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error('remote_get_failed');
+      const obj = await res.json().catch(() => null);
+      return obj && typeof obj === 'object' ? obj : null;
+    } catch {
+      return null;
+    }
+  }
+
   function replaceAll(db) {
     // Basic restore
     return saveDB(db);
@@ -499,6 +516,7 @@
 
   window.RoulotteStore = {
     storageKey,
+    initializeStore,
     getDB,
     saveDB,
     addRoulotte,
@@ -510,6 +528,7 @@
     syncNow,
     pullFromServer,
     pushToServer,
+    getRoulotteById,
     checkLogin,
     updateAdmin,
     addCategory,
