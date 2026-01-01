@@ -1,5 +1,6 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const compression = require('compression');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
@@ -19,6 +20,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-if-updated-at', 'x-admin-reset'],
 }));
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use(express.json({ limit: '50mb' })); // Permette al server di ricevere dati JSON (es. info roulotte)
 app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Permette di ricevere dati da form HTML
@@ -35,9 +37,6 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) {
     res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   }
   next();
 });
@@ -55,6 +54,9 @@ function trySyncStaticAssets() {
 
   const files = [
     'admin.html',
+    'admin.js',
+    'app.js',
+    'style.css',
     'admin.css',
     'index.html',
     'robots.txt',
@@ -139,7 +141,7 @@ app.get('/p/:id', async (req, res) => {
   function truncate(s, n) {
     const t = String(s || '');
     if (t.length <= n) return t;
-    return t.slice(0, Math.max(0, n - 1)) + '…';
+    return t.slice(0, Math.max(0, n - 1)) + 'â€¦';
   }
 
   const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim() || 'https';
@@ -149,7 +151,7 @@ app.get('/p/:id', async (req, res) => {
   const shareUrl = (origin || '') + '/p/' + encodeURIComponent(publicId);
 
   const fallbackTitle = 'Roulotte online';
-  const fallbackDescription = 'Cerca e filtra roulotte per marca, modello, anno e stato. Schede con foto e dettagli, con tema chiaro/scuro e accessibilità curata.';
+  const fallbackDescription = 'Cerca e filtra roulotte per marca, modello, anno e stato. Schede con foto e dettagli, con tema chiaro/scuro e accessibilitÃ  curata.';
 
   let title = fallbackTitle;
   let description = fallbackDescription;
@@ -207,7 +209,7 @@ app.get('/p/:id', async (req, res) => {
     image = '';
   }
 
-  const fullTitle = title && title !== fallbackTitle ? `${fallbackTitle} – ${title}` : fallbackTitle;
+  const fullTitle = title && title !== fallbackTitle ? `${fallbackTitle} â€“ ${title}` : fallbackTitle;
   const twitterCard = image ? 'summary_large_image' : 'summary';
 
   res.setHeader('Cache-Control', 'no-store');
@@ -255,7 +257,7 @@ app.get('/s/:token', async (req, res) => {
   function truncate(s, n) {
     const t = String(s || '');
     if (t.length <= n) return t;
-    return t.slice(0, Math.max(0, n - 1)) + '…';
+    return t.slice(0, Math.max(0, n - 1)) + 'â€¦';
   }
 
   const parsed = verifyShareToken(token);
@@ -316,7 +318,7 @@ app.get('/s/:token', async (req, res) => {
     image = '';
   }
 
-  const fullTitle = `${fallbackTitle} – ${title}`;
+  const fullTitle = `${fallbackTitle} â€“ ${title}`;
   const twitterCard = image ? 'summary_large_image' : 'summary';
 
   res.status(statusCode);
@@ -3026,7 +3028,7 @@ function parseBooleanLike(v, fallback) {
   if (v === undefined || v === null || v === '') return fallback;
   if (v === true || v === false) return v;
   const s = String(v).trim().toLowerCase();
-  if (s === 'true' || s === '1' || s === 'on' || s === 'si' || s === 'sì' || s === 'yes') return true;
+  if (s === 'true' || s === '1' || s === 'on' || s === 'si' || s === 'sÃ¬' || s === 'yes') return true;
   if (s === 'false' || s === '0' || s === 'off' || s === 'no') return false;
   return fallback;
 }
@@ -3486,15 +3488,15 @@ app.put('/api/roulottes/:id', requireAdmin, uploadArray('new_photos', getUploadM
       } catch {}
     }
     
-    // Se è stato passato un elenco di foto esistenti, cancelliamo quelle non presenti
-    // Se non è stato passato (es. null/undefined), assumiamo di non voler toccare le foto esistenti (o gestirlo diversamente?)
-    // Per sicurezza: se existing_photos è presente (anche array vuoto), sincronizziamo. Se manca del tutto, ignoriamo.
+    // Se Ã¨ stato passato un elenco di foto esistenti, cancelliamo quelle non presenti
+    // Se non Ã¨ stato passato (es. null/undefined), assumiamo di non voler toccare le foto esistenti (o gestirlo diversamente?)
+    // Per sicurezza: se existing_photos Ã¨ presente (anche array vuoto), sincronizziamo. Se manca del tutto, ignoriamo.
     if (raw.existing_photos !== undefined) {
       const currentPhotosRes = await client.query('SELECT id, url_full FROM photos WHERE roulotte_id = $1', [dbId]);
       const currentPhotos = currentPhotosRes.rows;
       
       for (const p of currentPhotos) {
-        // Logica di matching semplice: se l'URL salvato non è nella lista dei keptUrls, elimina.
+        // Logica di matching semplice: se l'URL salvato non Ã¨ nella lista dei keptUrls, elimina.
         // Attenzione: i client potrebbero avere URL normalizzati o relativi.
         // Cerchiamo di matchare la parte finale (filename) se l'URL completo fallisce?
         // Per ora proviamo match esatto o "contains".
@@ -3511,7 +3513,7 @@ app.put('/api/roulottes/:id', requireAdmin, uploadArray('new_photos', getUploadM
     if (req.files && req.files.length > 0) {
       if (!process.env.R2_BUCKET_NAME || !process.env.R2_PUBLIC_URL) {
          // Se manca config storage, non possiamo caricare foto. 
-         // Ma l'update testuale è andato. Vogliamo fallire tutto o solo avvisare?
+         // Ma l'update testuale Ã¨ andato. Vogliamo fallire tutto o solo avvisare?
          // Meglio fallire per coerenza.
          await client.query('ROLLBACK');
          return res.status(500).json({ error: 'STORAGE_CONFIG_MISSING', detail: 'Mancano variabili R2.' });
@@ -3662,7 +3664,7 @@ app.patch('/api/photos/:id', requireAdmin, async (req, res) => {
 // Qui aggiungeremo le rotte per gestire le roulotte e le foto
 // Esempio: app.use('/api/roulottes', require('./api/roulottes'));
 
-const PORT = process.env.PORT || 3001; // Render userà la variabile d'ambiente PORT
+const PORT = process.env.PORT || 3001; // Render userÃ  la variabile d'ambiente PORT
 
 createTables()
   .then(async () => {
