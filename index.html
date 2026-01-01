@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Cerca e filtra roulotte per marca, modello, anno e stato. Schede con foto e dettagli, con tema chiaro/scuro e accessibilità curata.">
     <meta name="theme-color" content="#2563eb">
+    <meta name="color-scheme" content="light dark">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <meta property="og:site_name" content="Roulotte online">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Roulotte online">
+    <meta property="og:description" content="Cerca e filtra roulotte per marca, modello, anno e stato. Schede con foto e dettagli, con tema chiaro/scuro e accessibilità curata.">
+    <meta property="og:url" content="">
+    <meta property="og:image" content="">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Roulotte online">
+    <meta name="twitter:description" content="Cerca e filtra roulotte per marca, modello, anno e stato. Schede con foto e dettagli, con tema chiaro/scuro e accessibilità curata.">
+    <meta name="twitter:image" content="">
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
@@ -426,6 +438,7 @@
         <a class="btn" id="quickEditBtn" href="admin.html?section=builder&page=home" hidden data-i18n="actions.editSite">Modifica sito</a>
         <a class="btn" href="admin.html" data-i18n="actions.adminArea">Area Admin</a>
         <button class="btn" type="button" id="themeToggle">Tema: Chiaro</button>
+        <button class="btn" type="button" id="copySearchLink" data-i18n="actions.copySearchLink">Copia link ricerca</button>
         <button class="btn btn-primary" type="button" id="resetFilters" data-i18n="actions.resetFilters">Reset filtri</button>
       </div>
     </header>
@@ -500,6 +513,9 @@
       <div id="editableListTop"></div>
       <div id="emptyState" class="empty" hidden>
         <span data-i18n="empty.noResults">Nessun risultato. Prova a cambiare filtri o aggiungi nuove schede dall'area admin.</span>
+        <div style="margin-top:12px">
+          <button class="btn btn-primary" type="button" id="retryLoad" hidden data-i18n="errors.retry">Riprova</button>
+        </div>
       </div>
       <section id="cards" class="grid" aria-label="Risultati"></section>
       <div id="editableListBottom"></div>
@@ -642,7 +658,7 @@
       </div>
     </div>
   </dialog>
-  <div id="imgLightbox" style="position:fixed;inset:0;display:none;background:rgba(0,0,0,.9);z-index:99999;align-items:center;justify-content:center">
+  <div id="imgLightbox" role="dialog" aria-modal="true" aria-label="Galleria immagini" aria-hidden="true" tabindex="-1" style="position:fixed;inset:0;display:none;background:rgba(0,0,0,.9);z-index:99999;align-items:center;justify-content:center">
     <button type="button" id="lbClose" style="position:absolute;top:14px;right:14px;border:1px solid var(--border);background:#fff;color:#000;border-radius:10px;padding:8px 10px;font-weight:900" data-i18n="lightbox.close">Chiudi</button>
     <button type="button" id="lbPrev" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);border:1px solid var(--border);background:#fff;color:#000;border-radius:10px;padding:8px 10px;font-weight:900">‹</button>
     <button type="button" id="lbNext" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);border:1px solid var(--border);background:#fff;color:#000;border-radius:10px;padding:8px 10px;font-weight:900">›</button>
@@ -670,9 +686,11 @@
     let lastUpdatedEl = null;
     let liveStatusEl = null;
     let resetFiltersEl = null;
+    let copySearchLinkEl = null;
     let themeToggleEl = null;
     let langSelectEl = null;
     let quickEditBtnEl = null;
+    let retryLoadEl = null;
 
     let dialog = null;
     let copyLinkBtn = null;
@@ -685,6 +703,9 @@
     let detailPlanimetria = null;
     let detailVideo = null;
     let currentDetailId = null;
+    let pendingUrlDetailId = null;
+    let lastFocusBeforeDetail = null;
+    let lastFocusBeforeLightbox = null;
 
     let transportStandalone = null;
     let transportDialog = null;
@@ -718,9 +739,11 @@
       lastUpdatedEl = document.getElementById('lastUpdated');
       liveStatusEl = document.getElementById('liveStatus');
       resetFiltersEl = document.getElementById('resetFilters');
+      copySearchLinkEl = document.getElementById('copySearchLink');
       themeToggleEl = document.getElementById('themeToggle');
       langSelectEl = document.getElementById('langSelect');
       quickEditBtnEl = document.getElementById('quickEditBtn');
+      retryLoadEl = document.getElementById('retryLoad');
 
       dialog = document.getElementById('detailDialog');
       copyLinkBtn = document.getElementById('copyLinkBtn');
@@ -924,18 +947,19 @@
       }
 
       if (qEl) bindOnce(qEl, 'input', 'qInput', scheduleRender);
-      if (statoEl) bindOnce(statoEl, 'change', 'statoChange', () => { render(); scheduleRemoteSearch(0); });
-      if (sortEl) bindOnce(sortEl, 'change', 'sortChange', () => { render(); scheduleRemoteSearch(0); });
-      if (categoryEl) bindOnce(categoryEl, 'change', 'catChange', () => { render(); scheduleRemoteSearch(0); });
+      if (statoEl) bindOnce(statoEl, 'change', 'statoChange', () => { if (!currentDetailId) pendingUrlDetailId = null; render(); scheduleRemoteSearch(0); });
+      if (sortEl) bindOnce(sortEl, 'change', 'sortChange', () => { if (!currentDetailId) pendingUrlDetailId = null; render(); scheduleRemoteSearch(0); });
+      if (categoryEl) bindOnce(categoryEl, 'change', 'catChange', () => { if (!currentDetailId) pendingUrlDetailId = null; render(); scheduleRemoteSearch(0); });
       if (priceMinEl) bindOnce(priceMinEl, 'input', 'priceMin', scheduleRender);
       if (priceMaxEl) bindOnce(priceMaxEl, 'input', 'priceMax', scheduleRender);
-      if (hasPhotoEl) bindOnce(hasPhotoEl, 'change', 'hasPhoto', () => { render(); scheduleRemoteSearch(0); });
+      if (hasPhotoEl) bindOnce(hasPhotoEl, 'change', 'hasPhoto', () => { if (!currentDetailId) pendingUrlDetailId = null; render(); scheduleRemoteSearch(0); });
 
       if (resetFiltersEl) {
         bindOnce(resetFiltersEl, 'click', 'resetFilters', () => {
           ensureHomeDom();
           refreshDomRefs();
           if (!qEl || !statoEl || !sortEl) return;
+          if (!currentDetailId) pendingUrlDetailId = null;
           qEl.value = '';
           if (categoryEl) categoryEl.value = '';
           statoEl.value = '';
@@ -951,9 +975,50 @@
         });
       }
 
+      if (copySearchLinkEl) {
+        bindOnce(copySearchLinkEl, 'click', 'copySearchLink', async () => {
+          const url = location.href;
+          const ok = await copyText(url);
+          if (ok) {
+            copySearchLinkEl.textContent = tr('actions.copied', { defaultValue: 'Copiato' });
+            setTimeout(() => (copySearchLinkEl.textContent = tr('actions.copySearchLink', { defaultValue: 'Copia link ricerca' })), 900);
+          } else {
+            alert(tr('detail.copyError', { defaultValue: 'Impossibile copiare il link.' }));
+          }
+        });
+      }
+
+      if (retryLoadEl) {
+        bindOnce(retryLoadEl, 'click', 'retryLoad', async () => {
+          retryLoadEl.disabled = true;
+          showCardsLoading(6);
+          try {
+            if (window.RoulotteStore && typeof window.RoulotteStore.initializeStore === 'function') {
+              await window.RoulotteStore.initializeStore();
+            } else if (window.RoulotteStore && typeof window.RoulotteStore.syncNow === 'function') {
+              await window.RoulotteStore.syncNow();
+            }
+            dataLoadError = false;
+            hideCardsLoading();
+            render();
+            scheduleRemoteSearch(0);
+            setEmptyStateMessage('', { show: false, showRetry: false });
+          } catch {
+            dataLoadError = true;
+            hideCardsLoading();
+            setEmptyStateMessage(tr('errors.loadData', { defaultValue: "Si è verificato un errore nel caricamento dei dati. Riprova più tardi." }), { show: true, showRetry: true });
+          } finally {
+            retryLoadEl.disabled = false;
+          }
+        });
+      }
+
       if (copyLinkBtn) {
         bindOnce(copyLinkBtn, 'click', 'copyLink', async () => {
-          const url = location.href;
+          const id = String(currentDetailId || pendingUrlDetailId || '').trim();
+          const url = (id && location.origin && location.origin !== 'null')
+            ? (location.origin + '/p/' + encodeURIComponent(id))
+            : location.href;
           const ok = await copyText(url);
           if (ok) {
             copyLinkBtn.textContent = tr('detail.copied', { defaultValue: 'Copiato' });
@@ -1334,21 +1399,166 @@
     }
 
     function setCanonicalAndMeta() {
-      const baseUrl = location.origin + (location.pathname.endsWith('/') ? '' : location.pathname.replace(/[^/]+$/, '')) + 'index.html';
-      let link = document.querySelector('link[rel="canonical"]');
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = 'canonical';
-        document.head.appendChild(link);
+      function ensureMetaName(name) {
+        const n = String(name || '').trim();
+        if (!n) return null;
+        let el = document.querySelector(`meta[name="${CSS.escape(n)}"]`);
+        if (!el) {
+          el = document.createElement('meta');
+          el.setAttribute('name', n);
+          document.head.appendChild(el);
+        }
+        return el;
       }
-      link.href = baseUrl;
-      let ogUrl = document.querySelector('meta[property="og:url"]');
-      if (!ogUrl) {
-        ogUrl = document.createElement('meta');
-        ogUrl.setAttribute('property', 'og:url');
-        document.head.appendChild(ogUrl);
+
+      function ensureMetaProperty(prop) {
+        const p = String(prop || '').trim();
+        if (!p) return null;
+        let el = document.querySelector(`meta[property="${CSS.escape(p)}"]`);
+        if (!el) {
+          el = document.createElement('meta');
+          el.setAttribute('property', p);
+          document.head.appendChild(el);
+        }
+        return el;
       }
-      ogUrl.setAttribute('content', baseUrl);
+
+      function setMetaName(name, content) {
+        const el = ensureMetaName(name);
+        if (!el) return;
+        el.setAttribute('content', String(content ?? ''));
+      }
+
+      function setMetaProperty(prop, content) {
+        const el = ensureMetaProperty(prop);
+        if (!el) return;
+        el.setAttribute('content', String(content ?? ''));
+      }
+
+      function getIndexBaseUrl() {
+        const u = new URL(location.href);
+        u.hash = '';
+        u.search = '';
+        if (!u.pathname.toLowerCase().endsWith('index.html')) {
+          if (u.pathname.endsWith('/')) u.pathname = u.pathname + 'index.html';
+          else if (!u.pathname.toLowerCase().endsWith('.html')) u.pathname = u.pathname + '/index.html';
+        }
+        return u.toString();
+      }
+
+      function getOgLocaleFromLang(lang) {
+        const l = String(lang || 'it').toLowerCase();
+        if (l === 'en') return 'en_US';
+        if (l === 'de') return 'de_DE';
+        if (l === 'fr') return 'fr_FR';
+        return 'it_IT';
+      }
+
+      function setCanonical(url) {
+        let link = document.querySelector('link[rel="canonical"]');
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'canonical';
+          document.head.appendChild(link);
+        }
+        link.href = String(url || '');
+      }
+
+      function upsertJsonLd(id, data) {
+        const scriptId = String(id || '').trim();
+        if (!scriptId) return;
+        let s = document.getElementById(scriptId);
+        if (!s) {
+          s = document.createElement('script');
+          s.id = scriptId;
+          s.type = 'application/ld+json';
+          document.head.appendChild(s);
+        }
+        s.textContent = JSON.stringify(data);
+      }
+
+      function removeJsonLd(id) {
+        try {
+          const el = document.getElementById(String(id || ''));
+          if (el) el.remove();
+        } catch {}
+      }
+
+      const baseUrl = getIndexBaseUrl();
+      const detailId = currentDetailId || pendingUrlDetailId || '';
+      const canonicalUrl = detailId ? (function () {
+        const u = new URL(baseUrl);
+        u.searchParams.set('id', String(detailId));
+        return u.toString();
+      })() : baseUrl;
+
+      const shareUrl = (function () {
+        const u = new URL(location.href);
+        u.hash = '';
+        const id = String(currentDetailId || '').trim();
+        if (id && location.origin && location.origin !== 'null') return location.origin + '/p/' + encodeURIComponent(id);
+        return u.toString();
+      })();
+
+      const defaultTitle = 'Roulotte online';
+      const descriptionEl = document.querySelector('meta[name="description"]');
+      const defaultDescription = String(descriptionEl && descriptionEl.getAttribute('content') || '').trim();
+
+      setCanonical(canonicalUrl);
+      setMetaProperty('og:url', shareUrl);
+      setMetaProperty('og:locale', getOgLocaleFromLang(currentLang));
+
+      if (currentDetailId) {
+        const desc = truncate(stripHtml(detailNote && !detailNote.hidden ? detailNote.innerHTML : ''), 160) || defaultDescription;
+        const title = String(detailTitle && detailTitle.textContent || '').trim() || defaultTitle;
+        const img = (Array.isArray(currentGalleryPhotos) && currentGalleryPhotos[0]) ? String(currentGalleryPhotos[0]) : '';
+
+        document.title = `${defaultTitle} – ${title}`;
+        if (descriptionEl) descriptionEl.setAttribute('content', desc);
+
+        setMetaProperty('og:type', 'product');
+        setMetaProperty('og:title', title);
+        setMetaProperty('og:description', desc);
+        setMetaProperty('og:image', img);
+        setMetaName('twitter:card', img ? 'summary_large_image' : 'summary');
+        setMetaName('twitter:title', title);
+        setMetaName('twitter:description', desc);
+        setMetaName('twitter:image', img);
+
+        const offerPrice = Number.isFinite(Number(detailPrice && detailPrice.textContent ? String(detailPrice.textContent).replace(/[^\d]/g, '') : ''))
+          ? Number(String(detailPrice.textContent).replace(/[^\d]/g, ''))
+          : null;
+        const ld = {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          "name": title,
+          "description": desc,
+          "sku": String(currentDetailId),
+          "url": canonicalUrl,
+          "image": img ? [img] : undefined,
+          "offers": offerPrice !== null ? {
+            "@type": "Offer",
+            "priceCurrency": "EUR",
+            "price": offerPrice,
+            "availability": "https://schema.org/InStock",
+            "url": canonicalUrl
+          } : undefined
+        };
+        Object.keys(ld).forEach(k => (ld[k] === undefined) && delete ld[k]);
+        upsertJsonLd('jsonLdDetail', ld);
+      } else {
+        document.title = defaultTitle;
+        if (descriptionEl && defaultDescription) descriptionEl.setAttribute('content', defaultDescription);
+        setMetaProperty('og:type', 'website');
+        setMetaProperty('og:title', defaultTitle);
+        setMetaProperty('og:description', defaultDescription);
+        setMetaProperty('og:image', '');
+        setMetaName('twitter:card', 'summary');
+        setMetaName('twitter:title', defaultTitle);
+        setMetaName('twitter:description', defaultDescription);
+        setMetaName('twitter:image', '');
+        removeJsonLd('jsonLdDetail');
+      }
     }
 
     function injectJsonLdWebSite() {
@@ -1413,12 +1623,26 @@
       const lbN = document.getElementById('lbCounter');
       if (lbC) lbC.textContent = cap;
       if (lbN) lbN.textContent = `${lightboxIndex + 1}/${currentGalleryPhotos.length}`;
+      lastFocusBeforeLightbox = document.activeElement;
       imgLightbox.style.display = 'flex';
+      imgLightbox.setAttribute('aria-hidden', 'false');
+      const container = document.querySelector('.container');
+      if (container) container.setAttribute('aria-hidden', 'true');
+      try { document.body.style.overflow = 'hidden'; } catch {}
       lbClose.focus();
     }
     function closeLightbox() {
       imgLightbox.style.display = 'none';
+      imgLightbox.setAttribute('aria-hidden', 'true');
+      const container = document.querySelector('.container');
+      if (container) container.removeAttribute('aria-hidden');
+      try { document.body.style.overflow = ''; } catch {}
       lbImg.src = '';
+      try {
+        const el = lastFocusBeforeLightbox;
+        lastFocusBeforeLightbox = null;
+        if (el && typeof el.focus === 'function') el.focus();
+      } catch {}
     }
     lbClose.addEventListener('click', closeLightbox);
     lbPrev.addEventListener('click', () => openLightbox(lightboxIndex - 1 < 0 ? currentGalleryPhotos.length - 1 : lightboxIndex - 1));
@@ -1975,7 +2199,7 @@
     function persistFilters() {
       const state = getFilterState();
       try { localStorage.setItem('public_filters_v1', JSON.stringify(state)); } catch {}
-      setUrlState({ ...state, id: currentDetailId || '' });
+      setUrlState({ ...state, id: currentDetailId || pendingUrlDetailId || '' });
     }
 
     function restoreFilters() {
@@ -2026,6 +2250,35 @@
       }
     }
 
+    async function fetchRoulotteById(id, timeoutMs = 2500) {
+      const publicId = String(id || '').trim();
+      if (!publicId) return null;
+      if (window.RoulotteStore && typeof window.RoulotteStore.getRoulotteById === 'function') {
+        return await window.RoulotteStore.getRoulotteById(publicId, timeoutMs);
+      }
+      if (typeof fetch !== 'function') return null;
+      const base = getApiBaseUrl();
+      const url = (base || '') + '/api/roulottes/' + encodeURIComponent(publicId);
+      if (typeof AbortController === 'undefined') {
+        const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error('remote_get_failed');
+        const obj = await res.json().catch(() => null);
+        return obj && typeof obj === 'object' ? obj : null;
+      }
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' }, signal: controller.signal });
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error('remote_get_failed');
+        const obj = await res.json().catch(() => null);
+        return obj && typeof obj === 'object' ? obj : null;
+      } finally {
+        clearTimeout(t);
+      }
+    }
+
     function matchQuery(r, q, categoriesById) {
       if (!q) return true;
       const hay = [
@@ -2056,6 +2309,48 @@
     let remoteSeq = 0;
     let remoteTimer = null;
     let lastRemoteKey = '';
+    let dataLoadError = false;
+    let shareToken = '';
+    let shareMode = false;
+    let shareRoulottes = [];
+    let shareTitle = '';
+    let shareExpiresAt = null;
+
+    function getShareTokenFromUrl() {
+      try {
+        const p = new URLSearchParams(location.search || '');
+        return String(p.get('share') || '').trim();
+      } catch {
+        return '';
+      }
+    }
+
+    async function loadShareSelection(token, timeoutMs = 2500) {
+      const t = String(token || '').trim();
+      if (!t) return { ok: false, code: 'NOT_FOUND' };
+      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = ctrl ? setTimeout(() => ctrl.abort(), Math.max(300, Number(timeoutMs) || 0)) : null;
+      try {
+        const url = getApiBaseUrl() + '/api/share-links/roulottes?token=' + encodeURIComponent(t);
+        const r = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' }, signal: ctrl ? ctrl.signal : undefined });
+        const j = await r.json().catch(() => null);
+        if (!r.ok) {
+          const code = j && j.error ? String(j.error) : String(r.status);
+          return { ok: false, code };
+        }
+        const list = j && Array.isArray(j.roulottes) ? j.roulottes : [];
+        return {
+          ok: true,
+          title: String(j && j.title || '').trim(),
+          expiresAt: j && j.expiresAt ? j.expiresAt : null,
+          roulottes: list
+        };
+      } catch (e) {
+        return { ok: false, code: 'NETWORK_ERROR' };
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    }
 
     function getRemoteParamsFromUi() {
       const q = String(qEl.value || '').trim();
@@ -2076,6 +2371,7 @@
     }
 
     function shouldUseRemoteSearch(params) {
+      if (shareMode) return false;
       if (remoteSearchSupported === false) return false;
       if (!window.RoulotteStore || typeof window.RoulotteStore.searchRoulottes !== 'function') return false;
       const p = params && typeof params === 'object' ? params : {};
@@ -2245,19 +2541,10 @@
         status: getStatusLabel(r.stato)
       });
       detailPrice.textContent = formatPrice(r.prezzo);
+      lastFocusBeforeDetail = document.activeElement;
+      pendingUrlDetailId = null;
       currentDetailId = r.id || null;
       posthogCapture('roulotte_view', { roulotte_id: currentDetailId ? String(currentDetailId) : null });
-      document.title = `${defaultTitle} – ${detailTitle.textContent}`;
-      const firstPhotoForOg = Array.isArray(r.photos) && r.photos.length ? getPhotoUrl(r.photos[0], 'src') : '';
-      let ogImg = document.querySelector('meta[property="og:image"]');
-      if (!ogImg) { ogImg = document.createElement('meta'); ogImg.setAttribute('property','og:image'); document.head.appendChild(ogImg); }
-      ogImg.setAttribute('content', firstPhotoForOg || '');
-      let ogTitle = document.querySelector('meta[property="og:title"]');
-      if (!ogTitle) { ogTitle = document.createElement('meta'); ogTitle.setAttribute('property','og:title'); document.head.appendChild(ogTitle); }
-      ogTitle.setAttribute('content', detailTitle.textContent);
-      let ogDesc = document.querySelector('meta[property="og:description"]');
-      if (!ogDesc) { ogDesc = document.createElement('meta'); ogDesc.setAttribute('property','og:description'); document.head.appendChild(ogDesc); }
-      ogDesc.setAttribute('content', truncate(stripHtml(r.note || ''), 160));
       const note = String(r.note || '').trim();
       if (note) {
         detailNote.hidden = false;
@@ -2307,8 +2594,9 @@
             getPhotoUrl(item, 'src') + ' 1280w'
           ].join(', ');
           img.sizes = '(max-width:640px) 100vw, 33vw';
-          img.loading = 'lazy';
+          img.loading = i === 0 ? 'eager' : 'lazy';
           img.decoding = 'async';
+          if (i === 0) img.setAttribute('fetchpriority', 'high');
           img.style.width = '100%';
           img.style.height = '100%';
           img.style.objectFit = 'cover';
@@ -2360,6 +2648,8 @@
       updateTransportUi(transportDialog, '', tData);
       updateTransportUi(transportStandalone, detailTitle.textContent, tData);
       saveLastTransport(detailTitle.textContent, tData);
+      persistFilters();
+      setCanonicalAndMeta();
       if (typeof dialog.showModal === 'function') dialog.showModal();
       else dialog.setAttribute('open', 'open');
       setTimeout(() => {
@@ -2367,7 +2657,6 @@
         if (m && m.map && typeof m.map.invalidateSize === 'function') m.map.invalidateSize(true);
       }, 60);
       closeDialog.focus();
-      persistFilters();
     }
 
     function closeDetails() {
@@ -2377,8 +2666,14 @@
       if (typeof dialog.close === 'function') dialog.close();
       else dialog.removeAttribute('open');
       currentDetailId = null;
-      document.title = defaultTitle;
+      pendingUrlDetailId = null;
       persistFilters();
+      setCanonicalAndMeta();
+      try {
+        const el = lastFocusBeforeDetail;
+        lastFocusBeforeDetail = null;
+        if (el && typeof el.focus === 'function') el.focus();
+      } catch {}
     }
 
     function applyTheme(theme) {
@@ -2591,12 +2886,14 @@
       buildTransportContexts();
       if (!qEl || !statoEl || !sortEl || !cardsEl || !emptyEl || !totalCountEl || !resultCountEl || !lastUpdatedEl || !liveStatusEl) return;
       const db = window.RoulotteStore.getDB();
-      const all = db.roulottes || [];
-      const base = remoteActive ? remoteResults : all;
+      const all = shareMode ? (Array.isArray(shareRoulottes) ? shareRoulottes : []) : (db.roulottes || []);
+      const base = shareMode ? all : (remoteActive ? remoteResults : all);
       syncCategoryOptions(db.categories || [], categoryEl ? categoryEl.value : '');
       const categoriesById = Object.fromEntries((db.categories || []).map(c => [c.id, c.name]));
       totalCountEl.textContent = String(all.length);
-      lastUpdatedEl.textContent = db.updatedAt ? new Date(db.updatedAt).toLocaleString(getLocaleForLang(currentLang)) : '—';
+      lastUpdatedEl.textContent = shareMode
+        ? (shareExpiresAt ? new Date(shareExpiresAt).toLocaleString(getLocaleForLang(currentLang)) : '—')
+        : (db.updatedAt ? new Date(db.updatedAt).toLocaleString(getLocaleForLang(currentLang)) : '—');
 
       const q = normalize(qEl.value);
       const stato = statoEl.value;
@@ -2619,8 +2916,15 @@
 
       emptyEl.hidden = sorted.length !== 0;
       const frag = document.createDocumentFragment();
-      sorted.forEach(r => {
+      sorted.forEach((r, index) => {
         const card = createCardElement(r, categoriesById);
+        if (card && index < 3) {
+          const img = card.querySelector('img');
+          if (img) {
+            img.loading = 'eager';
+            img.setAttribute('fetchpriority', 'high');
+          }
+        }
         if (card) frag.appendChild(card);
       });
       cardsEl.appendChild(frag);
@@ -2628,9 +2932,24 @@
       persistFilters();
     }
 
+    function setEmptyStateMessage(message, opts) {
+      const o = (opts && typeof opts === 'object') ? opts : {};
+      const show = o.show !== undefined ? !!o.show : true;
+      const showRetry = !!o.showRetry;
+      if (!emptyEl) return;
+      const span = emptyEl.querySelector('span') || null;
+      if (span) span.textContent = String(message || '');
+      emptyEl.hidden = !show;
+      if (retryLoadEl) {
+        retryLoadEl.hidden = !showRetry;
+        retryLoadEl.disabled = false;
+      }
+    }
+
     let t = null;
     function scheduleRender() {
       if (t) clearTimeout(t);
+      if (!currentDetailId) pendingUrlDetailId = null;
       t = setTimeout(render, 100);
       scheduleRemoteSearch(260);
     }
@@ -2760,6 +3079,14 @@
                 } else if (window.RoulotteStore && typeof window.RoulotteStore.initializeStore === 'function') {
                   await window.RoulotteStore.initializeStore();
                 }
+                if (shareMode && shareToken) {
+                  const resolved = await loadShareSelection(shareToken, 2500);
+                  if (resolved && resolved.ok) {
+                    shareRoulottes = Array.isArray(resolved.roulottes) ? resolved.roulottes : [];
+                    shareTitle = String(resolved.title || '').trim();
+                    shareExpiresAt = resolved.expiresAt || null;
+                  }
+                }
                 clearTimeout(timer);
                 if (shown) hideCardsLoading();
               })
@@ -2768,7 +3095,8 @@
                 scheduleRemoteSearch(0);
                 if (currentDetailId) {
                   const db = window.RoulotteStore.getDB();
-                  const r = (db.roulottes || []).find(x => x.id === currentDetailId);
+                  const base = shareMode ? (Array.isArray(shareRoulottes) ? shareRoulottes : []) : (db.roulottes || []);
+                  const r = base.find(x => x.id === currentDetailId);
                   if (r) openDetails(r);
                 }
               })
@@ -2784,11 +3112,22 @@
       await initI18n();
       initPosthog();
       initTheme();
+      shareToken = getShareTokenFromUrl();
+      shareMode = !!shareToken;
+      if (shareMode) {
+        remoteSearchSupported = false;
+        remoteActive = false;
+        remoteResults = [];
+        lastRemoteKey = '';
+        const robots = document.querySelector('meta[name="robots"]');
+        if (robots) robots.setAttribute('content', 'noindex,nofollow');
+      }
       const last = loadLastTransport();
       if (last && last.data) {
         updateTransportUi(transportStandalone, last.title || '—', last.data);
       }
       createMap(transportStandalone);
+      pendingUrlDetailId = getUrlState().id || null;
       restoreFilters();
       setCanonicalAndMeta();
       injectJsonLdWebSite();
@@ -3014,23 +3353,57 @@
         } else if (window.RoulotteStore.syncNow) {
           await window.RoulotteStore.syncNow();
         }
+
+        let shareResolveError = '';
+        if (shareMode) {
+          const resolved = await loadShareSelection(shareToken, 3000);
+          if (resolved && resolved.ok) {
+            shareRoulottes = Array.isArray(resolved.roulottes) ? resolved.roulottes : [];
+            shareTitle = String(resolved.title || '').trim();
+            shareExpiresAt = resolved.expiresAt || null;
+            if (shareTitle) document.title = 'Roulotte online – ' + shareTitle;
+          } else {
+            shareRoulottes = [];
+            shareTitle = '';
+            shareExpiresAt = null;
+            const code = resolved && resolved.code ? String(resolved.code) : 'NOT_FOUND';
+            shareResolveError = (code === 'EXPIRED') ? 'Link di condivisione scaduto.' : 'Link di condivisione non valido.';
+          }
+        }
         
         render();
+        if (shareMode && shareResolveError) setEmptyStateMessage(shareResolveError, { show: true, showRetry: false });
         scheduleRemoteSearch(0);
         hideCardsLoading();
         connectPublicWs();
         
-        const initialId = getUrlState().id;
+        const initialId = pendingUrlDetailId || '';
         if (initialId) {
           const db = window.RoulotteStore.getDB();
-          const r = (db.roulottes || []).find(x => x.id === initialId);
+          const base = shareMode ? (Array.isArray(shareRoulottes) ? shareRoulottes : []) : (db.roulottes || []);
+          const r = base.find(x => x.id === initialId);
           if (r) openDetails(r);
+          else {
+            try {
+              const remote = await fetchRoulotteById(initialId, 3000);
+              if (remote) {
+                openDetails(remote);
+              } else {
+                pendingUrlDetailId = null;
+                persistFilters();
+                setCanonicalAndMeta();
+                alert(tr('detail.notFound', { defaultValue: 'Scheda non trovata o non disponibile.' }));
+              }
+            } catch {
+              alert(tr('errors.loadDetail', { defaultValue: 'Impossibile caricare la scheda. Riprova più tardi.' }));
+            }
+          }
         }
 
       } catch (error) {
         console.error("Errore durante l'inizializzazione dello store:", error);
-        emptyEl.textContent = tr('errors.loadData', { defaultValue: "Si è verificato un errore nel caricamento dei dati. Riprova più tardi." });
-        emptyEl.hidden = false;
+        dataLoadError = true;
+        setEmptyStateMessage(tr('errors.loadData', { defaultValue: "Si è verificato un errore nel caricamento dei dati. Riprova più tardi." }), { show: true, showRetry: true });
       } finally {
         hideCardsLoading();
       }

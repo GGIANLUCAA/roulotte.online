@@ -186,6 +186,51 @@ async function createTables() {
     CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(setting_key);
   `;
   await db.query(createAppSettings);
+
+  const createShareLinks = `
+    CREATE TABLE IF NOT EXISTS share_links (
+      id SERIAL PRIMARY KEY,
+      share_key TEXT UNIQUE NOT NULL,
+      title TEXT,
+      mode TEXT NOT NULL,
+      payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+      expires_at TIMESTAMP WITH TIME ZONE,
+      revoked_at TIMESTAMP WITH TIME ZONE,
+      notify_days INTEGER,
+      created_by TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      views_count INTEGER NOT NULL DEFAULT 0,
+      last_view_at TIMESTAMP WITH TIME ZONE
+    );
+    CREATE INDEX IF NOT EXISTS idx_share_links_expires_at ON share_links(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_share_links_revoked_at ON share_links(revoked_at);
+  `;
+  await db.query(createShareLinks);
+
+  const createShareLinkEvents = `
+    CREATE TABLE IF NOT EXISTS share_link_events (
+      id SERIAL PRIMARY KEY,
+      share_key TEXT NOT NULL REFERENCES share_links(share_key) ON DELETE CASCADE,
+      event_type TEXT NOT NULL,
+      meta JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_share_link_events_key ON share_link_events(share_key);
+    CREATE INDEX IF NOT EXISTS idx_share_link_events_type ON share_link_events(event_type);
+  `;
+  await db.query(createShareLinkEvents);
+
+  const createShareTemplates = `
+    CREATE TABLE IF NOT EXISTS share_templates (
+      id SERIAL PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      config JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_by TEXT,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+  `;
+  await db.query(createShareTemplates);
 }
 
 module.exports = { createTables };

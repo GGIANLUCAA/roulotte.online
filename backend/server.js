@@ -11,6 +11,7 @@ const { MeiliSearch } = require('meilisearch');
 
 const app = express();
 const server = http.createServer(app);
+const serverStartedAt = new Date();
 
 // Middlewares
 app.use(cors({
@@ -118,6 +119,236 @@ app.get('/admin.html', (req, res) => {
   res.sendFile(resolveStaticFile('admin.html'));
 });
 
+app.get('/p/:id', async (req, res) => {
+  const publicId = String(req.params.id || '').trim();
+  if (!publicId) return res.status(404).send('Not found');
+
+  function escapeHtml(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function stripHtml(html) {
+    return String(html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function truncate(s, n) {
+    const t = String(s || '');
+    if (t.length <= n) return t;
+    return t.slice(0, Math.max(0, n - 1)) + '…';
+  }
+
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim() || 'https';
+  const host = String(req.headers.host || '').trim();
+  const origin = host ? `${proto}://${host}` : '';
+  const canonicalUrl = (origin || '') + '/index.html?id=' + encodeURIComponent(publicId);
+  const shareUrl = (origin || '') + '/p/' + encodeURIComponent(publicId);
+
+  const fallbackTitle = 'Roulotte online';
+  const fallbackDescription = 'Cerca e filtra roulotte per marca, modello, anno e stato. Schede con foto e dettagli, con tema chiaro/scuro e accessibilità curata.';
+
+  let title = fallbackTitle;
+  let description = fallbackDescription;
+  let image = '';
+
+  try {
+    let r = null;
+    if (directusEnabled()) {
+      const list = await fetchDirectusRoulottes();
+      r = (Array.isArray(list) ? list : []).find((x) => String(x && x.id || '') === publicId) || null;
+    }
+
+    if (!r) {
+      if (!isAnnunciPublishingEnabled()) return res.status(404).send('Not found');
+      let client = null;
+      try {
+        client = await pool.connect();
+      } catch (err) {
+        if (isDbUnavailable(err)) return res.status(404).send('Not found');
+        return res.status(500).send('Server error');
+      }
+      try {
+        const snap = await captureRoulotteSnapshot(client, publicId);
+        if (!snap || !snap.snapshot) return res.status(404).send('Not found');
+        const blob = snap.snapshot.data && typeof snap.snapshot.data === 'object' ? snap.snapshot.data : {};
+        const photos = Array.isArray(snap.photos) ? snap.photos : [];
+        r = {
+          ...blob,
+          id: snap.snapshot.public_id,
+          title: snap.snapshot.title,
+          description: snap.snapshot.description,
+          photos: photos.map((p) => normalizePhotoUrlToCurrentPublicBase(p && p.url_full ? String(p.url_full) : '')),
+          visibile: snap.snapshot.visibile === true
+        };
+      } finally {
+        if (client) client.release();
+      }
+    }
+
+    if (!r || typeof r !== 'object') return res.status(404).send('Not found');
+
+    const name = String(r.title || `${r.marca || ''} ${r.modello || ''}`.trim()).trim();
+    if (name) title = name;
+
+    const rawDesc = String(r.description || r.note || '').trim();
+    const cleanDesc = truncate(stripHtml(rawDesc), 160);
+    if (cleanDesc) description = cleanDesc;
+
+    const photos = Array.isArray(r.photos) ? r.photos : [];
+    const first = photos[0] || '';
+    if (first) image = String(first || '').trim();
+  } catch {
+    title = fallbackTitle;
+    description = fallbackDescription;
+    image = '';
+  }
+
+  const fullTitle = title && title !== fallbackTitle ? `${fallbackTitle} – ${title}` : fallbackTitle;
+  const twitterCard = image ? 'summary_large_image' : 'summary';
+
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <title>${escapeHtml(fullTitle)}</title>
+    <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
+    <meta name="description" content="${escapeHtml(description)}" />
+    <meta property="og:site_name" content="${escapeHtml(fallbackTitle)}" />
+    <meta property="og:type" content="product" />
+    <meta property="og:title" content="${escapeHtml(fullTitle)}" />
+    <meta property="og:description" content="${escapeHtml(description)}" />
+    <meta property="og:url" content="${escapeHtml(shareUrl)}" />
+    ${image ? `<meta property="og:image" content="${escapeHtml(image)}" />` : `<meta property="og:image" content="" />`}
+    <meta name="twitter:card" content="${escapeHtml(twitterCard)}" />
+    <meta name="twitter:title" content="${escapeHtml(fullTitle)}" />
+    <meta name="twitter:description" content="${escapeHtml(description)}" />
+    ${image ? `<meta name="twitter:image" content="${escapeHtml(image)}" />` : `<meta name="twitter:image" content="" />`}
+    <meta http-equiv="refresh" content="0; url=${escapeHtml(canonicalUrl)}" />
+  </head>
+  <body>
+    <a href="${escapeHtml(canonicalUrl)}">Apri scheda</a>
+  </body>
+</html>`);
+});
+
+app.get('/s/:token', async (req, res) => {
+  const token = String(req.params.token || '').trim();
+  if (!token) return res.status(404).send('Not found');
+
+  function escapeHtml(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function truncate(s, n) {
+    const t = String(s || '');
+    if (t.length <= n) return t;
+    return t.slice(0, Math.max(0, n - 1)) + '…';
+  }
+
+  const parsed = verifyShareToken(token);
+  if (!parsed) return res.status(404).send('Not found');
+
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim() || 'https';
+  const host = String(req.headers.host || '').trim();
+  const origin = host ? `${proto}://${host}` : '';
+  const canonicalUrl = (origin || '') + '/index.html?share=' + encodeURIComponent(token);
+  const shareUrl = (origin || '') + '/s/' + encodeURIComponent(token);
+
+  const fallbackTitle = 'Roulotte online';
+  const fallbackDescription = 'Selezione di annunci condivisi.';
+
+  let title = 'Selezione roulotte';
+  let description = fallbackDescription;
+  let image = '';
+  let statusCode = 200;
+
+  try {
+    let client = null;
+    try {
+      client = await pool.connect();
+    } catch (err) {
+      if (isDbUnavailable(err)) return res.status(404).send('Not found');
+      return res.status(500).send('Server error');
+    }
+    try {
+      const q = await client.query(
+        'SELECT share_key, title, payload, expires_at, revoked_at FROM share_links WHERE share_key = $1 LIMIT 1;',
+        [String(parsed.key || '')]
+      );
+      const row = q.rows && q.rows[0] ? q.rows[0] : null;
+      if (!row || row.revoked_at) return res.status(404).send('Not found');
+      if (row.expires_at) {
+        const exp = Date.parse(String(row.expires_at));
+        if (Number.isFinite(exp) && exp <= Date.now()) {
+          statusCode = 410;
+        }
+      }
+      const t = String(row.title || '').trim();
+      if (t) title = t;
+
+      const payload = row.payload && typeof row.payload === 'object' ? row.payload : {};
+      const mode = String(payload.mode || payload.kind || row.mode || '').trim().toLowerCase();
+      if (mode === 'selection') {
+        const ids = Array.isArray(payload.ids) ? payload.ids.map((x) => String(x || '').trim()).filter(Boolean) : [];
+        if (ids.length) description = truncate(`Selezione di ${ids.length} annunci.`, 160);
+      } else if (mode === 'filter') {
+        description = truncate('Selezione basata su filtri.', 160);
+      }
+    } finally {
+      if (client) client.release();
+    }
+  } catch {
+    title = 'Selezione roulotte';
+    description = fallbackDescription;
+    image = '';
+  }
+
+  const fullTitle = `${fallbackTitle} – ${title}`;
+  const twitterCard = image ? 'summary_large_image' : 'summary';
+
+  res.status(statusCode);
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>${escapeHtml(fullTitle)}</title>
+    <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
+    <meta name="description" content="${escapeHtml(description)}" />
+    <meta property="og:site_name" content="${escapeHtml(fallbackTitle)}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="${escapeHtml(fullTitle)}" />
+    <meta property="og:description" content="${escapeHtml(description)}" />
+    <meta property="og:url" content="${escapeHtml(shareUrl)}" />
+    ${image ? `<meta property="og:image" content="${escapeHtml(image)}" />` : `<meta property="og:image" content="" />`}
+    <meta name="twitter:card" content="${escapeHtml(twitterCard)}" />
+    <meta name="twitter:title" content="${escapeHtml(fullTitle)}" />
+    <meta name="twitter:description" content="${escapeHtml(description)}" />
+    ${image ? `<meta name="twitter:image" content="${escapeHtml(image)}" />` : `<meta name="twitter:image" content="" />`}
+    <meta http-equiv="refresh" content="0; url=${escapeHtml(canonicalUrl)}" />
+  </head>
+  <body>
+    <a href="${escapeHtml(canonicalUrl)}">Apri selezione</a>
+  </body>
+</html>`);
+});
+
 // Config pubblica (solo parametri non sensibili)
 app.get('/api/config', (req, res) => {
   res.json({
@@ -128,6 +359,60 @@ app.get('/api/config', (req, res) => {
     contact_phone: String(getSettingStringFirst(['annunci.labels.contact_phone'], '') || '').trim(),
     contact_whatsapp: String(getSettingStringFirst(['annunci.labels.contact_whatsapp'], '') || '').trim(),
     contact_email: String(getSettingStringFirst(['annunci.labels.contact_email'], '') || '').trim(),
+  });
+});
+
+function getBuildCommitFromEnv() {
+  const candidates = [
+    process.env.RENDER_GIT_COMMIT,
+    process.env.SOURCE_VERSION,
+    process.env.GIT_COMMIT,
+    process.env.COMMIT_SHA,
+    process.env.VERCEL_GIT_COMMIT_SHA,
+  ];
+  for (const c of candidates) {
+    const v = String(c || '').trim();
+    if (!v) continue;
+    if (/^[0-9a-f]{7,40}$/i.test(v)) return v;
+  }
+  return '';
+}
+
+function tryReadGitCommitFromFs() {
+  try {
+    const gitDir = path.join(__dirname, '..', '.git');
+    const headPath = path.join(gitDir, 'HEAD');
+    if (!fs.existsSync(headPath)) return '';
+    const head = String(fs.readFileSync(headPath, 'utf8') || '').trim();
+    if (!head) return '';
+    if (head.startsWith('ref:')) {
+      const ref = head.slice(4).trim().replace(/^[\\/]+/, '');
+      if (!ref) return '';
+      const refPath = path.join(gitDir, ...ref.split('/'));
+      if (!fs.existsSync(refPath)) return '';
+      const v = String(fs.readFileSync(refPath, 'utf8') || '').trim();
+      return /^[0-9a-f]{7,40}$/i.test(v) ? v : '';
+    }
+    return /^[0-9a-f]{7,40}$/i.test(head) ? head : '';
+  } catch {
+    return '';
+  }
+}
+
+app.get('/api/build-info', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const full = getBuildCommitFromEnv() || tryReadGitCommitFromFs();
+  const commit = full ? String(full).slice(0, 10) : '';
+  const branch = String(process.env.RENDER_GIT_BRANCH || process.env.GIT_BRANCH || '').trim();
+  const buildTimeRaw = String(process.env.BUILD_TIME || process.env.RENDER_BUILD_TIME || '').trim();
+  res.json({
+    commit,
+    commit_full: full,
+    branch,
+    build_time: buildTimeRaw,
+    node_env: String(process.env.NODE_ENV || ''),
+    server_started_at: serverStartedAt.toISOString(),
+    server_time: new Date().toISOString(),
   });
 });
 
@@ -568,6 +853,40 @@ function getJwtSecret() {
 
 function getJwtExpiresIn() {
   return getSettingString('security.jwt_expires_in', String(process.env.JWT_EXPIRES_IN || ''));
+}
+
+function generateShareKey() {
+  return crypto.randomBytes(16).toString('base64url');
+}
+
+function signShareToken(shareKey, expiresAtIso) {
+  const jwtSecret = getJwtSecret();
+  if (!jwtSecret) throw new Error('JWT_NOT_CONFIGURED');
+  const payload = { typ: 'share', key: String(shareKey || ''), v: 1 };
+  const expRaw = String(expiresAtIso || '').trim();
+  if (!expRaw) return jwt.sign(payload, jwtSecret);
+  const expMs = Date.parse(expRaw);
+  if (!Number.isFinite(expMs)) throw new Error('INVALID_EXPIRES_AT');
+  const deltaSec = Math.floor((expMs - Date.now()) / 1000);
+  if (deltaSec <= 0) throw new Error('EXPIRED');
+  return jwt.sign(payload, jwtSecret, { expiresIn: deltaSec });
+}
+
+function verifyShareToken(token) {
+  const jwtSecret = getJwtSecret();
+  if (!jwtSecret) return null;
+  const raw = String(token || '').trim();
+  if (!raw) return null;
+  try {
+    const payload = jwt.verify(raw, jwtSecret);
+    if (!payload || typeof payload !== 'object') return null;
+    if (String(payload.typ || '') !== 'share') return null;
+    const key = String(payload.key || '').trim();
+    if (!key) return null;
+    return { key, v: Number(payload.v) || 0 };
+  } catch {
+    return null;
+  }
 }
 
 function getAdminResetToken() {
@@ -2250,6 +2569,286 @@ app.get('/api/roulottes', async (req, res) => {
     if (isDbUnavailable(err)) return res.json([]);
     console.error('Errore durante il recupero delle roulotte:', err);
     res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
+  }
+});
+
+app.get('/api/roulottes/:id', async (req, res) => {
+  try {
+    const admin = tryGetAdminFromReq(req);
+    const isAdmin = !!admin;
+    if (!isAdmin && !isAnnunciPublishingEnabled()) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    const publicId = String(req.params.id || '').trim();
+    if (!publicId) return res.status(400).json({ error: 'BAD_REQUEST' });
+
+    const now = Date.now();
+
+    if (directusEnabled()) {
+      try {
+        const collection = getDirectusCollection();
+        const payload = await directusFetchJson(`items/${encodeURIComponent(collection)}/${encodeURIComponent(publicId)}`, { fields: '*.*.*' });
+        const item = payload && typeof payload === 'object' ? payload.data : null;
+        if (item) {
+          const r = mapDirectusItemToRoulotte(item);
+          if (!isAdmin) {
+            if (!r || typeof r !== 'object') return res.status(404).json({ error: 'NOT_FOUND' });
+            if (r.visibile === false) return res.status(404).json({ error: 'NOT_FOUND' });
+            const allowed = new Set(['pubblicato', 'venduto']);
+            const sRaw = r.stato_annuncio !== undefined && r.stato_annuncio !== null ? String(r.stato_annuncio) : '';
+            const fallback = String(r.stato || '') === 'Venduto' ? 'venduto' : 'pubblicato';
+            const s = (sRaw || fallback).trim().toLowerCase();
+            if (!allowed.has(s)) return res.status(404).json({ error: 'NOT_FOUND' });
+            if (s === 'pubblicato' && r.data_pubblicazione) {
+              const t = Date.parse(String(r.data_pubblicazione));
+              if (Number.isFinite(t) && t > now) return res.status(404).json({ error: 'NOT_FOUND' });
+            }
+          }
+          return res.json(r);
+        }
+      } catch (e) {
+        console.warn('Directus non disponibile, fallback al DB:', String(e && e.message ? e.message : e));
+      }
+    }
+
+    const query = `
+      SELECT 
+        r.public_id AS id,
+        r.data AS data,
+        r.visibile AS visibile,
+        r.created_at AS created_at,
+        r.updated_at AS updated_at,
+        COALESCE(
+          (
+            SELECT json_agg(p.url_full ORDER BY p.sort_order)
+            FROM photos p 
+            WHERE p.roulotte_id = r.id
+          ), '[]'::json
+        ) AS photos
+      FROM roulottes r
+      WHERE r.public_id = $1
+      LIMIT 1;
+    `;
+
+    const result = await pool.query(query, [publicId]);
+    if (!result.rows.length) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    const row = result.rows[0];
+    const r = {
+      ...(row.data || {}),
+      id: row.id,
+      photos: (row.photos || []).map(normalizePhotoUrlToCurrentPublicBase),
+      visibile: row.visibile !== undefined && row.visibile !== null ? row.visibile : true,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+
+    if (!isAdmin) {
+      if (!r || typeof r !== 'object') return res.status(404).json({ error: 'NOT_FOUND' });
+      if (r.visibile === false) return res.status(404).json({ error: 'NOT_FOUND' });
+      const allowed = new Set(['pubblicato', 'venduto']);
+      const sRaw = r.stato_annuncio !== undefined && r.stato_annuncio !== null ? String(r.stato_annuncio) : '';
+      const fallback = String(r.stato || '') === 'Venduto' ? 'venduto' : 'pubblicato';
+      const s = (sRaw || fallback).trim().toLowerCase();
+      if (!allowed.has(s)) return res.status(404).json({ error: 'NOT_FOUND' });
+      if (s === 'pubblicato' && r.data_pubblicazione) {
+        const t = Date.parse(String(r.data_pubblicazione));
+        if (Number.isFinite(t) && t > now) return res.status(404).json({ error: 'NOT_FOUND' });
+      }
+    }
+
+    res.json(r);
+  } catch (err) {
+    if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+    console.error('Errore durante il recupero della roulotte:', err);
+    res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
+  }
+});
+
+function normalizeShareIds(ids) {
+  if (!Array.isArray(ids)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const raw of ids) {
+    const id = String(raw || '').trim();
+    if (!id) continue;
+    if (id.length > 64) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+function getReqOrigin(req) {
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim() || 'https';
+  const host = String(req.headers.host || '').trim();
+  return host ? `${proto}://${host}` : '';
+}
+
+async function resolveShareLinkRow(token) {
+  const parsed = verifyShareToken(token);
+  if (!parsed) return { status: 404, parsed: null, row: null };
+  try {
+    const q = await pool.query(
+      'SELECT share_key, title, mode, payload, expires_at, revoked_at, created_at FROM share_links WHERE share_key = $1 LIMIT 1;',
+      [String(parsed.key || '')]
+    );
+    const row = q.rows && q.rows[0] ? q.rows[0] : null;
+    if (!row || row.revoked_at) return { status: 404, parsed, row: null };
+    if (row.expires_at) {
+      const exp = Date.parse(String(row.expires_at));
+      if (Number.isFinite(exp) && exp <= Date.now()) return { status: 410, parsed, row };
+    }
+    return { status: 200, parsed, row };
+  } catch (err) {
+    if (isDbUnavailable(err)) return { status: 503, parsed, row: null };
+    return { status: 500, parsed, row: null };
+  }
+}
+
+async function listRoulottesForShareSelection(ids) {
+  const safeIds = normalizeShareIds(ids);
+  if (!safeIds.length) return [];
+  if (directusEnabled()) {
+    try {
+      const list = await fetchDirectusRoulottesForAdmin();
+      const byId = new Map((Array.isArray(list) ? list : []).map((r) => [String(r && r.id || ''), r]));
+      const out = [];
+      for (const id of safeIds) {
+        const r = byId.get(id);
+        if (r) out.push(r);
+      }
+      return out;
+    } catch {
+      return [];
+    }
+  }
+
+  const query = `
+    SELECT 
+      r.public_id AS id,
+      r.data AS data,
+      r.visibile AS visibile,
+      r.created_at AS created_at,
+      r.updated_at AS updated_at,
+      COALESCE(
+        (
+          SELECT json_agg(p.url_full ORDER BY p.sort_order)
+          FROM photos p 
+          WHERE p.roulotte_id = r.id
+        ), '[]'::json
+      ) AS photos
+    FROM roulottes r
+    WHERE r.public_id = ANY($1::text[])
+  `;
+  const result = await pool.query(query, [safeIds]);
+  const rows = Array.isArray(result.rows) ? result.rows : [];
+  const byId = new Map(rows.map((row) => [String(row.id || '').trim(), ({
+    ...(row.data || {}),
+    id: row.id,
+    photos: (row.photos || []).map(normalizePhotoUrlToCurrentPublicBase),
+    visibile: row.visibile !== undefined && row.visibile !== null ? row.visibile : true,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  })]));
+  const out = [];
+  for (const id of safeIds) {
+    const r = byId.get(id);
+    if (r) out.push(r);
+  }
+  return out;
+}
+
+app.post('/api/share-links', requireAdmin, async (req, res) => {
+  const body = (req && req.body && typeof req.body === 'object') ? req.body : {};
+  const ids = normalizeShareIds(body.ids);
+  if (!ids.length) return res.status(400).json({ error: 'BAD_REQUEST' });
+  if (ids.length > 200) return res.status(400).json({ error: 'TOO_MANY_IDS' });
+
+  const title = String(body.title || '').trim().slice(0, 140);
+  const expiresAtRaw = String(body.expiresAt || '').trim();
+  const expiresInDaysRaw = body.expiresInDays !== undefined && body.expiresInDays !== null ? Number(body.expiresInDays) : null;
+  const expiresInDays = Number.isFinite(expiresInDaysRaw) ? Math.min(Math.max(Math.floor(expiresInDaysRaw), 1), 365) : 7;
+  const expiresAtIso = expiresAtRaw ? expiresAtRaw : new Date(Date.now() + expiresInDays * 86400 * 1000).toISOString();
+
+  let token = '';
+  try {
+    const shareKey = generateShareKey();
+    const payload = { mode: 'selection', ids };
+    await pool.query(
+      'INSERT INTO share_links (share_key, title, mode, payload, expires_at, created_by) VALUES ($1, $2, $3, $4::jsonb, $5, $6);',
+      [shareKey, title || null, 'selection', JSON.stringify(payload), expiresAtIso, String(req.adminUser || 'admin')]
+    );
+    token = signShareToken(shareKey, expiresAtIso);
+  } catch (err) {
+    if (String(err && err.message || '') === 'JWT_NOT_CONFIGURED') return res.status(500).json({ error: 'JWT_NOT_CONFIGURED' });
+    if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+    return res.status(500).json({ error: 'SERVER_ERROR' });
+  }
+
+  const origin = getReqOrigin(req);
+  const shareUrl = (origin || '') + '/s/' + encodeURIComponent(token);
+  res.json({
+    ok: true,
+    url: shareUrl,
+    token,
+    expiresAt: expiresAtIso
+  });
+});
+
+app.get('/api/share-links/resolve', async (req, res) => {
+  const token = String(req.query.token || '').trim();
+  if (!token) return res.status(404).json({ error: 'NOT_FOUND' });
+  const resolved = await resolveShareLinkRow(token);
+  if (resolved.status === 404) return res.status(404).json({ error: 'NOT_FOUND' });
+  if (resolved.status === 410) return res.status(410).json({ error: 'EXPIRED' });
+  if (resolved.status === 503) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+  if (resolved.status !== 200) return res.status(500).json({ error: 'SERVER_ERROR' });
+
+  const row = resolved.row || {};
+  const payload = row.payload && typeof row.payload === 'object' ? row.payload : {};
+  res.json({
+    ok: true,
+    title: String(row.title || '').trim(),
+    mode: String(payload.mode || row.mode || '').trim(),
+    payload,
+    expiresAt: row.expires_at || null
+  });
+});
+
+app.get('/api/share-links/roulottes', async (req, res) => {
+  const token = String(req.query.token || '').trim();
+  if (!token) return res.status(404).json({ error: 'NOT_FOUND' });
+  const resolved = await resolveShareLinkRow(token);
+  if (resolved.status === 404) return res.status(404).json({ error: 'NOT_FOUND' });
+  if (resolved.status === 410) return res.status(410).json({ error: 'EXPIRED' });
+  if (resolved.status === 503) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+  if (resolved.status !== 200) return res.status(500).json({ error: 'SERVER_ERROR' });
+
+  const row = resolved.row || {};
+  const payload = row.payload && typeof row.payload === 'object' ? row.payload : {};
+  const mode = String(payload.mode || row.mode || '').trim().toLowerCase();
+  if (mode !== 'selection') return res.json({ ok: true, title: String(row.title || '').trim(), mode, expiresAt: row.expires_at || null, ids: [], roulottes: [] });
+  const ids = Array.isArray(payload.ids) ? payload.ids : [];
+
+  try {
+    await pool.query('UPDATE share_links SET views_count = views_count + 1, last_view_at = CURRENT_TIMESTAMP WHERE share_key = $1;', [String(row.share_key || '')]);
+    await pool.query('INSERT INTO share_link_events (share_key, event_type, meta) VALUES ($1, $2, $3::jsonb);', [String(row.share_key || ''), 'view', JSON.stringify({})]);
+  } catch {}
+
+  try {
+    const list = await listRoulottesForShareSelection(ids);
+    return res.json({
+      ok: true,
+      title: String(row.title || '').trim(),
+      mode,
+      expiresAt: row.expires_at || null,
+      ids: normalizeShareIds(ids),
+      roulottes: Array.isArray(list) ? list : []
+    });
+  } catch (err) {
+    if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+    return res.status(500).json({ error: 'SERVER_ERROR' });
   }
 });
 

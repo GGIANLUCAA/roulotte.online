@@ -462,14 +462,14 @@
     return res;
   }
 
-  async function updateRoulotte(input, photos = [], onProgress, opts = {}) {
+  async function updateRoulotte(input, photos = [], onProgress) {
     if (!input || !input.id) throw new Error('ID mancante per modifica');
     const res = await sendRoulotteData('PUT', apiUrl(`/api/roulottes/${input.id}`), input, photos, 'new_photos', onProgress);
-    if (!(opts && opts.skipReload === true)) await forceReloadRoulottes(); // Forza aggiornamento lista
+    await forceReloadRoulottes(); // Forza aggiornamento lista
     return res;
   }
 
-  async function deleteRoulotte(id, opts = {}) {
+  async function deleteRoulotte(id) {
     if (!id) throw new Error('ID mancante');
     const token = authToken || (typeof window !== 'undefined' && window.RoulotteStore && typeof window.RoulotteStore.getAuthToken === 'function' ? window.RoulotteStore.getAuthToken() : '');
     if (!token) throw new Error('UNAUTHORIZED');
@@ -482,7 +482,7 @@
        try { const j = await res.json(); if(j.error) msg = j.error; } catch{}
        throw new Error(msg);
     }
-    if (!(opts && opts.skipReload === true)) await forceReloadRoulottes(); // Forza aggiornamento lista
+    await forceReloadRoulottes(); // Forza aggiornamento lista
     return true;
   }
 

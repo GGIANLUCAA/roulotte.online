@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Cerca e filtra roulotte per marca, modello, anno e stato. Schede con foto e dettagli, con tema chiaro/scuro e accessibilità curata.">
     <meta name="theme-color" content="#2563eb">
+    <meta name="color-scheme" content="light dark">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <meta property="og:site_name" content="Roulotte online">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Roulotte online">
+    <meta property="og:description" content="Cerca e filtra roulotte per marca, modello, anno e stato. Schede con foto e dettagli, con tema chiaro/scuro e accessibilità curata.">
+    <meta property="og:url" content="">
+    <meta property="og:image" content="">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Roulotte online">
+    <meta name="twitter:description" content="Cerca e filtra roulotte per marca, modello, anno e stato. Schede con foto e dettagli, con tema chiaro/scuro e accessibilità curata.">
+    <meta name="twitter:image" content="">
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
@@ -375,48 +387,6 @@
     .calc-map{height:300px;border-radius:14px;border:1px solid var(--border);overflow:hidden}
     .leaflet-container{font:inherit}
     footer{padding:18px 0 26px;color:var(--muted);font-size:.9rem}
-    .footer-cta{
-      margin-top:14px;
-      border-top:1px solid var(--border);
-      padding-top:14px;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:12px;
-      flex-wrap:wrap;
-    }
-    .footer-cta-text{max-width:620px}
-    .footer-cta-title{font-weight:900;color:var(--text);letter-spacing:-.2px}
-    .footer-cta-sub{color:var(--muted);margin-top:4px}
-    .footer-cta-actions{display:flex;gap:10px;flex-wrap:wrap}
-    .admin-star{
-      position:fixed;
-      left:10px;
-      bottom:10px;
-      width:28px;
-      height:28px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      border:1px solid var(--border);
-      background:rgba(255,255,255,.55);
-      border-radius:10px;
-      text-decoration:none;
-      color:var(--muted);
-      font-weight:900;
-      font-size:14px;
-      line-height:1;
-      opacity:.7;
-      transition:var(--transition);
-      z-index:99999;
-      user-select:none;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .admin-star:hover{opacity:1;background:rgba(255,255,255,.75);color:var(--text)}
-    :root[data-theme="dark"] .admin-star{background:rgba(255,255,255,.06)}
-    :root[data-theme="dark"] .admin-star:hover{background:rgba(255,255,255,.10)}
-    .admin-star:focus-visible{outline:3px solid rgba(37,99,235,.45);outline-offset:3px}
-    :root[data-theme="dark"] .admin-star:focus-visible{outline:3px solid rgba(255,255,255,.85)}
     @media (max-width: 980px){
       .hero{grid-template-columns:1fr;gap:14px}
       .grid{grid-template-columns: repeat(2, minmax(0, 1fr))}
@@ -438,7 +408,6 @@
 </head>
 <body>
   <a class="skip-link" href="#contenuto" data-i18n="a11y.skipToContent">Vai al contenuto</a>
-  <a id="adminStar" class="admin-star" href="admin.html" data-allow-admin-link="1" aria-label="Accesso area riservata" rel="nofollow">★</a>
   <div class="container">
     <header id="editableHeader" role="banner" aria-label="Intestazione">
       <a class="brand" href="index.html" aria-label="Roulotte online, home">
@@ -457,6 +426,7 @@
       <nav id="mainNav" aria-label="Navigazione">
         <a class="nav-link" href="index.html" data-i18n="nav.catalog">Catalogo</a>
         <a class="nav-link" href="#trasporto" data-i18n="nav.transport">Trasporto</a>
+        <a class="nav-link" href="admin.html" data-i18n="nav.admin">Admin</a>
       </nav>
       <div class="actions" aria-label="Azioni rapide">
         <select id="langSelect" class="btn" aria-label="Lingua" style="min-width:92px">
@@ -465,7 +435,10 @@
           <option value="de">DE</option>
           <option value="fr">FR</option>
         </select>
+        <a class="btn" id="quickEditBtn" href="admin.html?section=builder&page=home" hidden data-i18n="actions.editSite">Modifica sito</a>
+        <a class="btn" href="admin.html" data-i18n="actions.adminArea">Area Admin</a>
         <button class="btn" type="button" id="themeToggle">Tema: Chiaro</button>
+        <button class="btn" type="button" id="copySearchLink" data-i18n="actions.copySearchLink">Copia link ricerca</button>
         <button class="btn btn-primary" type="button" id="resetFilters" data-i18n="actions.resetFilters">Reset filtri</button>
       </div>
     </header>
@@ -539,7 +512,10 @@
       </div>
       <div id="editableListTop"></div>
       <div id="emptyState" class="empty" hidden>
-        <span data-i18n="empty.noResults">Nessun risultato. Prova a cambiare filtri.</span>
+        <span data-i18n="empty.noResults">Nessun risultato. Prova a cambiare filtri o aggiungi nuove schede dall'area admin.</span>
+        <div style="margin-top:12px">
+          <button class="btn btn-primary" type="button" id="retryLoad" hidden data-i18n="errors.retry">Riprova</button>
+        </div>
       </div>
       <section id="cards" class="grid" aria-label="Risultati"></section>
       <div id="editableListBottom"></div>
@@ -682,7 +658,7 @@
       </div>
     </div>
   </dialog>
-  <div id="imgLightbox" style="position:fixed;inset:0;display:none;background:rgba(0,0,0,.9);z-index:99999;align-items:center;justify-content:center">
+  <div id="imgLightbox" role="dialog" aria-modal="true" aria-label="Galleria immagini" aria-hidden="true" tabindex="-1" style="position:fixed;inset:0;display:none;background:rgba(0,0,0,.9);z-index:99999;align-items:center;justify-content:center">
     <button type="button" id="lbClose" style="position:absolute;top:14px;right:14px;border:1px solid var(--border);background:#fff;color:#000;border-radius:10px;padding:8px 10px;font-weight:900" data-i18n="lightbox.close">Chiudi</button>
     <button type="button" id="lbPrev" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);border:1px solid var(--border);background:#fff;color:#000;border-radius:10px;padding:8px 10px;font-weight:900">‹</button>
     <button type="button" id="lbNext" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);border:1px solid var(--border);background:#fff;color:#000;border-radius:10px;padding:8px 10px;font-weight:900">›</button>
@@ -710,9 +686,11 @@
     let lastUpdatedEl = null;
     let liveStatusEl = null;
     let resetFiltersEl = null;
+    let copySearchLinkEl = null;
     let themeToggleEl = null;
     let langSelectEl = null;
     let quickEditBtnEl = null;
+    let retryLoadEl = null;
 
     let dialog = null;
     let copyLinkBtn = null;
@@ -725,6 +703,9 @@
     let detailPlanimetria = null;
     let detailVideo = null;
     let currentDetailId = null;
+    let pendingUrlDetailId = null;
+    let lastFocusBeforeDetail = null;
+    let lastFocusBeforeLightbox = null;
 
     let transportStandalone = null;
     let transportDialog = null;
@@ -758,9 +739,11 @@
       lastUpdatedEl = document.getElementById('lastUpdated');
       liveStatusEl = document.getElementById('liveStatus');
       resetFiltersEl = document.getElementById('resetFilters');
+      copySearchLinkEl = document.getElementById('copySearchLink');
       themeToggleEl = document.getElementById('themeToggle');
       langSelectEl = document.getElementById('langSelect');
       quickEditBtnEl = document.getElementById('quickEditBtn');
+      retryLoadEl = document.getElementById('retryLoad');
 
       dialog = document.getElementById('detailDialog');
       copyLinkBtn = document.getElementById('copyLinkBtn');
@@ -955,7 +938,6 @@
       }
 
       refreshDomRefs();
-      wireAdminLogoEasterEgg();
 
       if (langSelectEl) bindOnce(langSelectEl, 'change', 'langSelect', () => changePublicLang(langSelectEl.value));
       if (themeToggleEl) bindOnce(themeToggleEl, 'click', 'themeToggle', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
@@ -965,18 +947,19 @@
       }
 
       if (qEl) bindOnce(qEl, 'input', 'qInput', scheduleRender);
-      if (statoEl) bindOnce(statoEl, 'change', 'statoChange', () => { render(); scheduleRemoteSearch(0); });
-      if (sortEl) bindOnce(sortEl, 'change', 'sortChange', () => { render(); scheduleRemoteSearch(0); });
-      if (categoryEl) bindOnce(categoryEl, 'change', 'catChange', () => { render(); scheduleRemoteSearch(0); });
+      if (statoEl) bindOnce(statoEl, 'change', 'statoChange', () => { if (!currentDetailId) pendingUrlDetailId = null; render(); scheduleRemoteSearch(0); });
+      if (sortEl) bindOnce(sortEl, 'change', 'sortChange', () => { if (!currentDetailId) pendingUrlDetailId = null; render(); scheduleRemoteSearch(0); });
+      if (categoryEl) bindOnce(categoryEl, 'change', 'catChange', () => { if (!currentDetailId) pendingUrlDetailId = null; render(); scheduleRemoteSearch(0); });
       if (priceMinEl) bindOnce(priceMinEl, 'input', 'priceMin', scheduleRender);
       if (priceMaxEl) bindOnce(priceMaxEl, 'input', 'priceMax', scheduleRender);
-      if (hasPhotoEl) bindOnce(hasPhotoEl, 'change', 'hasPhoto', () => { render(); scheduleRemoteSearch(0); });
+      if (hasPhotoEl) bindOnce(hasPhotoEl, 'change', 'hasPhoto', () => { if (!currentDetailId) pendingUrlDetailId = null; render(); scheduleRemoteSearch(0); });
 
       if (resetFiltersEl) {
         bindOnce(resetFiltersEl, 'click', 'resetFilters', () => {
           ensureHomeDom();
           refreshDomRefs();
           if (!qEl || !statoEl || !sortEl) return;
+          if (!currentDetailId) pendingUrlDetailId = null;
           qEl.value = '';
           if (categoryEl) categoryEl.value = '';
           statoEl.value = '';
@@ -992,9 +975,50 @@
         });
       }
 
+      if (copySearchLinkEl) {
+        bindOnce(copySearchLinkEl, 'click', 'copySearchLink', async () => {
+          const url = location.href;
+          const ok = await copyText(url);
+          if (ok) {
+            copySearchLinkEl.textContent = tr('actions.copied', { defaultValue: 'Copiato' });
+            setTimeout(() => (copySearchLinkEl.textContent = tr('actions.copySearchLink', { defaultValue: 'Copia link ricerca' })), 900);
+          } else {
+            alert(tr('detail.copyError', { defaultValue: 'Impossibile copiare il link.' }));
+          }
+        });
+      }
+
+      if (retryLoadEl) {
+        bindOnce(retryLoadEl, 'click', 'retryLoad', async () => {
+          retryLoadEl.disabled = true;
+          showCardsLoading(6);
+          try {
+            if (window.RoulotteStore && typeof window.RoulotteStore.initializeStore === 'function') {
+              await window.RoulotteStore.initializeStore();
+            } else if (window.RoulotteStore && typeof window.RoulotteStore.syncNow === 'function') {
+              await window.RoulotteStore.syncNow();
+            }
+            dataLoadError = false;
+            hideCardsLoading();
+            render();
+            scheduleRemoteSearch(0);
+            setEmptyStateMessage('', { show: false, showRetry: false });
+          } catch {
+            dataLoadError = true;
+            hideCardsLoading();
+            setEmptyStateMessage(tr('errors.loadData', { defaultValue: "Si è verificato un errore nel caricamento dei dati. Riprova più tardi." }), { show: true, showRetry: true });
+          } finally {
+            retryLoadEl.disabled = false;
+          }
+        });
+      }
+
       if (copyLinkBtn) {
         bindOnce(copyLinkBtn, 'click', 'copyLink', async () => {
-          const url = location.href;
+          const id = String(currentDetailId || pendingUrlDetailId || '').trim();
+          const url = (id && location.origin && location.origin !== 'null')
+            ? (location.origin + '/p/' + encodeURIComponent(id))
+            : location.href;
           const ok = await copyText(url);
           if (ok) {
             copyLinkBtn.textContent = tr('detail.copied', { defaultValue: 'Copiato' });
@@ -1080,8 +1104,8 @@
           translation: {
             a11y: { skipToContent: "Vai al contenuto" },
             common: { caravan: "Roulotte" },
-            nav: { menu: "Menu", catalog: "Catalogo", transport: "Trasporto" },
-            actions: { resetFilters: "Reset filtri", themeLight: "Tema: Chiaro", themeDark: "Tema: Scuro" },
+            nav: { menu: "Menu", catalog: "Catalogo", transport: "Trasporto", admin: "Admin" },
+            actions: { adminArea: "Area Admin", editSite: "Modifica sito", resetFilters: "Reset filtri", themeLight: "Tema: Chiaro", themeDark: "Tema: Scuro" },
             hero: { title: "Trova la roulotte giusta", text: "Filtra per marca, modello, anno e stato. I risultati si aggiornano in tempo reale." },
             filters: {
               searchLabel: "Cerca",
@@ -1100,9 +1124,7 @@
             sort: { newest: "Più recenti", priceAsc: "Prezzo crescente", priceDesc: "Prezzo decrescente", yearDesc: "Anno più nuovo", yearAsc: "Anno più vecchio" },
             meta: { totalCards: "Totale schede", results: "Risultati", updated: "Aggiornamento" },
             results: { title: "Disponibilità", liveStatus: "{{count}} risultati" },
-            footer: { tagline: "Catalogo selezionato. Contatti rapidi." },
-            contact: { title: "Vuoi confermare disponibilità e prezzo?", phone: "Telefono", whatsapp: "WhatsApp", email: "Email" },
-            empty: { noResults: "Nessun risultato. Prova a cambiare filtri." },
+            empty: { noResults: "Nessun risultato. Prova a cambiare filtri o aggiungi nuove schede dall'area admin." },
             detail: {
               copyLink: "Copia link",
               close: "Chiudi",
@@ -1153,8 +1175,8 @@
           translation: {
             a11y: { skipToContent: "Skip to content" },
             common: { caravan: "Caravan" },
-            nav: { menu: "Menu", catalog: "Catalog", transport: "Transport" },
-            actions: { resetFilters: "Reset filters", themeLight: "Theme: Light", themeDark: "Theme: Dark" },
+            nav: { menu: "Menu", catalog: "Catalog", transport: "Transport", admin: "Admin" },
+            actions: { adminArea: "Admin Area", editSite: "Edit site", resetFilters: "Reset filters", themeLight: "Theme: Light", themeDark: "Theme: Dark" },
             hero: { title: "Find the right caravan", text: "Filter by brand, model, year and condition. Results update in real time." },
             filters: {
               searchLabel: "Search",
@@ -1170,12 +1192,10 @@
               onlyWithPhotos: "Only with photos"
             },
             status: { excellent: "Excellent", good: "Good", toFix: "Needs work", new: "New", sold: "Sold" },
-            sort: { newest: "Newest", priceAsc: "Price: low to high", priceDesc: "Price: high to low", yearDesc: "Newest year", yearAsc: "Oldest year" },
-            meta: { totalCards: "Total cards", results: "Results", updated: "Updated" },
+            sort: { newest: "Newest", priceAsc: "Price (low to high)", priceDesc: "Price (high to low)", yearDesc: "Year (newest)", yearAsc: "Year (oldest)" },
+            meta: { totalCards: "Total listings", results: "Results", updated: "Updated" },
             results: { title: "Availability", liveStatus: "{{count}} results" },
-            footer: { tagline: "Curated catalog. Quick contacts." },
-            contact: { title: "Want to confirm availability and price?", phone: "Phone", whatsapp: "WhatsApp", email: "Email" },
-            empty: { noResults: "No results. Try changing filters." },
+            empty: { noResults: "No results. Try changing filters or add new listings from the admin area." },
             detail: {
               copyLink: "Copy link",
               close: "Close",
@@ -1226,11 +1246,11 @@
           translation: {
             a11y: { skipToContent: "Zum Inhalt springen" },
             common: { caravan: "Wohnwagen" },
-            nav: { menu: "Menü", catalog: "Katalog", transport: "Transport" },
-            actions: { resetFilters: "Filter zurücksetzen", themeLight: "Thema: Hell", themeDark: "Thema: Dunkel" },
-            hero: { title: "Finden Sie den passenden Wohnwagen", text: "Filtern Sie nach Marke, Modell, Jahr und Zustand. Die Ergebnisse werden in Echtzeit aktualisiert." },
+            nav: { menu: "Menü", catalog: "Katalog", transport: "Transport", admin: "Admin" },
+            actions: { adminArea: "Admin-Bereich", editSite: "Website bearbeiten", resetFilters: "Filter zurücksetzen", themeLight: "Thema: Hell", themeDark: "Thema: Dunkel" },
+            hero: { title: "Finde den richtigen Wohnwagen", text: "Filtere nach Marke, Modell, Jahr und Zustand. Ergebnisse aktualisieren sich in Echtzeit." },
             filters: {
-              searchLabel: "Suche",
+              searchLabel: "Suchen",
               searchPlaceholder: "z. B. Adria, Hobby, 2021...",
               category: "Kategorie",
               all: "Alle",
@@ -1243,12 +1263,10 @@
               onlyWithPhotos: "Nur mit Fotos"
             },
             status: { excellent: "Sehr gut", good: "Gut", toFix: "Reparaturbedürftig", new: "Neu", sold: "Verkauft" },
-            sort: { newest: "Neueste", priceAsc: "Preis aufsteigend", priceDesc: "Preis absteigend", yearDesc: "Neuestes Jahr", yearAsc: "Ältestes Jahr" },
-            meta: { totalCards: "Gesamt", results: "Ergebnisse", updated: "Aktualisiert" },
+            sort: { newest: "Neueste", priceAsc: "Preis aufsteigend", priceDesc: "Preis absteigend", yearDesc: "Jahr (neueste)", yearAsc: "Jahr (älteste)" },
+            meta: { totalCards: "Gesamtanzeigen", results: "Ergebnisse", updated: "Aktualisiert" },
             results: { title: "Verfügbarkeit", liveStatus: "{{count}} Ergebnisse" },
-            footer: { tagline: "Kuratiertes Angebot. Schnelle Kontakte." },
-            contact: { title: "Verfügbarkeit und Preis bestätigen?", phone: "Telefon", whatsapp: "WhatsApp", email: "E-Mail" },
-            empty: { noResults: "Keine Ergebnisse. Bitte Filter ändern." },
+            empty: { noResults: "Keine Ergebnisse. Filter ändern oder neue Anzeigen im Admin-Bereich hinzufügen." },
             detail: {
               copyLink: "Link kopieren",
               close: "Schließen",
@@ -1299,12 +1317,12 @@
           translation: {
             a11y: { skipToContent: "Aller au contenu" },
             common: { caravan: "Caravane" },
-            nav: { menu: "Menu", catalog: "Catalogue", transport: "Transport" },
-            actions: { resetFilters: "Réinitialiser", themeLight: "Thème : Clair", themeDark: "Thème : Sombre" },
-            hero: { title: "Trouvez la caravane idéale", text: "Filtrez par marque, modèle, année et état. Les résultats se mettent à jour en temps réel." },
+            nav: { menu: "Menu", catalog: "Catalogue", transport: "Transport", admin: "Admin" },
+            actions: { adminArea: "Espace Admin", editSite: "Modifier le site", resetFilters: "Réinitialiser", themeLight: "Thème : Clair", themeDark: "Thème : Sombre" },
+            hero: { title: "Trouvez la bonne caravane", text: "Filtrez par marque, modèle, année et état. Les résultats se mettent à jour en temps réel." },
             filters: {
               searchLabel: "Rechercher",
-              searchPlaceholder: "Ex. Adria, Hobby, 2021...",
+              searchPlaceholder: "ex. Adria, Hobby, 2021...",
               category: "Catégorie",
               all: "Toutes",
               status: "État",
@@ -1316,12 +1334,10 @@
               onlyWithPhotos: "Seulement avec photos"
             },
             status: { excellent: "Excellent", good: "Bon", toFix: "À réparer", new: "Neuf", sold: "Vendu" },
-            sort: { newest: "Plus récentes", priceAsc: "Prix croissant", priceDesc: "Prix décroissant", yearDesc: "Année la plus récente", yearAsc: "Année la plus ancienne" },
-            meta: { totalCards: "Total", results: "Résultats", updated: "Mise à jour" },
+            sort: { newest: "Les plus récentes", priceAsc: "Prix croissant", priceDesc: "Prix décroissant", yearDesc: "Année (plus récente)", yearAsc: "Année (plus ancienne)" },
+            meta: { totalCards: "Annonces totales", results: "Résultats", updated: "Mise à jour" },
             results: { title: "Disponibilité", liveStatus: "{{count}} résultats" },
-            footer: { tagline: "Catalogue sélectionné. Contacts rapides." },
-            contact: { title: "Confirmer disponibilité et prix ?", phone: "Téléphone", whatsapp: "WhatsApp", email: "E-mail" },
-            empty: { noResults: "Aucun résultat. Essayez de changer les filtres." },
+            empty: { noResults: "Aucun résultat. Essayez de changer les filtres ou ajoutez des annonces depuis l'espace admin." },
             detail: {
               copyLink: "Copier le lien",
               close: "Fermer",
@@ -1383,21 +1399,166 @@
     }
 
     function setCanonicalAndMeta() {
-      const baseUrl = location.origin + (location.pathname.endsWith('/') ? '' : location.pathname.replace(/[^/]+$/, '')) + 'index.html';
-      let link = document.querySelector('link[rel="canonical"]');
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = 'canonical';
-        document.head.appendChild(link);
+      function ensureMetaName(name) {
+        const n = String(name || '').trim();
+        if (!n) return null;
+        let el = document.querySelector(`meta[name="${CSS.escape(n)}"]`);
+        if (!el) {
+          el = document.createElement('meta');
+          el.setAttribute('name', n);
+          document.head.appendChild(el);
+        }
+        return el;
       }
-      link.href = baseUrl;
-      let ogUrl = document.querySelector('meta[property="og:url"]');
-      if (!ogUrl) {
-        ogUrl = document.createElement('meta');
-        ogUrl.setAttribute('property', 'og:url');
-        document.head.appendChild(ogUrl);
+
+      function ensureMetaProperty(prop) {
+        const p = String(prop || '').trim();
+        if (!p) return null;
+        let el = document.querySelector(`meta[property="${CSS.escape(p)}"]`);
+        if (!el) {
+          el = document.createElement('meta');
+          el.setAttribute('property', p);
+          document.head.appendChild(el);
+        }
+        return el;
       }
-      ogUrl.setAttribute('content', baseUrl);
+
+      function setMetaName(name, content) {
+        const el = ensureMetaName(name);
+        if (!el) return;
+        el.setAttribute('content', String(content ?? ''));
+      }
+
+      function setMetaProperty(prop, content) {
+        const el = ensureMetaProperty(prop);
+        if (!el) return;
+        el.setAttribute('content', String(content ?? ''));
+      }
+
+      function getIndexBaseUrl() {
+        const u = new URL(location.href);
+        u.hash = '';
+        u.search = '';
+        if (!u.pathname.toLowerCase().endsWith('index.html')) {
+          if (u.pathname.endsWith('/')) u.pathname = u.pathname + 'index.html';
+          else if (!u.pathname.toLowerCase().endsWith('.html')) u.pathname = u.pathname + '/index.html';
+        }
+        return u.toString();
+      }
+
+      function getOgLocaleFromLang(lang) {
+        const l = String(lang || 'it').toLowerCase();
+        if (l === 'en') return 'en_US';
+        if (l === 'de') return 'de_DE';
+        if (l === 'fr') return 'fr_FR';
+        return 'it_IT';
+      }
+
+      function setCanonical(url) {
+        let link = document.querySelector('link[rel="canonical"]');
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'canonical';
+          document.head.appendChild(link);
+        }
+        link.href = String(url || '');
+      }
+
+      function upsertJsonLd(id, data) {
+        const scriptId = String(id || '').trim();
+        if (!scriptId) return;
+        let s = document.getElementById(scriptId);
+        if (!s) {
+          s = document.createElement('script');
+          s.id = scriptId;
+          s.type = 'application/ld+json';
+          document.head.appendChild(s);
+        }
+        s.textContent = JSON.stringify(data);
+      }
+
+      function removeJsonLd(id) {
+        try {
+          const el = document.getElementById(String(id || ''));
+          if (el) el.remove();
+        } catch {}
+      }
+
+      const baseUrl = getIndexBaseUrl();
+      const detailId = currentDetailId || pendingUrlDetailId || '';
+      const canonicalUrl = detailId ? (function () {
+        const u = new URL(baseUrl);
+        u.searchParams.set('id', String(detailId));
+        return u.toString();
+      })() : baseUrl;
+
+      const shareUrl = (function () {
+        const u = new URL(location.href);
+        u.hash = '';
+        const id = String(currentDetailId || '').trim();
+        if (id && location.origin && location.origin !== 'null') return location.origin + '/p/' + encodeURIComponent(id);
+        return u.toString();
+      })();
+
+      const defaultTitle = 'Roulotte online';
+      const descriptionEl = document.querySelector('meta[name="description"]');
+      const defaultDescription = String(descriptionEl && descriptionEl.getAttribute('content') || '').trim();
+
+      setCanonical(canonicalUrl);
+      setMetaProperty('og:url', shareUrl);
+      setMetaProperty('og:locale', getOgLocaleFromLang(currentLang));
+
+      if (currentDetailId) {
+        const desc = truncate(stripHtml(detailNote && !detailNote.hidden ? detailNote.innerHTML : ''), 160) || defaultDescription;
+        const title = String(detailTitle && detailTitle.textContent || '').trim() || defaultTitle;
+        const img = (Array.isArray(currentGalleryPhotos) && currentGalleryPhotos[0]) ? String(currentGalleryPhotos[0]) : '';
+
+        document.title = `${defaultTitle} – ${title}`;
+        if (descriptionEl) descriptionEl.setAttribute('content', desc);
+
+        setMetaProperty('og:type', 'product');
+        setMetaProperty('og:title', title);
+        setMetaProperty('og:description', desc);
+        setMetaProperty('og:image', img);
+        setMetaName('twitter:card', img ? 'summary_large_image' : 'summary');
+        setMetaName('twitter:title', title);
+        setMetaName('twitter:description', desc);
+        setMetaName('twitter:image', img);
+
+        const offerPrice = Number.isFinite(Number(detailPrice && detailPrice.textContent ? String(detailPrice.textContent).replace(/[^\d]/g, '') : ''))
+          ? Number(String(detailPrice.textContent).replace(/[^\d]/g, ''))
+          : null;
+        const ld = {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          "name": title,
+          "description": desc,
+          "sku": String(currentDetailId),
+          "url": canonicalUrl,
+          "image": img ? [img] : undefined,
+          "offers": offerPrice !== null ? {
+            "@type": "Offer",
+            "priceCurrency": "EUR",
+            "price": offerPrice,
+            "availability": "https://schema.org/InStock",
+            "url": canonicalUrl
+          } : undefined
+        };
+        Object.keys(ld).forEach(k => (ld[k] === undefined) && delete ld[k]);
+        upsertJsonLd('jsonLdDetail', ld);
+      } else {
+        document.title = defaultTitle;
+        if (descriptionEl && defaultDescription) descriptionEl.setAttribute('content', defaultDescription);
+        setMetaProperty('og:type', 'website');
+        setMetaProperty('og:title', defaultTitle);
+        setMetaProperty('og:description', defaultDescription);
+        setMetaProperty('og:image', '');
+        setMetaName('twitter:card', 'summary');
+        setMetaName('twitter:title', defaultTitle);
+        setMetaName('twitter:description', defaultDescription);
+        setMetaName('twitter:image', '');
+        removeJsonLd('jsonLdDetail');
+      }
     }
 
     function injectJsonLdWebSite() {
@@ -1462,12 +1623,26 @@
       const lbN = document.getElementById('lbCounter');
       if (lbC) lbC.textContent = cap;
       if (lbN) lbN.textContent = `${lightboxIndex + 1}/${currentGalleryPhotos.length}`;
+      lastFocusBeforeLightbox = document.activeElement;
       imgLightbox.style.display = 'flex';
+      imgLightbox.setAttribute('aria-hidden', 'false');
+      const container = document.querySelector('.container');
+      if (container) container.setAttribute('aria-hidden', 'true');
+      try { document.body.style.overflow = 'hidden'; } catch {}
       lbClose.focus();
     }
     function closeLightbox() {
       imgLightbox.style.display = 'none';
+      imgLightbox.setAttribute('aria-hidden', 'true');
+      const container = document.querySelector('.container');
+      if (container) container.removeAttribute('aria-hidden');
+      try { document.body.style.overflow = ''; } catch {}
       lbImg.src = '';
+      try {
+        const el = lastFocusBeforeLightbox;
+        lastFocusBeforeLightbox = null;
+        if (el && typeof el.focus === 'function') el.focus();
+      } catch {}
     }
     lbClose.addEventListener('click', closeLightbox);
     lbPrev.addEventListener('click', () => openLightbox(lightboxIndex - 1 < 0 ? currentGalleryPhotos.length - 1 : lightboxIndex - 1));
@@ -1633,139 +1808,6 @@
           roulotte_id: currentDetailId ? String(currentDetailId) : null
         });
       });
-    }
-
-    function stripAdminLinksFromPublicDom() {
-      const nodes = Array.from(document.querySelectorAll('a[href]'));
-      for (const a of nodes) {
-        if (a.getAttribute('data-allow-admin-link') === '1') continue;
-        const href = String(a.getAttribute('href') || '').trim().toLowerCase();
-        if (!href) continue;
-        if (href.includes('admin.html')) a.remove();
-      }
-      const adminI18n = Array.from(document.querySelectorAll('[data-i18n="nav.admin"],[data-i18n="actions.adminArea"],[data-i18n="actions.editSite"]'));
-      for (const el of adminI18n) el.remove();
-    }
-
-    function wireAdminLogoEasterEgg() {
-      const header = document.getElementById('editableHeader');
-      if (!header) return;
-      const logo = header.querySelector('.logo');
-      if (!logo) return;
-      let taps = 0;
-      let t = 0;
-      bindOnce(logo, 'click', 'adminLogoEasterEgg', (e) => {
-        if (e && typeof e.preventDefault === 'function') e.preventDefault();
-        const now = Date.now();
-        if (!t || (now - t) > 1800) taps = 0;
-        taps++;
-        t = now;
-        if (taps >= 5) {
-          taps = 0;
-          location.href = 'admin.html';
-        }
-      });
-    }
-
-    function sanitizePhoneForTel(v) {
-      const raw = String(v || '').trim();
-      if (!raw) return '';
-      let out = raw.replace(/[^\d+]/g, '');
-      out = out.replace(/^\++/, '+');
-      if (out.startsWith('+')) {
-        const digits = out.slice(1).replace(/\D/g, '');
-        if (digits.length < 6) return '';
-        return '+' + digits;
-      }
-      out = out.replace(/\D/g, '');
-      if (out.length < 6) return '';
-      return out;
-    }
-
-    function normalizeWhatsappHref(v) {
-      const raw = String(v || '').trim();
-      if (!raw) return '';
-      if (/^https?:\/\//i.test(raw)) return raw;
-      let num = raw.replace(/[^\d]/g, '');
-      if (num.startsWith('00')) num = num.slice(2);
-      if (num.length < 8) return '';
-      return 'https://wa.me/' + num;
-    }
-
-    function ensureFooterContactCta() {
-      const footer = document.getElementById('editableFooter');
-      if (!footer) return null;
-      const existing = footer.querySelector('[data-role="footer-contact-cta"]');
-      if (existing) return existing;
-      const wrap = document.createElement('div');
-      wrap.className = 'footer-cta';
-      wrap.setAttribute('data-role', 'footer-contact-cta');
-      wrap.innerHTML = `
-        <div class="footer-cta-text">
-          <div class="footer-cta-sub" data-i18n="footer.tagline">Catalogo selezionato. Contatti rapidi.</div>
-          <div class="footer-cta-title" data-i18n="contact.title">Vuoi confermare disponibilità e prezzo?</div>
-        </div>
-        <div class="footer-cta-actions">
-          <a id="contactPhone" class="btn" href="#" rel="nofollow" data-i18n="contact.phone">Telefono</a>
-          <a id="contactWhatsapp" class="btn btn-primary" href="#" rel="nofollow" data-i18n="contact.whatsapp">WhatsApp</a>
-          <a id="contactEmail" class="btn" href="#" rel="nofollow" data-i18n="contact.email">Email</a>
-        </div>
-      `;
-      footer.appendChild(wrap);
-      return wrap;
-    }
-
-    async function initFooterContacts() {
-      const root = ensureFooterContactCta();
-      if (!root) return;
-      const nodes = root.querySelectorAll('[data-i18n]');
-      nodes.forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        if (!key) return;
-        const def = el.getAttribute('data-i18n-default');
-        const defaultValue = def !== null ? def : el.textContent;
-        el.textContent = tr(key, { defaultValue });
-      });
-      const phoneEl = document.getElementById('contactPhone');
-      const whatsappEl = document.getElementById('contactWhatsapp');
-      const emailEl = document.getElementById('contactEmail');
-      if (!phoneEl && !whatsappEl && !emailEl) return;
-
-      const cfg = await fetchJsonWithTimeout(getApiBaseUrl() + '/api/config', 2000);
-      const phoneRaw = String(cfg && cfg.contact_phone || '').trim();
-      const whatsappRaw = String(cfg && cfg.contact_whatsapp || '').trim();
-      const emailRaw = String(cfg && cfg.contact_email || '').trim();
-
-      if (phoneEl) {
-        const v = sanitizePhoneForTel(phoneRaw);
-        if (!v) phoneEl.style.display = 'none';
-        else {
-          phoneEl.style.display = '';
-          phoneEl.setAttribute('href', 'tel:' + v);
-        }
-      }
-
-      if (whatsappEl) {
-        const href = normalizeWhatsappHref(whatsappRaw);
-        if (!href) whatsappEl.style.display = 'none';
-        else {
-          whatsappEl.style.display = '';
-          whatsappEl.setAttribute('href', href);
-        }
-      }
-
-      if (emailEl) {
-        if (!emailRaw) emailEl.style.display = 'none';
-        else {
-          emailEl.style.display = '';
-          emailEl.setAttribute('href', 'mailto:' + emailRaw);
-        }
-      }
-
-      const anyVisible = (phoneEl && phoneEl.style.display !== 'none')
-        || (whatsappEl && whatsappEl.style.display !== 'none')
-        || (emailEl && emailEl.style.display !== 'none');
-      root.style.display = anyVisible ? '' : 'none';
     }
 
     async function initPosthog() {
@@ -2157,7 +2199,7 @@
     function persistFilters() {
       const state = getFilterState();
       try { localStorage.setItem('public_filters_v1', JSON.stringify(state)); } catch {}
-      setUrlState({ ...state, id: currentDetailId || '' });
+      setUrlState({ ...state, id: currentDetailId || pendingUrlDetailId || '' });
     }
 
     function restoreFilters() {
@@ -2208,6 +2250,35 @@
       }
     }
 
+    async function fetchRoulotteById(id, timeoutMs = 2500) {
+      const publicId = String(id || '').trim();
+      if (!publicId) return null;
+      if (window.RoulotteStore && typeof window.RoulotteStore.getRoulotteById === 'function') {
+        return await window.RoulotteStore.getRoulotteById(publicId, timeoutMs);
+      }
+      if (typeof fetch !== 'function') return null;
+      const base = getApiBaseUrl();
+      const url = (base || '') + '/api/roulottes/' + encodeURIComponent(publicId);
+      if (typeof AbortController === 'undefined') {
+        const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error('remote_get_failed');
+        const obj = await res.json().catch(() => null);
+        return obj && typeof obj === 'object' ? obj : null;
+      }
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' }, signal: controller.signal });
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error('remote_get_failed');
+        const obj = await res.json().catch(() => null);
+        return obj && typeof obj === 'object' ? obj : null;
+      } finally {
+        clearTimeout(t);
+      }
+    }
+
     function matchQuery(r, q, categoriesById) {
       if (!q) return true;
       const hay = [
@@ -2238,6 +2309,48 @@
     let remoteSeq = 0;
     let remoteTimer = null;
     let lastRemoteKey = '';
+    let dataLoadError = false;
+    let shareToken = '';
+    let shareMode = false;
+    let shareRoulottes = [];
+    let shareTitle = '';
+    let shareExpiresAt = null;
+
+    function getShareTokenFromUrl() {
+      try {
+        const p = new URLSearchParams(location.search || '');
+        return String(p.get('share') || '').trim();
+      } catch {
+        return '';
+      }
+    }
+
+    async function loadShareSelection(token, timeoutMs = 2500) {
+      const t = String(token || '').trim();
+      if (!t) return { ok: false, code: 'NOT_FOUND' };
+      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = ctrl ? setTimeout(() => ctrl.abort(), Math.max(300, Number(timeoutMs) || 0)) : null;
+      try {
+        const url = getApiBaseUrl() + '/api/share-links/roulottes?token=' + encodeURIComponent(t);
+        const r = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' }, signal: ctrl ? ctrl.signal : undefined });
+        const j = await r.json().catch(() => null);
+        if (!r.ok) {
+          const code = j && j.error ? String(j.error) : String(r.status);
+          return { ok: false, code };
+        }
+        const list = j && Array.isArray(j.roulottes) ? j.roulottes : [];
+        return {
+          ok: true,
+          title: String(j && j.title || '').trim(),
+          expiresAt: j && j.expiresAt ? j.expiresAt : null,
+          roulottes: list
+        };
+      } catch (e) {
+        return { ok: false, code: 'NETWORK_ERROR' };
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    }
 
     function getRemoteParamsFromUi() {
       const q = String(qEl.value || '').trim();
@@ -2258,6 +2371,7 @@
     }
 
     function shouldUseRemoteSearch(params) {
+      if (shareMode) return false;
       if (remoteSearchSupported === false) return false;
       if (!window.RoulotteStore || typeof window.RoulotteStore.searchRoulottes !== 'function') return false;
       const p = params && typeof params === 'object' ? params : {};
@@ -2427,19 +2541,10 @@
         status: getStatusLabel(r.stato)
       });
       detailPrice.textContent = formatPrice(r.prezzo);
+      lastFocusBeforeDetail = document.activeElement;
+      pendingUrlDetailId = null;
       currentDetailId = r.id || null;
       posthogCapture('roulotte_view', { roulotte_id: currentDetailId ? String(currentDetailId) : null });
-      document.title = `${defaultTitle} – ${detailTitle.textContent}`;
-      const firstPhotoForOg = Array.isArray(r.photos) && r.photos.length ? getPhotoUrl(r.photos[0], 'src') : '';
-      let ogImg = document.querySelector('meta[property="og:image"]');
-      if (!ogImg) { ogImg = document.createElement('meta'); ogImg.setAttribute('property','og:image'); document.head.appendChild(ogImg); }
-      ogImg.setAttribute('content', firstPhotoForOg || '');
-      let ogTitle = document.querySelector('meta[property="og:title"]');
-      if (!ogTitle) { ogTitle = document.createElement('meta'); ogTitle.setAttribute('property','og:title'); document.head.appendChild(ogTitle); }
-      ogTitle.setAttribute('content', detailTitle.textContent);
-      let ogDesc = document.querySelector('meta[property="og:description"]');
-      if (!ogDesc) { ogDesc = document.createElement('meta'); ogDesc.setAttribute('property','og:description'); document.head.appendChild(ogDesc); }
-      ogDesc.setAttribute('content', truncate(stripHtml(r.note || ''), 160));
       const note = String(r.note || '').trim();
       if (note) {
         detailNote.hidden = false;
@@ -2489,8 +2594,9 @@
             getPhotoUrl(item, 'src') + ' 1280w'
           ].join(', ');
           img.sizes = '(max-width:640px) 100vw, 33vw';
-          img.loading = 'lazy';
+          img.loading = i === 0 ? 'eager' : 'lazy';
           img.decoding = 'async';
+          if (i === 0) img.setAttribute('fetchpriority', 'high');
           img.style.width = '100%';
           img.style.height = '100%';
           img.style.objectFit = 'cover';
@@ -2542,6 +2648,8 @@
       updateTransportUi(transportDialog, '', tData);
       updateTransportUi(transportStandalone, detailTitle.textContent, tData);
       saveLastTransport(detailTitle.textContent, tData);
+      persistFilters();
+      setCanonicalAndMeta();
       if (typeof dialog.showModal === 'function') dialog.showModal();
       else dialog.setAttribute('open', 'open');
       setTimeout(() => {
@@ -2549,7 +2657,6 @@
         if (m && m.map && typeof m.map.invalidateSize === 'function') m.map.invalidateSize(true);
       }, 60);
       closeDialog.focus();
-      persistFilters();
     }
 
     function closeDetails() {
@@ -2559,8 +2666,14 @@
       if (typeof dialog.close === 'function') dialog.close();
       else dialog.removeAttribute('open');
       currentDetailId = null;
-      document.title = defaultTitle;
+      pendingUrlDetailId = null;
       persistFilters();
+      setCanonicalAndMeta();
+      try {
+        const el = lastFocusBeforeDetail;
+        lastFocusBeforeDetail = null;
+        if (el && typeof el.focus === 'function') el.focus();
+      } catch {}
     }
 
     function applyTheme(theme) {
@@ -2773,12 +2886,14 @@
       buildTransportContexts();
       if (!qEl || !statoEl || !sortEl || !cardsEl || !emptyEl || !totalCountEl || !resultCountEl || !lastUpdatedEl || !liveStatusEl) return;
       const db = window.RoulotteStore.getDB();
-      const all = db.roulottes || [];
-      const base = remoteActive ? remoteResults : all;
+      const all = shareMode ? (Array.isArray(shareRoulottes) ? shareRoulottes : []) : (db.roulottes || []);
+      const base = shareMode ? all : (remoteActive ? remoteResults : all);
       syncCategoryOptions(db.categories || [], categoryEl ? categoryEl.value : '');
       const categoriesById = Object.fromEntries((db.categories || []).map(c => [c.id, c.name]));
       totalCountEl.textContent = String(all.length);
-      lastUpdatedEl.textContent = db.updatedAt ? new Date(db.updatedAt).toLocaleString(getLocaleForLang(currentLang)) : '—';
+      lastUpdatedEl.textContent = shareMode
+        ? (shareExpiresAt ? new Date(shareExpiresAt).toLocaleString(getLocaleForLang(currentLang)) : '—')
+        : (db.updatedAt ? new Date(db.updatedAt).toLocaleString(getLocaleForLang(currentLang)) : '—');
 
       const q = normalize(qEl.value);
       const stato = statoEl.value;
@@ -2801,8 +2916,15 @@
 
       emptyEl.hidden = sorted.length !== 0;
       const frag = document.createDocumentFragment();
-      sorted.forEach(r => {
+      sorted.forEach((r, index) => {
         const card = createCardElement(r, categoriesById);
+        if (card && index < 3) {
+          const img = card.querySelector('img');
+          if (img) {
+            img.loading = 'eager';
+            img.setAttribute('fetchpriority', 'high');
+          }
+        }
         if (card) frag.appendChild(card);
       });
       cardsEl.appendChild(frag);
@@ -2810,9 +2932,24 @@
       persistFilters();
     }
 
+    function setEmptyStateMessage(message, opts) {
+      const o = (opts && typeof opts === 'object') ? opts : {};
+      const show = o.show !== undefined ? !!o.show : true;
+      const showRetry = !!o.showRetry;
+      if (!emptyEl) return;
+      const span = emptyEl.querySelector('span') || null;
+      if (span) span.textContent = String(message || '');
+      emptyEl.hidden = !show;
+      if (retryLoadEl) {
+        retryLoadEl.hidden = !showRetry;
+        retryLoadEl.disabled = false;
+      }
+    }
+
     let t = null;
     function scheduleRender() {
       if (t) clearTimeout(t);
+      if (!currentDetailId) pendingUrlDetailId = null;
       t = setTimeout(render, 100);
       scheduleRemoteSearch(260);
     }
@@ -2942,6 +3079,14 @@
                 } else if (window.RoulotteStore && typeof window.RoulotteStore.initializeStore === 'function') {
                   await window.RoulotteStore.initializeStore();
                 }
+                if (shareMode && shareToken) {
+                  const resolved = await loadShareSelection(shareToken, 2500);
+                  if (resolved && resolved.ok) {
+                    shareRoulottes = Array.isArray(resolved.roulottes) ? resolved.roulottes : [];
+                    shareTitle = String(resolved.title || '').trim();
+                    shareExpiresAt = resolved.expiresAt || null;
+                  }
+                }
                 clearTimeout(timer);
                 if (shown) hideCardsLoading();
               })
@@ -2950,7 +3095,8 @@
                 scheduleRemoteSearch(0);
                 if (currentDetailId) {
                   const db = window.RoulotteStore.getDB();
-                  const r = (db.roulottes || []).find(x => x.id === currentDetailId);
+                  const base = shareMode ? (Array.isArray(shareRoulottes) ? shareRoulottes : []) : (db.roulottes || []);
+                  const r = base.find(x => x.id === currentDetailId);
                   if (r) openDetails(r);
                 }
               })
@@ -2966,11 +3112,22 @@
       await initI18n();
       initPosthog();
       initTheme();
+      shareToken = getShareTokenFromUrl();
+      shareMode = !!shareToken;
+      if (shareMode) {
+        remoteSearchSupported = false;
+        remoteActive = false;
+        remoteResults = [];
+        lastRemoteKey = '';
+        const robots = document.querySelector('meta[name="robots"]');
+        if (robots) robots.setAttribute('content', 'noindex,nofollow');
+      }
       const last = loadLastTransport();
       if (last && last.data) {
         updateTransportUi(transportStandalone, last.title || '—', last.data);
       }
       createMap(transportStandalone);
+      pendingUrlDetailId = getUrlState().id || null;
       restoreFilters();
       setCanonicalAndMeta();
       injectJsonLdWebSite();
@@ -3185,8 +3342,6 @@
         } catch {}
       }
 
-      stripAdminLinksFromPublicDom();
-      await initFooterContacts();
       wireUi();
       wireCalculator(transportStandalone);
       wireCalculator(transportDialog);
@@ -3198,23 +3353,57 @@
         } else if (window.RoulotteStore.syncNow) {
           await window.RoulotteStore.syncNow();
         }
+
+        let shareResolveError = '';
+        if (shareMode) {
+          const resolved = await loadShareSelection(shareToken, 3000);
+          if (resolved && resolved.ok) {
+            shareRoulottes = Array.isArray(resolved.roulottes) ? resolved.roulottes : [];
+            shareTitle = String(resolved.title || '').trim();
+            shareExpiresAt = resolved.expiresAt || null;
+            if (shareTitle) document.title = 'Roulotte online – ' + shareTitle;
+          } else {
+            shareRoulottes = [];
+            shareTitle = '';
+            shareExpiresAt = null;
+            const code = resolved && resolved.code ? String(resolved.code) : 'NOT_FOUND';
+            shareResolveError = (code === 'EXPIRED') ? 'Link di condivisione scaduto.' : 'Link di condivisione non valido.';
+          }
+        }
         
         render();
+        if (shareMode && shareResolveError) setEmptyStateMessage(shareResolveError, { show: true, showRetry: false });
         scheduleRemoteSearch(0);
         hideCardsLoading();
         connectPublicWs();
         
-        const initialId = getUrlState().id;
+        const initialId = pendingUrlDetailId || '';
         if (initialId) {
           const db = window.RoulotteStore.getDB();
-          const r = (db.roulottes || []).find(x => x.id === initialId);
+          const base = shareMode ? (Array.isArray(shareRoulottes) ? shareRoulottes : []) : (db.roulottes || []);
+          const r = base.find(x => x.id === initialId);
           if (r) openDetails(r);
+          else {
+            try {
+              const remote = await fetchRoulotteById(initialId, 3000);
+              if (remote) {
+                openDetails(remote);
+              } else {
+                pendingUrlDetailId = null;
+                persistFilters();
+                setCanonicalAndMeta();
+                alert(tr('detail.notFound', { defaultValue: 'Scheda non trovata o non disponibile.' }));
+              }
+            } catch {
+              alert(tr('errors.loadDetail', { defaultValue: 'Impossibile caricare la scheda. Riprova più tardi.' }));
+            }
+          }
         }
 
       } catch (error) {
         console.error("Errore durante l'inizializzazione dello store:", error);
-        emptyEl.textContent = tr('errors.loadData', { defaultValue: "Si è verificato un errore nel caricamento dei dati. Riprova più tardi." });
-        emptyEl.hidden = false;
+        dataLoadError = true;
+        setEmptyStateMessage(tr('errors.loadData', { defaultValue: "Si è verificato un errore nel caricamento dei dati. Riprova più tardi." }), { show: true, showRetry: true });
       } finally {
         hideCardsLoading();
       }

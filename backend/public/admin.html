@@ -888,13 +888,7 @@
           </div>
         </div>
         <div class="card">
-          <div style="display:grid;grid-template-columns:280px 1fr;gap:12px;align-items:stretch">
-            <div style="border:1px solid var(--border);border-radius:12px;overflow:auto;background:rgba(255,255,255,.55);max-height:70vh">
-              <div style="padding:10px 10px 0 10px;font-weight:900">Blocchi</div>
-              <div id="gjsBlocks" style="padding:10px"></div>
-            </div>
-            <div id="gjs" style="height:70vh;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff"></div>
-          </div>
+          <div id="gjs" style="height:70vh;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff"></div>
         </div>
       </section>
       <section id="new" class="section" aria-label="Nuova roulotte">
@@ -918,282 +912,6 @@
                 <span class="help-badge">Copertina: prima foto</span>
                 <span class="help-badge">Upload: barra di avanzamento</span>
               </div>
-            </div>
-          </details>
-
-          <details class="help-card" id="newDefaultsCard" style="margin-top:10px">
-            <summary>Valori predefiniti (Nuova scheda)</summary>
-            <div class="help-grid">
-              <div class="hint">Imposta valori “di default” per velocizzare l’inserimento. Verranno applicati quando premi “Nuova Scheda”.</div>
-              <div class="help-badges" style="margin-top:8px">
-                <span class="help-badge" id="newDefaultsBadge">Predefiniti: —</span>
-              </div>
-              <div id="newDefaultsSummary" class="hint" style="margin-top:6px"></div>
-              <div class="form-grid" style="margin-top:10px">
-                <div class="field">
-                  <label for="defaultCategoryId">Categoria predefinita</label>
-                  <select id="defaultCategoryId">
-                    <option value="">-- Non impostata --</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultStatoAnnuncio">Pubblicazione predefinita</label>
-                  <select id="defaultStatoAnnuncio">
-                    <option value="">-- Non impostata --</option>
-                    <option value="bozza">Bozza</option>
-                    <option value="verifica">Verifica</option>
-                    <option value="pubblicato">Pubblicato</option>
-                    <option value="venduto">Venduto</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultStato">Stato predefinito</label>
-                  <select id="defaultStato">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Ottimo">Ottimo</option>
-                    <option value="Buono">Buono</option>
-                    <option value="Da sistemare">Da sistemare</option>
-                    <option value="Nuovo">Nuovo</option>
-                    <option value="Venduto">Venduto</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultTipologiaMezzo">Tipologia predefinita</label>
-                  <select id="defaultTipologiaMezzo">
-                    <option value="">-- Non impostata --</option>
-                    <option value="Roulotte stradale">Roulotte stradale</option>
-                    <option value="Roulotte da campeggio">Roulotte da campeggio</option>
-                    <option value="Casa mobile">Casa mobile</option>
-                    <option value="Da sistemare / progetto">Da sistemare / progetto</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultProntaConsegna">Pronta consegna</label>
-                  <select id="defaultProntaConsegna">
-                    <option value="">-- Non impostato --</option>
-                    <option value="true">Sì</option>
-                    <option value="false">No</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultPermuta">Permuta</label>
-                  <select id="defaultPermuta">
-                    <option value="">-- Non impostata --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-grid" style="margin-top:10px">
-                <div class="field">
-                  <label for="defaultCondizioneGenerale">Condizione generale</label>
-                  <select id="defaultCondizioneGenerale">
-                    <option value="">-- Non impostata --</option>
-                    <option value="Nuovo">Nuovo</option>
-                    <option value="Usato">Usato</option>
-                    <option value="Da sistemare">Da sistemare</option>
-                    <option value="Da demolire">Da demolire</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultStatoInterni">Stato interni</label>
-                  <select id="defaultStatoInterni">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Ottimo">Ottimo</option>
-                    <option value="Buono">Buono</option>
-                    <option value="Discreto">Discreto</option>
-                    <option value="Da rifare">Da rifare</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultStatoEsterni">Stato esterni</label>
-                  <select id="defaultStatoEsterni">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Ottimo">Ottimo</option>
-                    <option value="Buono">Buono</option>
-                    <option value="Discreto">Discreto</option>
-                    <option value="Da rifare">Da rifare</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultInfiltrazioni">Infiltrazioni</label>
-                  <select id="defaultInfiltrazioni">
-                    <option value="">-- Non impostate --</option>
-                    <option value="No">No</option>
-                    <option value="Sì">Sì</option>
-                    <option value="Da verificare">Da verificare</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultOdori">Odori / muffe</label>
-                  <select id="defaultOdori">
-                    <option value="">-- Non impostato --</option>
-                    <option value="No">No</option>
-                    <option value="Sì">Sì</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultProvenienza">Provenienza</label>
-                  <select id="defaultProvenienza">
-                    <option value="">-- Non impostata --</option>
-                    <option value="Privato">Privato</option>
-                    <option value="Campeggio">Campeggio</option>
-                    <option value="Estero">Estero</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-grid" style="margin-top:10px">
-                <div class="field">
-                  <label for="defaultTargata">Targata</label>
-                  <select id="defaultTargata">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultLibrettoCircolazione">Libretto circolazione</label>
-                  <select id="defaultLibrettoCircolazione">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultOmologataCircolazione">Omologata circolazione</label>
-                  <select id="defaultOmologataCircolazione">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultNumeroAssi">Numero assi</label>
-                  <select id="defaultNumeroAssi">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Monoasse">Monoasse</option>
-                    <option value="Doppio asse">Doppio asse</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-grid" style="margin-top:10px">
-                <div class="field">
-                  <label for="defaultPresa220Esterna">Presa 220V esterna</label>
-                  <select id="defaultPresa220Esterna">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultImpianto12V">Impianto 12V</label>
-                  <select id="defaultImpianto12V">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultBatteriaServizi">Batteria servizi</label>
-                  <select id="defaultBatteriaServizi">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultIlluminazioneLed">Illuminazione LED</label>
-                  <select id="defaultIlluminazioneLed">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultImpiantoGas">Impianto gas</label>
-                  <select id="defaultImpiantoGas">
-                    <option value="">-- Non impostato --</option>
-                    <option value="A norma">A norma</option>
-                    <option value="Da verificare">Da verificare</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultSerbatoioAcquaPulita">Serbatoio acqua pulita</label>
-                  <select id="defaultSerbatoioAcquaPulita">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-grid" style="margin-top:10px">
-                <div class="field">
-                  <label for="defaultSerbatoioAcqueGrigie">Serbatoio acque grigie</label>
-                  <select id="defaultSerbatoioAcqueGrigie">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultRiscaldamento">Riscaldamento</label>
-                  <select id="defaultRiscaldamento">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultTipoRiscaldamento">Tipo riscaldamento</label>
-                  <select id="defaultTipoRiscaldamento">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Truma">Truma</option>
-                    <option value="Elettrico">Elettrico</option>
-                    <option value="Altro">Altro</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultClimatizzatore">Climatizzatore</label>
-                  <select id="defaultClimatizzatore">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultPredisposizioneClima">Predisposizione clima</label>
-                  <select id="defaultPredisposizioneClima">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="defaultVerandaTendalino">Veranda / tendalino</label>
-                  <select id="defaultVerandaTendalino">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-grid" style="margin-top:10px">
-                <div class="field">
-                  <label for="defaultPortabici">Portabici</label>
-                  <select id="defaultPortabici">
-                    <option value="">-- Non impostato --</option>
-                    <option value="Sì">Sì</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-              </div>
-              <div class="row-actions" style="justify-content:flex-start">
-                <button class="btn btn-primary" type="button" id="saveNewDefaultsBtn">Salva predefiniti</button>
-                <button class="btn" type="button" id="copyNewDefaultsBtn">Copia dal form</button>
-                <button class="btn" type="button" id="applyNewDefaultsBtn">Applica ora</button>
-                <button class="btn btn-danger" type="button" id="clearNewDefaultsBtn">Azzera predefiniti</button>
-              </div>
-              <div id="newDefaultsMsg" class="error ok" hidden style="background:rgba(16,185,129,.16);border-color:rgba(16,185,129,.35);color:#a7f3d0"></div>
             </div>
           </details>
 
@@ -1814,27 +1532,25 @@
             </div>
           </div>
 
-          <div id="listBulkBar" style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <label style="display:flex;gap:8px;align-items:center">
-              <input type="checkbox" id="listSelectAll" />
-              <span>Seleziona tutti (risultati filtrati)</span>
-            </label>
-            <div class="hint" id="listSelectedMeta">0 selezionati</div>
-            <div style="flex:1"></div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div style="margin-top:10px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
               <div class="field" style="min-width:220px">
-                <label class="sr-only" for="listBulkAction">Azione</label>
-                <select id="listBulkAction">
-                  <option value="">Azione in blocco…</option>
-                  <option value="delete">Elimina selezionati</option>
-                  <option value="pub:bozza">Imposta pubblicazione: Bozza</option>
-                  <option value="pub:verifica">Imposta pubblicazione: Verifica</option>
-                  <option value="pub:pubblicato">Imposta pubblicazione: Pubblicato</option>
-                  <option value="pub:venduto">Imposta pubblicazione: Venduto</option>
+                <label for="shareTitle">Titolo condivisione</label>
+                <input id="shareTitle" type="text" autocomplete="off" placeholder="Es. Selezione per cliente Rossi" />
+              </div>
+              <div class="field" style="min-width:160px">
+                <label for="shareExpires">Scadenza</label>
+                <select id="shareExpires">
+                  <option value="1">1 giorno</option>
+                  <option value="7" selected>7 giorni</option>
+                  <option value="30">30 giorni</option>
                 </select>
               </div>
-              <button class="btn btn-danger" type="button" id="listBulkApplyBtn" disabled>Esegui</button>
-              <button class="btn" type="button" id="listBulkClearBtn" disabled>Deseleziona</button>
+              <button class="btn" type="button" id="shareClearSel">Pulisci selezione</button>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+              <div class="hint" id="shareSelCount"></div>
+              <button class="btn btn-primary" type="button" id="shareCreateBtn">Crea link selezione</button>
             </div>
           </div>
 
@@ -1842,7 +1558,7 @@
             <table>
               <thead>
                 <tr>
-                  <th style="width:44px"></th>
+                  <th style="width:52px">Sel.</th>
                   <th>Roulotte</th>
                   <th>Anno</th>
                   <th>Prezzo</th>
@@ -2238,339 +1954,6 @@
     const impiantoGasEl = document.getElementById('impiantoGas');
     const numeroBomboleEl = document.getElementById('numeroBombole');
     const scadenzaImpiantoGasEl = document.getElementById('scadenzaImpiantoGas');
-
-    const defaultCategoryIdEl = document.getElementById('defaultCategoryId');
-    const defaultStatoAnnuncioEl = document.getElementById('defaultStatoAnnuncio');
-    const defaultStatoEl = document.getElementById('defaultStato');
-    const defaultTipologiaMezzoEl = document.getElementById('defaultTipologiaMezzo');
-    const defaultProntaConsegnaEl = document.getElementById('defaultProntaConsegna');
-    const defaultPermutaEl = document.getElementById('defaultPermuta');
-    const defaultCondizioneGeneraleEl = document.getElementById('defaultCondizioneGenerale');
-    const defaultStatoInterniEl = document.getElementById('defaultStatoInterni');
-    const defaultStatoEsterniEl = document.getElementById('defaultStatoEsterni');
-    const defaultInfiltrazioniEl = document.getElementById('defaultInfiltrazioni');
-    const defaultOdoriEl = document.getElementById('defaultOdori');
-    const defaultProvenienzaEl = document.getElementById('defaultProvenienza');
-    const defaultTargataEl = document.getElementById('defaultTargata');
-    const defaultLibrettoCircolazioneEl = document.getElementById('defaultLibrettoCircolazione');
-    const defaultOmologataCircolazioneEl = document.getElementById('defaultOmologataCircolazione');
-    const defaultNumeroAssiEl = document.getElementById('defaultNumeroAssi');
-    const defaultPresa220EsternaEl = document.getElementById('defaultPresa220Esterna');
-    const defaultImpianto12VEl = document.getElementById('defaultImpianto12V');
-    const defaultBatteriaServiziEl = document.getElementById('defaultBatteriaServizi');
-    const defaultIlluminazioneLedEl = document.getElementById('defaultIlluminazioneLed');
-    const defaultImpiantoGasEl = document.getElementById('defaultImpiantoGas');
-    const defaultSerbatoioAcquaPulitaEl = document.getElementById('defaultSerbatoioAcquaPulita');
-    const defaultSerbatoioAcqueGrigieEl = document.getElementById('defaultSerbatoioAcqueGrigie');
-    const defaultRiscaldamentoEl = document.getElementById('defaultRiscaldamento');
-    const defaultTipoRiscaldamentoEl = document.getElementById('defaultTipoRiscaldamento');
-    const defaultClimatizzatoreEl = document.getElementById('defaultClimatizzatore');
-    const defaultPredisposizioneClimaEl = document.getElementById('defaultPredisposizioneClima');
-    const defaultVerandaTendalinoEl = document.getElementById('defaultVerandaTendalino');
-    const defaultPortabiciEl = document.getElementById('defaultPortabici');
-
-    const saveNewDefaultsBtn = document.getElementById('saveNewDefaultsBtn');
-    const copyNewDefaultsBtn = document.getElementById('copyNewDefaultsBtn');
-    const applyNewDefaultsBtn = document.getElementById('applyNewDefaultsBtn');
-    const clearNewDefaultsBtn = document.getElementById('clearNewDefaultsBtn');
-    const newDefaultsMsgEl = document.getElementById('newDefaultsMsg');
-    const newDefaultsBadgeEl = document.getElementById('newDefaultsBadge');
-    const newDefaultsSummaryEl = document.getElementById('newDefaultsSummary');
-
-    let newDefaultsCache = null;
-
-    function setNewDefaultsMsg(text, ok) {
-      if (!newDefaultsMsgEl) return;
-      const t = String(text || '').trim();
-      if (!t) {
-        newDefaultsMsgEl.hidden = true;
-        newDefaultsMsgEl.textContent = '';
-        newDefaultsMsgEl.className = 'error ok';
-        return;
-      }
-      newDefaultsMsgEl.hidden = false;
-      newDefaultsMsgEl.className = ok ? 'error ok' : 'error';
-      newDefaultsMsgEl.textContent = t;
-    }
-
-    function readNewDefaultsFromUi() {
-      const prontaRaw = defaultProntaConsegnaEl ? String(defaultProntaConsegnaEl.value || '') : '';
-      const prontaOut = prontaRaw === '' ? '' : (prontaRaw === 'true' ? true : prontaRaw === 'false' ? false : '');
-      return {
-        category_id: defaultCategoryIdEl ? String(defaultCategoryIdEl.value || '') : '',
-        stato_annuncio: defaultStatoAnnuncioEl ? String(defaultStatoAnnuncioEl.value || '') : '',
-        stato: defaultStatoEl ? String(defaultStatoEl.value || '') : '',
-        tipologia_mezzo: defaultTipologiaMezzoEl ? String(defaultTipologiaMezzoEl.value || '') : '',
-        pronta_consegna: prontaOut,
-        permuta: defaultPermutaEl ? String(defaultPermutaEl.value || '') : '',
-        condizione_generale: defaultCondizioneGeneraleEl ? String(defaultCondizioneGeneraleEl.value || '') : '',
-        stato_interni: defaultStatoInterniEl ? String(defaultStatoInterniEl.value || '') : '',
-        stato_esterni: defaultStatoEsterniEl ? String(defaultStatoEsterniEl.value || '') : '',
-        infiltrazioni: defaultInfiltrazioniEl ? String(defaultInfiltrazioniEl.value || '') : '',
-        odori: defaultOdoriEl ? String(defaultOdoriEl.value || '') : '',
-        provenienza: defaultProvenienzaEl ? String(defaultProvenienzaEl.value || '') : '',
-        targata: defaultTargataEl ? String(defaultTargataEl.value || '') : '',
-        libretto_circolazione: defaultLibrettoCircolazioneEl ? String(defaultLibrettoCircolazioneEl.value || '') : '',
-        omologata_circolazione: defaultOmologataCircolazioneEl ? String(defaultOmologataCircolazioneEl.value || '') : '',
-        numero_assi: defaultNumeroAssiEl ? String(defaultNumeroAssiEl.value || '') : '',
-        presa_220_esterna: defaultPresa220EsternaEl ? String(defaultPresa220EsternaEl.value || '') : '',
-        impianto_12v: defaultImpianto12VEl ? String(defaultImpianto12VEl.value || '') : '',
-        batteria_servizi: defaultBatteriaServiziEl ? String(defaultBatteriaServiziEl.value || '') : '',
-        illuminazione_led: defaultIlluminazioneLedEl ? String(defaultIlluminazioneLedEl.value || '') : '',
-        impianto_gas: defaultImpiantoGasEl ? String(defaultImpiantoGasEl.value || '') : '',
-        serbatoio_acqua_pulita: defaultSerbatoioAcquaPulitaEl ? String(defaultSerbatoioAcquaPulitaEl.value || '') : '',
-        serbatoio_acque_grigie: defaultSerbatoioAcqueGrigieEl ? String(defaultSerbatoioAcqueGrigieEl.value || '') : '',
-        riscaldamento: defaultRiscaldamentoEl ? String(defaultRiscaldamentoEl.value || '') : '',
-        tipo_riscaldamento: defaultTipoRiscaldamentoEl ? String(defaultTipoRiscaldamentoEl.value || '') : '',
-        climatizzatore: defaultClimatizzatoreEl ? String(defaultClimatizzatoreEl.value || '') : '',
-        predisposizione_clima: defaultPredisposizioneClimaEl ? String(defaultPredisposizioneClimaEl.value || '') : '',
-        veranda_tendalino: defaultVerandaTendalinoEl ? String(defaultVerandaTendalinoEl.value || '') : '',
-        portabici: defaultPortabiciEl ? String(defaultPortabiciEl.value || '') : '',
-      };
-    }
-
-    function setNewDefaultsUiFromObj(o) {
-      const d = o && typeof o === 'object' ? o : {};
-      if (defaultCategoryIdEl) defaultCategoryIdEl.value = String(d.category_id || '');
-      if (defaultStatoAnnuncioEl) defaultStatoAnnuncioEl.value = String(d.stato_annuncio || '');
-      if (defaultStatoEl) defaultStatoEl.value = String(d.stato || '');
-      if (defaultTipologiaMezzoEl) defaultTipologiaMezzoEl.value = String(d.tipologia_mezzo || '');
-      if (defaultProntaConsegnaEl) defaultProntaConsegnaEl.value = (d.pronta_consegna === true ? 'true' : d.pronta_consegna === false ? 'false' : '');
-      if (defaultPermutaEl) defaultPermutaEl.value = String(d.permuta || '');
-      if (defaultCondizioneGeneraleEl) defaultCondizioneGeneraleEl.value = String(d.condizione_generale || '');
-      if (defaultStatoInterniEl) defaultStatoInterniEl.value = String(d.stato_interni || '');
-      if (defaultStatoEsterniEl) defaultStatoEsterniEl.value = String(d.stato_esterni || '');
-      if (defaultInfiltrazioniEl) defaultInfiltrazioniEl.value = String(d.infiltrazioni || '');
-      if (defaultOdoriEl) defaultOdoriEl.value = String(d.odori || '');
-      if (defaultProvenienzaEl) defaultProvenienzaEl.value = String(d.provenienza || '');
-      if (defaultTargataEl) defaultTargataEl.value = String(d.targata || '');
-      if (defaultLibrettoCircolazioneEl) defaultLibrettoCircolazioneEl.value = String(d.libretto_circolazione || '');
-      if (defaultOmologataCircolazioneEl) defaultOmologataCircolazioneEl.value = String(d.omologata_circolazione || '');
-      if (defaultNumeroAssiEl) defaultNumeroAssiEl.value = String(d.numero_assi || '');
-      if (defaultPresa220EsternaEl) defaultPresa220EsternaEl.value = String(d.presa_220_esterna || '');
-      if (defaultImpianto12VEl) defaultImpianto12VEl.value = String(d.impianto_12v || '');
-      if (defaultBatteriaServiziEl) defaultBatteriaServiziEl.value = String(d.batteria_servizi || '');
-      if (defaultIlluminazioneLedEl) defaultIlluminazioneLedEl.value = String(d.illuminazione_led || '');
-      if (defaultImpiantoGasEl) defaultImpiantoGasEl.value = String(d.impianto_gas || '');
-      if (defaultSerbatoioAcquaPulitaEl) defaultSerbatoioAcquaPulitaEl.value = String(d.serbatoio_acqua_pulita || '');
-      if (defaultSerbatoioAcqueGrigieEl) defaultSerbatoioAcqueGrigieEl.value = String(d.serbatoio_acque_grigie || '');
-      if (defaultRiscaldamentoEl) defaultRiscaldamentoEl.value = String(d.riscaldamento || '');
-      if (defaultTipoRiscaldamentoEl) defaultTipoRiscaldamentoEl.value = String(d.tipo_riscaldamento || '');
-      if (defaultClimatizzatoreEl) defaultClimatizzatoreEl.value = String(d.climatizzatore || '');
-      if (defaultPredisposizioneClimaEl) defaultPredisposizioneClimaEl.value = String(d.predisposizione_clima || '');
-      if (defaultVerandaTendalinoEl) defaultVerandaTendalinoEl.value = String(d.veranda_tendalino || '');
-      if (defaultPortabiciEl) defaultPortabiciEl.value = String(d.portabici || '');
-    }
-
-    function applyNewDefaultsToForm(o) {
-      const d = o && typeof o === 'object' ? o : null;
-      if (!d) return;
-
-      if (categoryIdEl && d.category_id) categoryIdEl.value = String(d.category_id);
-      if (statoEl && d.stato) statoEl.value = String(d.stato);
-      if (statoAnnuncioEl && d.stato_annuncio) statoAnnuncioEl.value = String(d.stato_annuncio);
-      if (tipologiaMezzoEl && d.tipologia_mezzo) tipologiaMezzoEl.value = String(d.tipologia_mezzo);
-      if (prontaConsegnaEl && (d.pronta_consegna === true || d.pronta_consegna === false)) prontaConsegnaEl.checked = d.pronta_consegna === true;
-
-      if (d.permuta) {
-        const v = String(d.permuta);
-        const radio = document.querySelector(`input[type="radio"][name="permuta"][value="${CSS.escape(v)}"]`);
-        if (radio) radio.checked = true;
-      }
-
-      if (condizioneGeneraleEl && d.condizione_generale) condizioneGeneraleEl.value = String(d.condizione_generale);
-      if (statoInterniEl && d.stato_interni) statoInterniEl.value = String(d.stato_interni);
-      if (statoEsterniEl && d.stato_esterni) statoEsterniEl.value = String(d.stato_esterni);
-      if (infiltrazioniEl && d.infiltrazioni) infiltrazioniEl.value = String(d.infiltrazioni);
-      if (odoriEl && d.odori) odoriEl.value = String(d.odori);
-      if (provenienzaEl && d.provenienza) provenienzaEl.value = String(d.provenienza);
-
-      if (targataEl && d.targata) targataEl.value = String(d.targata);
-      if (librettoCircolazioneEl && d.libretto_circolazione) librettoCircolazioneEl.value = String(d.libretto_circolazione);
-      if (omologataCircolazioneEl && d.omologata_circolazione) omologataCircolazioneEl.value = String(d.omologata_circolazione);
-      if (numeroAssiEl && d.numero_assi) numeroAssiEl.value = String(d.numero_assi);
-
-      if (presa220EsternaEl && d.presa_220_esterna) presa220EsternaEl.value = String(d.presa_220_esterna);
-      if (impianto12VEl && d.impianto_12v) impianto12VEl.value = String(d.impianto_12v);
-      if (batteriaServiziEl && d.batteria_servizi) batteriaServiziEl.value = String(d.batteria_servizi);
-      if (illuminazioneLedEl && d.illuminazione_led) illuminazioneLedEl.value = String(d.illuminazione_led);
-      if (impiantoGasEl && d.impianto_gas) impiantoGasEl.value = String(d.impianto_gas);
-      if (serbatoioAcquaPulitaEl && d.serbatoio_acqua_pulita) serbatoioAcquaPulitaEl.value = String(d.serbatoio_acqua_pulita);
-      if (serbatoioAcqueGrigieEl && d.serbatoio_acque_grigie) serbatoioAcqueGrigieEl.value = String(d.serbatoio_acque_grigie);
-      if (riscaldamentoEl && d.riscaldamento) riscaldamentoEl.value = String(d.riscaldamento);
-      if (tipoRiscaldamentoEl && d.tipo_riscaldamento) tipoRiscaldamentoEl.value = String(d.tipo_riscaldamento);
-      if (climatizzatoreEl && d.climatizzatore) climatizzatoreEl.value = String(d.climatizzatore);
-      if (predisposizioneClimaEl && d.predisposizione_clima) predisposizioneClimaEl.value = String(d.predisposizione_clima);
-      if (verandaTendalinoEl && d.veranda_tendalino) verandaTendalinoEl.value = String(d.veranda_tendalino);
-      if (portabiciEl && d.portabici) portabiciEl.value = String(d.portabici);
-    }
-
-    function refreshNewDefaultsIndicator() {
-      if (!newDefaultsBadgeEl && !newDefaultsSummaryEl) return;
-      const d = newDefaultsCache && typeof newDefaultsCache === 'object' ? newDefaultsCache : null;
-      if (!d) {
-        if (newDefaultsBadgeEl) newDefaultsBadgeEl.textContent = 'Predefiniti: —';
-        if (newDefaultsSummaryEl) newDefaultsSummaryEl.textContent = '';
-        return;
-      }
-      const activePairs = [];
-      const add = (label, value) => {
-        const v = String(value ?? '').trim();
-        if (!v) return;
-        activePairs.push([label, v]);
-      };
-      add('Categoria', d.category_id);
-      add('Pubblicazione', d.stato_annuncio);
-      add('Stato', d.stato);
-      add('Tipologia', d.tipologia_mezzo);
-      if (d.pronta_consegna === true || d.pronta_consegna === false) activePairs.push(['Pronta consegna', d.pronta_consegna === true ? 'Sì' : 'No']);
-      add('Permuta', d.permuta);
-      add('Condizione generale', d.condizione_generale);
-      add('Stato interni', d.stato_interni);
-      add('Stato esterni', d.stato_esterni);
-      add('Infiltrazioni', d.infiltrazioni);
-      add('Odori', d.odori);
-      add('Provenienza', d.provenienza);
-      add('Targata', d.targata);
-      add('Libretto', d.libretto_circolazione);
-      add('Omologata', d.omologata_circolazione);
-      add('Numero assi', d.numero_assi);
-      add('Presa 220V', d.presa_220_esterna);
-      add('Impianto 12V', d.impianto_12v);
-      add('Batteria servizi', d.batteria_servizi);
-      add('LED', d.illuminazione_led);
-      add('Impianto gas', d.impianto_gas);
-      add('Serb. acqua pulita', d.serbatoio_acqua_pulita);
-      add('Serb. acque grigie', d.serbatoio_acque_grigie);
-      add('Riscaldamento', d.riscaldamento);
-      add('Tipo riscaldamento', d.tipo_riscaldamento);
-      add('Climatizzatore', d.climatizzatore);
-      add('Predisposizione clima', d.predisposizione_clima);
-      add('Veranda/tendalino', d.veranda_tendalino);
-      add('Portabici', d.portabici);
-
-      const count = activePairs.length;
-      if (newDefaultsBadgeEl) newDefaultsBadgeEl.textContent = count ? `Predefiniti: ${count} attivi` : 'Predefiniti: nessuno';
-      if (newDefaultsSummaryEl) {
-        const parts = activePairs.slice(0, 8).map(([k, v]) => `${k}: ${v}`);
-        const rest = count - parts.length;
-        newDefaultsSummaryEl.textContent = count ? (parts.join(' · ') + (rest > 0 ? ` · +${rest}` : '')) : '';
-      }
-    }
-
-    function copyNewDefaultsFromFormToUi() {
-      const permutaChecked = document.querySelector('input[type="radio"][name="permuta"]:checked');
-      const permutaVal = permutaChecked ? String(permutaChecked.value || '') : '';
-      const o = {
-        category_id: categoryIdEl ? String(categoryIdEl.value || '') : '',
-        stato_annuncio: statoAnnuncioEl ? String(statoAnnuncioEl.value || '') : '',
-        stato: statoEl ? String(statoEl.value || '') : '',
-        tipologia_mezzo: tipologiaMezzoEl ? String(tipologiaMezzoEl.value || '') : '',
-        pronta_consegna: prontaConsegnaEl ? (prontaConsegnaEl.checked ? true : false) : '',
-        permuta: permutaVal,
-        condizione_generale: condizioneGeneraleEl ? String(condizioneGeneraleEl.value || '') : '',
-        stato_interni: statoInterniEl ? String(statoInterniEl.value || '') : '',
-        stato_esterni: statoEsterniEl ? String(statoEsterniEl.value || '') : '',
-        infiltrazioni: infiltrazioniEl ? String(infiltrazioniEl.value || '') : '',
-        odori: odoriEl ? String(odoriEl.value || '') : '',
-        provenienza: provenienzaEl ? String(provenienzaEl.value || '') : '',
-        targata: targataEl ? String(targataEl.value || '') : '',
-        libretto_circolazione: librettoCircolazioneEl ? String(librettoCircolazioneEl.value || '') : '',
-        omologata_circolazione: omologataCircolazioneEl ? String(omologataCircolazioneEl.value || '') : '',
-        numero_assi: numeroAssiEl ? String(numeroAssiEl.value || '') : '',
-        presa_220_esterna: presa220EsternaEl ? String(presa220EsternaEl.value || '') : '',
-        impianto_12v: impianto12VEl ? String(impianto12VEl.value || '') : '',
-        batteria_servizi: batteriaServiziEl ? String(batteriaServiziEl.value || '') : '',
-        illuminazione_led: illuminazioneLedEl ? String(illuminazioneLedEl.value || '') : '',
-        impianto_gas: impiantoGasEl ? String(impiantoGasEl.value || '') : '',
-        serbatoio_acqua_pulita: serbatoioAcquaPulitaEl ? String(serbatoioAcquaPulitaEl.value || '') : '',
-        serbatoio_acque_grigie: serbatoioAcqueGrigieEl ? String(serbatoioAcqueGrigieEl.value || '') : '',
-        riscaldamento: riscaldamentoEl ? String(riscaldamentoEl.value || '') : '',
-        tipo_riscaldamento: tipoRiscaldamentoEl ? String(tipoRiscaldamentoEl.value || '') : '',
-        climatizzatore: climatizzatoreEl ? String(climatizzatoreEl.value || '') : '',
-        predisposizione_clima: predisposizioneClimaEl ? String(predisposizioneClimaEl.value || '') : '',
-        veranda_tendalino: verandaTendalinoEl ? String(verandaTendalinoEl.value || '') : '',
-        portabici: portabiciEl ? String(portabiciEl.value || '') : '',
-      };
-      setNewDefaultsUiFromObj(o);
-      setNewDefaultsMsg('Valori copiati dal form. Premi “Salva predefiniti” per renderli permanenti.', true);
-    }
-
-    async function loadNewDefaultsFromServer() {
-      const token = window.RoulotteStore.getAuthToken();
-      if (!token) { logout(); return null; }
-      const r = await fetch(apiUrl('/api/settings'), { headers: { 'Authorization': 'Bearer ' + token } });
-      if (r.status === 401) { logout(); return null; }
-      if (r.status === 403) { setNewDefaultsMsg('Non autorizzato.', false); return null; }
-      if (r.status === 404) { setNewDefaultsMsg('Funzione non disponibile: backend non aggiornato (endpoint /api/settings mancante).', false); return null; }
-      if (!r.ok) { setNewDefaultsMsg('Errore durante il caricamento dei predefiniti.', false); return null; }
-      const j = await r.json().catch(() => ({}));
-      const d = csGetDeep((j && j.settings) || {}, 'annunci.nuova_roulotte.defaults') || {};
-      newDefaultsCache = d && typeof d === 'object' ? d : {};
-      setNewDefaultsUiFromObj(newDefaultsCache);
-      refreshNewDefaultsIndicator();
-      return newDefaultsCache;
-    }
-
-    async function saveNewDefaultsToServer(o) {
-      const token = window.RoulotteStore.getAuthToken();
-      if (!token) { logout(); return false; }
-      const d = o && typeof o === 'object' ? o : {};
-      const payload = {
-        'annunci.nuova_roulotte.defaults.category_id': String(d.category_id || ''),
-        'annunci.nuova_roulotte.defaults.stato': String(d.stato || ''),
-        'annunci.nuova_roulotte.defaults.stato_annuncio': String(d.stato_annuncio || ''),
-        'annunci.nuova_roulotte.defaults.tipologia_mezzo': String(d.tipologia_mezzo || ''),
-        'annunci.nuova_roulotte.defaults.pronta_consegna': d.pronta_consegna === '' ? '' : (d.pronta_consegna === true),
-        'annunci.nuova_roulotte.defaults.permuta': String(d.permuta || ''),
-        'annunci.nuova_roulotte.defaults.condizione_generale': String(d.condizione_generale || ''),
-        'annunci.nuova_roulotte.defaults.stato_interni': String(d.stato_interni || ''),
-        'annunci.nuova_roulotte.defaults.stato_esterni': String(d.stato_esterni || ''),
-        'annunci.nuova_roulotte.defaults.infiltrazioni': String(d.infiltrazioni || ''),
-        'annunci.nuova_roulotte.defaults.odori': String(d.odori || ''),
-        'annunci.nuova_roulotte.defaults.provenienza': String(d.provenienza || ''),
-        'annunci.nuova_roulotte.defaults.targata': String(d.targata || ''),
-        'annunci.nuova_roulotte.defaults.libretto_circolazione': String(d.libretto_circolazione || ''),
-        'annunci.nuova_roulotte.defaults.omologata_circolazione': String(d.omologata_circolazione || ''),
-        'annunci.nuova_roulotte.defaults.numero_assi': String(d.numero_assi || ''),
-        'annunci.nuova_roulotte.defaults.presa_220_esterna': String(d.presa_220_esterna || ''),
-        'annunci.nuova_roulotte.defaults.impianto_12v': String(d.impianto_12v || ''),
-        'annunci.nuova_roulotte.defaults.batteria_servizi': String(d.batteria_servizi || ''),
-        'annunci.nuova_roulotte.defaults.illuminazione_led': String(d.illuminazione_led || ''),
-        'annunci.nuova_roulotte.defaults.impianto_gas': String(d.impianto_gas || ''),
-        'annunci.nuova_roulotte.defaults.serbatoio_acqua_pulita': String(d.serbatoio_acqua_pulita || ''),
-        'annunci.nuova_roulotte.defaults.serbatoio_acque_grigie': String(d.serbatoio_acque_grigie || ''),
-        'annunci.nuova_roulotte.defaults.riscaldamento': String(d.riscaldamento || ''),
-        'annunci.nuova_roulotte.defaults.tipo_riscaldamento': String(d.tipo_riscaldamento || ''),
-        'annunci.nuova_roulotte.defaults.climatizzatore': String(d.climatizzatore || ''),
-        'annunci.nuova_roulotte.defaults.predisposizione_clima': String(d.predisposizione_clima || ''),
-        'annunci.nuova_roulotte.defaults.veranda_tendalino': String(d.veranda_tendalino || ''),
-        'annunci.nuova_roulotte.defaults.portabici': String(d.portabici || ''),
-      };
-
-      const r = await fetch(apiUrl('/api/settings'), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ settings: payload })
-      });
-      if (r.status === 401) { logout(); return false; }
-      if (r.status === 404) { setNewDefaultsMsg('Funzione non disponibile: backend non aggiornato (endpoint /api/settings mancante).', false); return false; }
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        if (j && j.errors && typeof j.errors === 'object') {
-          const pairs = Object.entries(j.errors).map(([k, v]) => `${k}: ${v}`);
-          setNewDefaultsMsg('Errore validazione: ' + pairs.join(' · '), false);
-          return false;
-        }
-        setNewDefaultsMsg('Errore durante il salvataggio dei predefiniti.', false);
-        return false;
-      }
-
-      newDefaultsCache = { ...d };
-      refreshNewDefaultsIndicator();
-      setNewDefaultsMsg('Predefiniti salvati.', true);
-      return true;
-    }
     const serbatoioAcquaPulitaEl = document.getElementById('serbatoioAcquaPulita');
     const serbatoioAcqueGrigieEl = document.getElementById('serbatoioAcqueGrigie');
     const riscaldamentoEl = document.getElementById('riscaldamento');
@@ -2632,166 +2015,6 @@
     const builderPublishBtn = document.getElementById('builderPublishBtn');
     const builderStatus = document.getElementById('builderStatus');
     let gjsEditor = null;
-    let builderBaseCss = '';
-    let builderBaseLinks = [];
-    let builderBaseAssetsLoaded = false;
-    let builderBlocksRegistered = false;
-
-    function builderExtractInnerHtmlFromHtml(html, selectors) {
-      const raw = String(html || '').trim();
-      if (!raw) return '';
-      try {
-        const dom = new DOMParser().parseFromString(raw, 'text/html');
-        const list = Array.isArray(selectors) ? selectors : [selectors];
-        for (const sel of list) {
-          if (!sel) continue;
-          const el = dom.querySelector(sel);
-          if (el) return String(el.innerHTML || '').trim();
-        }
-      } catch {}
-      return raw;
-    }
-
-    function normalizeBuilderHtmlForPage(page, html) {
-      const p = String(page || 'home');
-      const raw = String(html || '').trim();
-      if (!raw) return '';
-      if (p === 'card_template') return raw;
-      const selectorsByPage = {
-        home: ['#editableHome', '.hero'],
-        header: ['#editableHeader', 'header'],
-        footer: ['#editableFooter', 'footer'],
-        list_top: ['#editableListTop'],
-        list_bottom: ['#editableListBottom'],
-        filters: ['#editableFilters', '.controls', '[role="search"]'],
-        detail_dialog: ['#detailDialog', 'dialog'],
-      };
-      return builderExtractInnerHtmlFromHtml(raw, selectorsByPage[p] || []);
-    }
-
-    async function loadBuilderBaseAssets() {
-      if (builderBaseAssetsLoaded) return { css: builderBaseCss, links: builderBaseLinks };
-      builderBaseAssetsLoaded = true;
-      try {
-        const raw = await fetch('index.html', { cache: 'no-store' }).then(r => r.text());
-        const dom = new DOMParser().parseFromString(raw, 'text/html');
-        builderBaseCss = Array.from(dom.querySelectorAll('style')).map(s => s.textContent || '').join('\n');
-        builderBaseLinks = Array.from(dom.querySelectorAll('link[rel="stylesheet"][href]'))
-          .map(l => String(l.getAttribute('href') || '').trim())
-          .filter(Boolean);
-      } catch {
-        builderBaseCss = '';
-        builderBaseLinks = [];
-      }
-      return { css: builderBaseCss, links: builderBaseLinks };
-    }
-
-    function applyBuilderBaseAssetsToCanvas() {
-      if (!gjsEditor) return;
-      try {
-        const doc = gjsEditor.Canvas.getDocument();
-        if (!doc) return;
-        const head = doc.head || doc.getElementsByTagName('head')[0];
-        if (!head) return;
-
-        const hostTheme = String(document.documentElement.getAttribute('data-theme') || '').trim();
-        if (hostTheme) {
-          try { doc.documentElement.setAttribute('data-theme', hostTheme); } catch {}
-        }
-
-        const existing = new Set(Array.from(doc.querySelectorAll('link[rel="stylesheet"][href]')).map(l => String(l.getAttribute('href') || '').trim()));
-        for (const href of (Array.isArray(builderBaseLinks) ? builderBaseLinks : [])) {
-          const h = String(href || '').trim();
-          if (!h || existing.has(h)) continue;
-          const link = doc.createElement('link');
-          link.rel = 'stylesheet';
-          link.href = h;
-          head.appendChild(link);
-        }
-
-        let st = doc.getElementById('gjsBaseSiteCss');
-        if (!st) {
-          st = doc.createElement('style');
-          st.id = 'gjsBaseSiteCss';
-          head.appendChild(st);
-        }
-        st.textContent = String(builderBaseCss || '');
-      } catch {}
-    }
-
-    function registerBuilderBlocks() {
-      if (!gjsEditor || builderBlocksRegistered) return;
-      builderBlocksRegistered = true;
-      try {
-        const bm = gjsEditor.BlockManager;
-        bm.add('section_container', {
-          label: 'Sezione',
-          category: 'Layout',
-          content: '<section class="container"><h2>Titolo sezione</h2><p>Testo della sezione.</p></section>'
-        });
-        bm.add('container_only', {
-          label: 'Container',
-          category: 'Layout',
-          content: '<div class="container"></div>'
-        });
-        bm.add('row_2', {
-          label: '2 colonne',
-          category: 'Layout',
-          content: '<div class="container" style="display:grid;grid-template-columns:1fr 1fr;gap:14px"><div class="card" style="padding:12px">Colonna 1</div><div class="card" style="padding:12px">Colonna 2</div></div>'
-        });
-        bm.add('heading', {
-          label: 'Titolo',
-          category: 'Testo',
-          content: '<h2>Titolo</h2>'
-        });
-        bm.add('paragraph', {
-          label: 'Paragrafo',
-          category: 'Testo',
-          content: '<p>Testo…</p>'
-        });
-        bm.add('button_primary', {
-          label: 'Bottone',
-          category: 'Componenti',
-          content: '<a class="btn btn-primary" href="#">Bottone</a>'
-        });
-        bm.add('tag', {
-          label: 'Tag',
-          category: 'Componenti',
-          content: '<span class="tag">Tag</span>'
-        });
-        bm.add('divider', {
-          label: 'Divisore',
-          category: 'Componenti',
-          content: '<hr style="border:none;border-top:1px solid var(--border);margin:14px 0" />'
-        });
-        bm.add('image', {
-          label: 'Immagine',
-          category: 'Componenti',
-          content: '<img src="https://via.placeholder.com/800x450" alt="" style="max-width:100%;height:auto;border-radius:12px" />'
-        });
-        bm.add('card_template_base', {
-          label: 'Template card',
-          category: 'Template',
-          content: [
-            '<article class="card">',
-            '  <div class="card-media"><img data-slot="photo" alt="{{title}}"></div>',
-            '  <div class="card-body">',
-            '    <div class="card-title">{{title}}</div>',
-            '    <div class="card-sub">',
-            '      <span class="tag">Anno {{year}}</span>',
-            '      <span class="tag">{{status}}</span>',
-            '      <span class="tag">{{category}}</span>',
-            '    </div>',
-            '    <div class="card-actions">',
-            '      <div class="price">{{price}}</div>',
-            '      <button class="btn" type="button" data-action="details">Dettagli</button>',
-            '    </div>',
-            '  </div>',
-            '</article>'
-          ].join('\n')
-        });
-      } catch {}
-    }
 
     // Elenco
     const listMeta = document.getElementById('listMeta');
@@ -2801,14 +2024,11 @@
     const listAnnuncio = document.getElementById('listAnnuncio');
     const listReset = document.getElementById('listReset');
     const tableBody = document.getElementById('tableBody');
-    const listSelectAll = document.getElementById('listSelectAll');
-    const listSelectedMeta = document.getElementById('listSelectedMeta');
-    const listBulkAction = document.getElementById('listBulkAction');
-    const listBulkApplyBtn = document.getElementById('listBulkApplyBtn');
-    const listBulkClearBtn = document.getElementById('listBulkClearBtn');
-
-    const listSelectedIds = new Set();
-    let listRenderedIds = [];
+    const shareTitleEl = document.getElementById('shareTitle');
+    const shareExpiresEl = document.getElementById('shareExpires');
+    const shareClearSelBtn = document.getElementById('shareClearSel');
+    const shareCreateBtn = document.getElementById('shareCreateBtn');
+    const shareSelCountEl = document.getElementById('shareSelCount');
 
     // Dettaglio
     const detailTitle = document.getElementById('detailTitle');
@@ -2822,12 +2042,37 @@
     const detailInfo = document.getElementById('detailInfo');
     const detailNote = document.getElementById('detailNote');
     let currentDetailId = null;
+    const selectedShareIds = new Set();
 
     // --- Helpers ---
     function normalize(s) { return String(s ?? '').trim().toLowerCase(); }
     function formatPrice(v) { 
       const n = Number(v); 
       return Number.isFinite(n) ? '€ ' + n.toLocaleString('it-IT') : '€ —'; 
+    }
+    async function copyText(text) {
+      const t = String(text || '');
+      if (!t) return false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(t);
+          return true;
+        }
+      } catch {}
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = t;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        return ok;
+      } catch {
+        return false;
+      }
     }
     function toNullIfEmpty(v) {
       const s = String(v ?? '').trim();
@@ -3295,11 +2540,8 @@
             container: '#gjs',
             height: '70vh',
             storageManager: false,
-            fromElement: false,
-            blockManager: { appendTo: '#gjsBlocks' }
+            fromElement: false
           });
-          registerBuilderBlocks();
-          loadBuilderBaseAssets().then(() => applyBuilderBaseAssetsToCanvas()).catch(() => {});
           builderStatus.textContent = 'Editor pronto';
         } catch {}
       }
@@ -3541,7 +2783,7 @@
         safeFetchContent(cssKey),
       ]);
 
-      let html = normalizeBuilderHtmlForPage(page, htmlRes.data || '');
+      let html = String(htmlRes.data || '');
       let css = String(cssRes.data || '');
       let fallbackUsed = false;
 
@@ -3549,6 +2791,16 @@
         try {
           const raw = await fetch('index.html').then(x => x.text());
           const dom = new DOMParser().parseFromString(raw, 'text/html');
+          let source = null;
+          if (page === 'home') source = dom.querySelector('.hero');
+          else if (page === 'header') source = dom.querySelector('header');
+          else if (page === 'footer') source = dom.querySelector('footer');
+          else if (page === 'list_top') source = null;
+          else if (page === 'list_bottom') source = null;
+          else if (page === 'filters') source = dom.querySelector('#editableFilters') || dom.querySelector('.controls');
+          else if (page === 'detail_dialog') source = dom.querySelector('#detailDialog') || dom.querySelector('dialog');
+          else if (page === 'card_template') source = null;
+
           if (page === 'card_template') {
             html = [
               '<article class="card">',
@@ -3568,27 +2820,16 @@
               '</article>'
             ].join('\n');
           } else {
-            let source = null;
-            if (page === 'home') source = dom.querySelector('#editableHome') || dom.querySelector('.hero');
-            else if (page === 'header') source = dom.querySelector('#editableHeader') || dom.querySelector('header');
-            else if (page === 'footer') source = dom.querySelector('#editableFooter') || dom.querySelector('footer');
-            else if (page === 'list_top') source = dom.querySelector('#editableListTop');
-            else if (page === 'list_bottom') source = dom.querySelector('#editableListBottom');
-            else if (page === 'filters') source = dom.querySelector('#editableFilters') || dom.querySelector('.controls') || dom.querySelector('[role="search"]');
-            else if (page === 'detail_dialog') source = dom.querySelector('#detailDialog') || dom.querySelector('dialog');
-            html = source ? String(source.innerHTML || '') : '';
-            html = normalizeBuilderHtmlForPage(page, html);
+            html = source ? source.outerHTML : '<section class="container"><h2>Nuova sezione</h2><p>Modifica contenuti qui.</p></section>';
           }
+          const styleTags = Array.from(dom.querySelectorAll('style'));
+          css = styleTags.map(s => s.textContent || '').join('\n');
           fallbackUsed = true;
         } catch {}
       }
 
       try {
         if (gjsEditor) {
-          try {
-            await loadBuilderBaseAssets();
-            applyBuilderBaseAssetsToCanvas();
-          } catch {}
           gjsEditor.setComponents(html || '');
           gjsEditor.setStyle(css || '');
         }
@@ -3603,7 +2844,7 @@
       if (!gjsEditor) return;
       const page = String(builderPageKey?.value || 'home');
       const token = window.RoulotteStore.getAuthToken();
-      const html = normalizeBuilderHtmlForPage(page, gjsEditor.getHtml());
+      const html = gjsEditor.getHtml();
       const css = gjsEditor.getCss();
       builderStatus.textContent = 'Salvataggio…';
       showToast('info', 'Salvataggio bozza', `Salvataggio in corso (${page})…`, { timeoutMs: 1400 });
@@ -3838,19 +3079,6 @@
         categoryIdEl.appendChild(opt);
       });
       if(currentSel) categoryIdEl.value = currentSel;
-
-      if (defaultCategoryIdEl) {
-        const currentDefaultSel = defaultCategoryIdEl.value;
-        defaultCategoryIdEl.innerHTML = '<option value="">-- Non impostata --</option>';
-        cats.forEach(c => {
-          const opt = document.createElement('option');
-          opt.value = c.id;
-          opt.textContent = c.name;
-          defaultCategoryIdEl.appendChild(opt);
-        });
-        const nextVal = (currentDefaultSel || (newDefaultsCache && newDefaultsCache.category_id) || '');
-        if (nextVal) defaultCategoryIdEl.value = nextVal;
-      }
 
       if (listCategory) {
         const currentListSel = listCategory.value;
@@ -4771,61 +3999,11 @@
       draftPhotos = [];
       renderPhotos();
       sessionStorage.removeItem('roulotte_draft');
-      applyNewDefaultsToForm(newDefaultsCache);
-      if (!newDefaultsCache) {
-        Promise.resolve()
-          .then(() => loadNewDefaultsFromServer())
-          .then((d) => { applyNewDefaultsToForm(d); })
-          .catch(() => {});
-      }
     }
     clearFormBtn.addEventListener('click', () => {
        clearForm();
        switchSection('new');
     });
-    if (saveNewDefaultsBtn) {
-      saveNewDefaultsBtn.addEventListener('click', async () => {
-        setNewDefaultsMsg('', true);
-        saveNewDefaultsBtn.disabled = true;
-        try {
-          const o = readNewDefaultsFromUi();
-          await saveNewDefaultsToServer(o);
-        } catch {
-          setNewDefaultsMsg('Errore di rete durante il salvataggio.', false);
-        } finally {
-          saveNewDefaultsBtn.disabled = false;
-        }
-      });
-    }
-    if (copyNewDefaultsBtn) {
-      copyNewDefaultsBtn.addEventListener('click', () => {
-        setNewDefaultsMsg('', true);
-        copyNewDefaultsFromFormToUi();
-      });
-    }
-    if (applyNewDefaultsBtn) {
-      applyNewDefaultsBtn.addEventListener('click', () => {
-        setNewDefaultsMsg('', true);
-        const o = readNewDefaultsFromUi();
-        applyNewDefaultsToForm(o);
-        setNewDefaultsMsg('Predefiniti applicati al form.', true);
-      });
-    }
-    if (clearNewDefaultsBtn) {
-      clearNewDefaultsBtn.addEventListener('click', async () => {
-        setNewDefaultsMsg('', true);
-        clearNewDefaultsBtn.disabled = true;
-        try {
-          setNewDefaultsUiFromObj({});
-          const o = readNewDefaultsFromUi();
-          await saveNewDefaultsToServer(o);
-        } catch {
-          setNewDefaultsMsg('Errore di rete durante l’azzeramento.', false);
-        } finally {
-          clearNewDefaultsBtn.disabled = false;
-        }
-      });
-    }
     goListBtn.addEventListener('click', () => { switchSection('list'); renderList(); });
 
     // --- Settings: Security ---
@@ -5885,104 +5063,13 @@
       return 'status ok';
     }
 
-    function pubblicazioneClass(v) {
-      const s = String(v || '').trim().toLowerCase();
-      if (s === 'pubblicato') return 'status ok';
-      if (s === 'venduto') return 'status danger';
-      if (s === 'verifica') return 'status warn';
-      if (s === 'bozza') return 'status warn';
-      return 'status ok';
-    }
-
-    function normalizePubblicazione(r) {
-      const raw = r && (r.stato_annuncio ?? r.statoAnnuncio);
-      const s = String(raw ?? '').trim().toLowerCase();
-      if (s) return s;
-      if (String(r && r.stato || '').trim() === 'Venduto') return 'venduto';
-      return '';
-    }
-
-    function updateListBulkUi() {
-      const selectedCount = listSelectedIds.size;
-      if (listSelectedMeta) listSelectedMeta.textContent = `${selectedCount} selezionati`;
-      const action = listBulkAction ? String(listBulkAction.value || '') : '';
-      if (listBulkApplyBtn) listBulkApplyBtn.disabled = !(selectedCount > 0 && action);
-      if (listBulkClearBtn) listBulkClearBtn.disabled = !(selectedCount > 0);
-
-      if (listSelectAll) {
-        const ids = Array.isArray(listRenderedIds) ? listRenderedIds : [];
-        const total = ids.length;
-        const selOnPage = ids.filter(id => listSelectedIds.has(id)).length;
-        listSelectAll.indeterminate = selOnPage > 0 && selOnPage < total;
-        listSelectAll.checked = total > 0 && selOnPage === total;
+    function updateShareSelectionUi() {
+      if (shareSelCountEl) {
+        const n = selectedShareIds.size;
+        shareSelCountEl.textContent = n ? (n + ' selezionate') : 'Nessuna selezione';
       }
-    }
-
-    async function runBulkAction() {
-      const action = listBulkAction ? String(listBulkAction.value || '') : '';
-      const ids = Array.from(listSelectedIds);
-      if (!action || !ids.length) return;
-
-      if (action === 'delete') {
-        if (!confirm(`Eliminare definitivamente ${ids.length} schede selezionate?`)) return;
-      } else if (action.startsWith('pub:')) {
-        const target = action.split(':')[1] || '';
-        if (!confirm(`Impostare la pubblicazione su "${target}" per ${ids.length} schede selezionate?`)) return;
-      }
-
-      if (listBulkApplyBtn) listBulkApplyBtn.disabled = true;
-      if (listBulkClearBtn) listBulkClearBtn.disabled = true;
-      if (listBulkAction) listBulkAction.disabled = true;
-      if (listSelectAll) listSelectAll.disabled = true;
-
-      const db = window.RoulotteStore.getDB();
-      const byId = new Map((db.roulottes || []).map(r => [String(r.id || ''), r]));
-      const errs = [];
-
-      try {
-        for (const id of ids) {
-          if (!id) continue;
-          try {
-            if (action === 'delete') {
-              await window.RoulotteStore.deleteRoulotte(id, { skipReload: true });
-              continue;
-            }
-
-            if (action.startsWith('pub:')) {
-              const target = action.split(':')[1] || '';
-              const r = byId.get(String(id));
-              const updatedAt = r && (r.updatedAt || r.updated_at) ? (r.updatedAt || r.updated_at) : null;
-              const payload = { id, stato_annuncio: target, updatedAt };
-              if (target === 'venduto') payload.stato = 'Venduto';
-              await window.RoulotteStore.updateRoulotte(payload, [], null, { skipReload: true });
-              continue;
-            }
-          } catch (e) {
-            const msg = e && e.message ? String(e.message) : 'Errore';
-            errs.push(`${id}: ${msg}`);
-            if (msg.includes('UNAUTHORIZED') || msg.includes('401')) { logout(); return; }
-          }
-        }
-
-        try { await window.RoulotteStore.reloadRoulottes(); } catch {}
-        listSelectedIds.clear();
-        updateListBulkUi();
-        refreshAll();
-
-        if (currentDetailId && !byId.has(String(currentDetailId))) {
-          switchSection('list');
-          currentDetailId = null;
-        }
-
-        if (errs.length) {
-          alert('Azioni completate con alcuni errori:\n' + errs.slice(0, 12).join('\n') + (errs.length > 12 ? `\n... +${errs.length - 12}` : ''));
-        }
-      } finally {
-        if (listBulkAction) listBulkAction.disabled = false;
-        if (listSelectAll) listSelectAll.disabled = false;
-        if (listBulkClearBtn) listBulkClearBtn.disabled = listSelectedIds.size === 0;
-        if (listBulkApplyBtn) listBulkApplyBtn.disabled = !(listSelectedIds.size > 0 && (listBulkAction ? String(listBulkAction.value || '') : ''));
-      }
+      if (shareCreateBtn) shareCreateBtn.disabled = selectedShareIds.size === 0;
+      if (shareClearSelBtn) shareClearSelBtn.disabled = selectedShareIds.size === 0;
     }
 
     function renderList() {
@@ -5992,7 +5079,7 @@
       const q = normalize(listQ.value);
       const category = listCategory ? listCategory.value : '';
       const stato = listStato.value;
-      const annuncio = listAnnuncio ? String(listAnnuncio.value || '').trim().toLowerCase() : '';
+      const annuncio = listAnnuncio ? String(listAnnuncio.value || '').trim() : '';
       
       const filtered = items.filter(r => {
           const hay = [r.id, r.marca, r.modello, r.anno, r.stato].map(normalize).join(' ');
@@ -6000,20 +5087,20 @@
         })
         .filter(r => (category ? r.categoryId === category : true))
         .filter(r => (stato ? r.stato === stato : true))
-        .filter(r => (annuncio ? normalizePubblicazione(r) === annuncio : true))
+        .filter(r => (annuncio ? String(r.stato_annuncio || '').trim().toLowerCase() === annuncio.toLowerCase() : true))
         .sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
 
       listMeta.textContent = `${filtered.length} risultati su ${items.length}`;
       tableBody.innerHTML = '';
-      listRenderedIds = filtered.map(r => String(r.id || '')).filter(Boolean);
+      updateShareSelectionUi();
       
       filtered.forEach(r => {
         const categoryLabel = categoriesById[r.categoryId] || '—';
-        const pub = normalizePubblicazione(r);
         const tr = document.createElement('tr');
+        const isChecked = selectedShareIds.has(String(r.id || '').trim());
         tr.innerHTML = `
-          <td>
-            <input type="checkbox" class="row-select" data-id="${r.id}" ${listSelectedIds.has(String(r.id)) ? 'checked' : ''} />
+          <td style="width:52px">
+            <input class="share-select" type="checkbox" data-id="${r.id}" ${isChecked ? 'checked' : ''} aria-label="Seleziona ${r.id}" />
           </td>
           <td>
             <div style="display:grid;gap:2px;cursor:pointer" class="action-btn" data-action="view" data-id="${r.id}" title="Apri scheda">
@@ -6027,7 +5114,7 @@
           <td>${r.anno}</td>
           <td>${formatPrice(r.prezzo)}</td>
           <td><span class="${statusClass(r.stato)}">${r.stato}</span></td>
-          <td><span class="${pubblicazioneClass(pub)}">${pub || '—'}</span></td>
+          <td>${r.stato_annuncio || '—'}</td>
           <td>
             <div style="display:flex;gap:6px">
               <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="view" data-id="${r.id}">Dettaglio</button>
@@ -6040,7 +5127,6 @@
         `;
         tableBody.appendChild(tr);
       });
-      updateListBulkUi();
     }
 
     function setDetailInfoRow(label, value) {
@@ -6282,55 +5368,74 @@
     listStato.addEventListener('change', renderList);
     if (listCategory) listCategory.addEventListener('change', renderList);
     if (listAnnuncio) listAnnuncio.addEventListener('change', renderList);
-    listReset.addEventListener('click', () => {
-      listQ.value = '';
-      if (listCategory) listCategory.value = '';
-      listStato.value = '';
-      if (listAnnuncio) listAnnuncio.value = '';
-      listSelectedIds.clear();
-      updateListBulkUi();
-      renderList();
-    });
+    listReset.addEventListener('click', () => { listQ.value=''; if (listCategory) listCategory.value=''; listStato.value=''; if (listAnnuncio) listAnnuncio.value=''; renderList(); });
 
     if (tableBody) {
       tableBody.addEventListener('change', (e) => {
-        const el = e.target;
-        if (!el || !el.matches || !el.matches('input.row-select[data-id]')) return;
+        const el = e && e.target ? e.target : null;
+        if (!el || !el.classList || !el.classList.contains('share-select')) return;
         const id = String(el.getAttribute('data-id') || '').trim();
         if (!id) return;
-        if (el.checked) listSelectedIds.add(id);
-        else listSelectedIds.delete(id);
-        updateListBulkUi();
+        if (el.checked) selectedShareIds.add(id);
+        else selectedShareIds.delete(id);
+        updateShareSelectionUi();
       });
     }
 
-    if (listSelectAll) {
-      listSelectAll.addEventListener('change', () => {
-        const ids = Array.isArray(listRenderedIds) ? listRenderedIds : [];
-        if (listSelectAll.checked) ids.forEach(id => listSelectedIds.add(id));
-        else ids.forEach(id => listSelectedIds.delete(id));
-        if (tableBody) {
-          tableBody.querySelectorAll('input.row-select[data-id]').forEach(chk => {
-            const id = String(chk.getAttribute('data-id') || '').trim();
-            if (!id) return;
-            chk.checked = listSelectedIds.has(id);
+    if (shareClearSelBtn) {
+      shareClearSelBtn.addEventListener('click', () => {
+        selectedShareIds.clear();
+        updateShareSelectionUi();
+        renderList();
+        showToast('info', 'Selezione', 'Selezione pulita.');
+      });
+    }
+
+    if (shareCreateBtn) {
+      shareCreateBtn.addEventListener('click', async () => {
+        const ids = Array.from(selectedShareIds);
+        if (!ids.length) return;
+        const title = String(shareTitleEl && shareTitleEl.value || '').trim().slice(0, 140);
+        const expiresInDays = Number(shareExpiresEl && shareExpiresEl.value || 7);
+        const token = window.RoulotteStore.getAuthToken();
+        if (!token) {
+          showToast('error', 'Accesso richiesto', 'Effettua il login per creare link di condivisione.');
+          return;
+        }
+        shareCreateBtn.disabled = true;
+        const toast = showToast('info', 'Condivisione', 'Creazione link in corso…', { persist: true });
+        try {
+          const r = await fetch(apiUrl('/api/share-links'), {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({ ids, title, expiresInDays })
           });
+          const j = await r.json().catch(() => null);
+          if (!r.ok) {
+            const code = j && j.error ? String(j.error) : String(r.status);
+            if (code === 'UNAUTHORIZED' || r.status === 401) throw new Error('UNAUTHORIZED');
+            throw new Error(code);
+          }
+          const url = j && j.url ? String(j.url) : '';
+          if (!url) throw new Error('SERVER_ERROR');
+          const ok = await copyText(url);
+          if (ok) showToast('success', 'Link copiato', url, { timeoutMs: 3800 });
+          else showToast('success', 'Link creato', url, { timeoutMs: 5200 });
+        } catch (e) {
+          const msg = String(e && e.message ? e.message : e);
+          if (msg === 'UNAUTHORIZED') showToast('error', 'Non autorizzato', 'Sessione scaduta. Effettua di nuovo il login.');
+          else if (msg === 'DB_UNAVAILABLE') showToast('error', 'Database non disponibile', 'Riprova più tardi.');
+          else showToast('error', 'Errore', 'Impossibile creare il link.');
+        } finally {
+          try { if (toast && toast.close) toast.close(); } catch {}
+          shareCreateBtn.disabled = selectedShareIds.size === 0;
         }
-        updateListBulkUi();
       });
     }
-
-    if (listBulkAction) listBulkAction.addEventListener('change', updateListBulkUi);
-    if (listBulkClearBtn) {
-      listBulkClearBtn.addEventListener('click', () => {
-        listSelectedIds.clear();
-        if (tableBody) {
-          tableBody.querySelectorAll('input.row-select[data-id]').forEach(chk => chk.checked = false);
-        }
-        updateListBulkUi();
-      });
-    }
-    if (listBulkApplyBtn) listBulkApplyBtn.addEventListener('click', () => { runBulkAction(); });
 
     // --- Export/Import/Wipe ---
     exportBtn.addEventListener('click', () => {
@@ -6507,7 +5612,6 @@
       }
       refreshAll();
       loadDraft(); // Recupera bozza
-      try { await loadNewDefaultsFromServer(); } catch {}
       await applyInitialRoute();
       if (!getInitialRoute().section) switchSection('dashboard');
     }

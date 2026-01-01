@@ -1532,10 +1532,33 @@
             </div>
           </div>
 
+          <div style="margin-top:10px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+              <div class="field" style="min-width:220px">
+                <label for="shareTitle">Titolo condivisione</label>
+                <input id="shareTitle" type="text" autocomplete="off" placeholder="Es. Selezione per cliente Rossi" />
+              </div>
+              <div class="field" style="min-width:160px">
+                <label for="shareExpires">Scadenza</label>
+                <select id="shareExpires">
+                  <option value="1">1 giorno</option>
+                  <option value="7" selected>7 giorni</option>
+                  <option value="30">30 giorni</option>
+                </select>
+              </div>
+              <button class="btn" type="button" id="shareClearSel">Pulisci selezione</button>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+              <div class="hint" id="shareSelCount"></div>
+              <button class="btn btn-primary" type="button" id="shareCreateBtn">Crea link selezione</button>
+            </div>
+          </div>
+
           <div style="margin-top:14px" class="table-wrap" aria-label="Tabella roulotte">
             <table>
               <thead>
                 <tr>
+                  <th style="width:52px">Sel.</th>
                   <th>Roulotte</th>
                   <th>Anno</th>
                   <th>Prezzo</th>
@@ -2001,6 +2024,11 @@
     const listAnnuncio = document.getElementById('listAnnuncio');
     const listReset = document.getElementById('listReset');
     const tableBody = document.getElementById('tableBody');
+    const shareTitleEl = document.getElementById('shareTitle');
+    const shareExpiresEl = document.getElementById('shareExpires');
+    const shareClearSelBtn = document.getElementById('shareClearSel');
+    const shareCreateBtn = document.getElementById('shareCreateBtn');
+    const shareSelCountEl = document.getElementById('shareSelCount');
 
     // Dettaglio
     const detailTitle = document.getElementById('detailTitle');
@@ -2014,12 +2042,37 @@
     const detailInfo = document.getElementById('detailInfo');
     const detailNote = document.getElementById('detailNote');
     let currentDetailId = null;
+    const selectedShareIds = new Set();
 
     // --- Helpers ---
     function normalize(s) { return String(s ?? '').trim().toLowerCase(); }
     function formatPrice(v) { 
       const n = Number(v); 
       return Number.isFinite(n) ? '€ ' + n.toLocaleString('it-IT') : '€ —'; 
+    }
+    async function copyText(text) {
+      const t = String(text || '');
+      if (!t) return false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(t);
+          return true;
+        }
+      } catch {}
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = t;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        return ok;
+      } catch {
+        return false;
+      }
     }
     function toNullIfEmpty(v) {
       const s = String(v ?? '').trim();
@@ -5010,6 +5063,15 @@
       return 'status ok';
     }
 
+    function updateShareSelectionUi() {
+      if (shareSelCountEl) {
+        const n = selectedShareIds.size;
+        shareSelCountEl.textContent = n ? (n + ' selezionate') : 'Nessuna selezione';
+      }
+      if (shareCreateBtn) shareCreateBtn.disabled = selectedShareIds.size === 0;
+      if (shareClearSelBtn) shareClearSelBtn.disabled = selectedShareIds.size === 0;
+    }
+
     function renderList() {
       const db = window.RoulotteStore.getDB();
       const items = db.roulottes || [];
@@ -5017,6 +5079,7 @@
       const q = normalize(listQ.value);
       const category = listCategory ? listCategory.value : '';
       const stato = listStato.value;
+      const annuncio = listAnnuncio ? String(listAnnuncio.value || '').trim() : '';
       
       const filtered = items.filter(r => {
           const hay = [r.id, r.marca, r.modello, r.anno, r.stato].map(normalize).join(' ');
@@ -5024,15 +5087,21 @@
         })
         .filter(r => (category ? r.categoryId === category : true))
         .filter(r => (stato ? r.stato === stato : true))
+        .filter(r => (annuncio ? String(r.stato_annuncio || '').trim().toLowerCase() === annuncio.toLowerCase() : true))
         .sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
 
       listMeta.textContent = `${filtered.length} risultati su ${items.length}`;
       tableBody.innerHTML = '';
+      updateShareSelectionUi();
       
       filtered.forEach(r => {
         const categoryLabel = categoriesById[r.categoryId] || '—';
         const tr = document.createElement('tr');
+        const isChecked = selectedShareIds.has(String(r.id || '').trim());
         tr.innerHTML = `
+          <td style="width:52px">
+            <input class="share-select" type="checkbox" data-id="${r.id}" ${isChecked ? 'checked' : ''} aria-label="Seleziona ${r.id}" />
+          </td>
           <td>
             <div style="display:grid;gap:2px;cursor:pointer" class="action-btn" data-action="view" data-id="${r.id}" title="Apri scheda">
               <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
@@ -5045,6 +5114,7 @@
           <td>${r.anno}</td>
           <td>${formatPrice(r.prezzo)}</td>
           <td><span class="${statusClass(r.stato)}">${r.stato}</span></td>
+          <td>${r.stato_annuncio || '—'}</td>
           <td>
             <div style="display:flex;gap:6px">
               <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="view" data-id="${r.id}">Dettaglio</button>
@@ -5297,7 +5367,75 @@
     listQ.addEventListener('input', () => { clearTimeout(listTimer); listTimer = setTimeout(renderList, 150); });
     listStato.addEventListener('change', renderList);
     if (listCategory) listCategory.addEventListener('change', renderList);
-    listReset.addEventListener('click', () => { listQ.value=''; if (listCategory) listCategory.value=''; listStato.value=''; renderList(); });
+    if (listAnnuncio) listAnnuncio.addEventListener('change', renderList);
+    listReset.addEventListener('click', () => { listQ.value=''; if (listCategory) listCategory.value=''; listStato.value=''; if (listAnnuncio) listAnnuncio.value=''; renderList(); });
+
+    if (tableBody) {
+      tableBody.addEventListener('change', (e) => {
+        const el = e && e.target ? e.target : null;
+        if (!el || !el.classList || !el.classList.contains('share-select')) return;
+        const id = String(el.getAttribute('data-id') || '').trim();
+        if (!id) return;
+        if (el.checked) selectedShareIds.add(id);
+        else selectedShareIds.delete(id);
+        updateShareSelectionUi();
+      });
+    }
+
+    if (shareClearSelBtn) {
+      shareClearSelBtn.addEventListener('click', () => {
+        selectedShareIds.clear();
+        updateShareSelectionUi();
+        renderList();
+        showToast('info', 'Selezione', 'Selezione pulita.');
+      });
+    }
+
+    if (shareCreateBtn) {
+      shareCreateBtn.addEventListener('click', async () => {
+        const ids = Array.from(selectedShareIds);
+        if (!ids.length) return;
+        const title = String(shareTitleEl && shareTitleEl.value || '').trim().slice(0, 140);
+        const expiresInDays = Number(shareExpiresEl && shareExpiresEl.value || 7);
+        const token = window.RoulotteStore.getAuthToken();
+        if (!token) {
+          showToast('error', 'Accesso richiesto', 'Effettua il login per creare link di condivisione.');
+          return;
+        }
+        shareCreateBtn.disabled = true;
+        const toast = showToast('info', 'Condivisione', 'Creazione link in corso…', { persist: true });
+        try {
+          const r = await fetch(apiUrl('/api/share-links'), {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({ ids, title, expiresInDays })
+          });
+          const j = await r.json().catch(() => null);
+          if (!r.ok) {
+            const code = j && j.error ? String(j.error) : String(r.status);
+            if (code === 'UNAUTHORIZED' || r.status === 401) throw new Error('UNAUTHORIZED');
+            throw new Error(code);
+          }
+          const url = j && j.url ? String(j.url) : '';
+          if (!url) throw new Error('SERVER_ERROR');
+          const ok = await copyText(url);
+          if (ok) showToast('success', 'Link copiato', url, { timeoutMs: 3800 });
+          else showToast('success', 'Link creato', url, { timeoutMs: 5200 });
+        } catch (e) {
+          const msg = String(e && e.message ? e.message : e);
+          if (msg === 'UNAUTHORIZED') showToast('error', 'Non autorizzato', 'Sessione scaduta. Effettua di nuovo il login.');
+          else if (msg === 'DB_UNAVAILABLE') showToast('error', 'Database non disponibile', 'Riprova più tardi.');
+          else showToast('error', 'Errore', 'Impossibile creare il link.');
+        } finally {
+          try { if (toast && toast.close) toast.close(); } catch {}
+          shareCreateBtn.disabled = selectedShareIds.size === 0;
+        }
+      });
+    }
 
     // --- Export/Import/Wipe ---
     exportBtn.addEventListener('click', () => {
