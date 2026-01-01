@@ -44,6 +44,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/grapesjs/dist/css/grapes.min.css">
+  <link rel="stylesheet" href="admin.css">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     :root{
@@ -59,8 +60,11 @@
       --success:#059669;
       --warning:#d97706;
       --radius:14px;
+      --shadow-xs:0 4px 10px rgba(15,23,42,.06);
+      --shadow-sm:0 8px 18px rgba(15,23,42,.08);
       --shadow: 0 12px 26px rgba(15,23,42,.08);
       --sidebar: 270px;
+      --transition: all .22s ease;
     }
 
     :root[data-theme="dark"]{
@@ -76,8 +80,11 @@
       --success:#10b981;
       --warning:#f59e0b;
       --radius:14px;
+      --shadow-xs:0 4px 10px rgba(0,0,0,.15);
+      --shadow-sm:0 8px 20px rgba(0,0,0,.25);
       --shadow: 0 12px 30px rgba(0,0,0,.35);
       --sidebar: 270px;
+      --transition: all .22s ease;
     }
 
     *{box-sizing:border-box;margin:0;padding:0}
@@ -90,6 +97,7 @@
         var(--bg);
       color:var(--text);
       line-height:1.45;
+      transition:var(--transition);
       overflow:hidden;
     }
     :root[data-theme="dark"] body{
@@ -175,14 +183,27 @@
       display:flex;
       align-items:center;
       gap:10px;
+      position:relative;
+      transition:var(--transition);
+    }
+    .nav-btn::before{
+      content:"";
+      position:absolute;
+      left:10px;
+      top:10px;
+      bottom:10px;
+      width:4px;
+      border-radius:999px;
+      background:transparent;
     }
     :root[data-theme="dark"] .nav-btn{background:rgba(255,255,255,.04)}
-    .nav-btn:hover{background:rgba(255,255,255,.75)}
+    .nav-btn:hover{background:rgba(255,255,255,.75);transform:translateY(-1px)}
     :root[data-theme="dark"] .nav-btn:hover{background:rgba(255,255,255,.08)}
     .nav-btn[aria-current="page"]{
       background:rgba(37,99,235,.14);
       border-color:rgba(37,99,235,.38);
     }
+    .nav-btn[aria-current="page"]::before{background:linear-gradient(180deg, rgba(37,99,235,.95), rgba(16,185,129,.85))}
     .nav-btn:focus-visible{outline:3px solid rgba(37,99,235,.45);outline-offset:3px}
     :root[data-theme="dark"] .nav-btn:focus-visible{outline:3px solid rgba(255,255,255,.85)}
 
@@ -221,6 +242,7 @@
       align-items:center;
       gap:8px;
       text-decoration:none;
+      transition:var(--transition);
     }
     :root[data-theme="dark"] .btn{background:rgba(255,255,255,.06)}
     .btn:hover{background:rgba(255,255,255,.80)}
@@ -257,8 +279,11 @@
       box-shadow:var(--shadow);
       padding:16px;
       min-height:0;
+      transition:var(--transition);
     }
     :root[data-theme="dark"] .card{background:rgba(255,255,255,.04)}
+    .card:hover{box-shadow:0 18px 40px rgba(15,23,42,.14);transform:translateY(-1px)}
+    :root[data-theme="dark"] .card:hover{box-shadow:0 20px 54px rgba(0,0,0,.55)}
     .card-title{font-weight:900;font-size:1.05rem}
 
     .grid{
@@ -301,6 +326,7 @@
       background:#fff;
       color:var(--text);
       outline:none;
+      transition:var(--transition);
     }
     :root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
     :root[data-theme="dark"] select,
@@ -334,6 +360,7 @@
       color:var(--text);
       cursor:pointer;
       user-select:none;
+      transition:var(--transition);
     }
     :root[data-theme="dark"] .choice-item{background:rgba(255,255,255,.02)}
     .choice-item input{width:auto}
@@ -359,6 +386,11 @@
     th,td{padding:12px 12px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
     th{color:var(--muted);font-weight:900;background:rgba(255,255,255,.35)}
     :root[data-theme="dark"] th{background:rgba(255,255,255,.03)}
+    tbody tr{transition:var(--transition)}
+    tbody tr:hover{background:rgba(37,99,235,.06)}
+    :root[data-theme="dark"] tbody tr:hover{background:rgba(37,99,235,.16)}
+    tbody tr:nth-child(2n){background:rgba(255,255,255,.18)}
+    :root[data-theme="dark"] tbody tr:nth-child(2n){background:rgba(255,255,255,.02)}
 
     .status{
       display:inline-flex;
@@ -399,8 +431,10 @@
       background:rgba(255,255,255,.35);
       height:90px;
       position:relative;
+      transition:var(--transition);
     }
     :root[data-theme="dark"] .photo{background:rgba(255,255,255,.03)}
+    .photo:hover{transform:translateY(-1px);box-shadow:var(--shadow-sm)}
     .photo img{width:100%;height:100%;object-fit:cover;display:block}
     .photo button{
       position:absolute;
@@ -596,6 +630,7 @@
 </head>
 <body>
   <a class="skip-link" href="#contenuto">Vai al contenuto</a>
+  <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-relevant="additions"></div>
 
   <div id="loginOverlay" class="login" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
     <div class="login-card">
@@ -674,14 +709,38 @@
       </a>
 
       <nav aria-label="Sezioni">
-        <button class="nav-btn" type="button" data-section="dashboard" aria-current="page">Dashboard</button>
-        <button class="nav-btn" type="button" data-section="new">Nuova Roulotte</button>
-        <button class="nav-btn" type="button" data-section="list">Elenco</button>
-        <button class="nav-btn" type="button" data-section="categories">Categorie</button>
-        <button class="nav-btn" type="button" data-section="settings">Impostazioni</button>
-        <button class="nav-btn" type="button" data-section="content">Contenuti</button>
-        <button class="nav-btn" type="button" data-section="builder">Editor visivo</button>
-        <button class="nav-btn" type="button" data-section="media">Media</button>
+        <button class="nav-btn" type="button" data-section="dashboard" aria-current="page">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14v4"/><path d="M12 10v8"/><path d="M17 6v12"/></svg>
+          <span class="nav-label">Dashboard</span>
+        </button>
+        <button class="nav-btn" type="button" data-section="new">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          <span class="nav-label">Nuova Roulotte</span>
+        </button>
+        <button class="nav-btn" type="button" data-section="list">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+          <span class="nav-label">Elenco</span>
+        </button>
+        <button class="nav-btn" type="button" data-section="categories">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 10.5 13.5 3.5a2 2 0 0 0-1.4-.6H5a2 2 0 0 0-2 2v7.1a2 2 0 0 0 .6 1.4l7 7a2 2 0 0 0 2.8 0l7.1-7.1a2 2 0 0 0 0-2.8Z"/><path d="M7.5 7.5h.01"/></svg>
+          <span class="nav-label">Categorie</span>
+        </button>
+        <button class="nav-btn" type="button" data-section="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a7.9 7.9 0 0 0 .1-2l2-1.2-2-3.4-2.3.7a7.4 7.4 0 0 0-1.7-1l-.3-2.4H11l-.3 2.4a7.4 7.4 0 0 0-1.7 1L6.7 8.4l-2 3.4 2 1.2a7.9 7.9 0 0 0 .1 2l-2 1.2 2 3.4 2.3-.7a7.4 7.4 0 0 0 1.7 1l.3 2.4h4.2l.3-2.4a7.4 7.4 0 0 0 1.7-1l2.3.7 2-3.4-2-1.2Z"/></svg>
+          <span class="nav-label">Impostazioni</span>
+        </button>
+        <button class="nav-btn" type="button" data-section="content">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/></svg>
+          <span class="nav-label">Contenuti</span>
+        </button>
+        <button class="nav-btn" type="button" data-section="builder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z"/></svg>
+          <span class="nav-label">Editor visivo</span>
+        </button>
+        <button class="nav-btn" type="button" data-section="media">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="m8 14 2-2 2 2 3-3 3 3"/><path d="M8.5 9.5h.01"/></svg>
+          <span class="nav-label">Media</span>
+        </button>
       </nav>
 
       <div class="spacer"></div>
@@ -715,6 +774,20 @@
       </div>
 
       <section id="dashboard" class="section active" aria-label="Dashboard">
+        <details class="help-card" style="margin-bottom:12px">
+          <summary>Guida rapida</summary>
+          <div class="help-grid">
+            <ul>
+              <li>Usa “Aggiorna” per ricaricare dati e statistiche.</li>
+              <li>Vai su “Elenco” per modificare o duplicare una scheda esistente.</li>
+              <li>Vai su “Nuova Roulotte” per creare una scheda e caricare le foto.</li>
+            </ul>
+            <div class="help-badges">
+              <span class="help-badge">Suggerimento: carica foto leggere</span>
+              <span class="help-badge">Stato sistema: in alto nel menu</span>
+            </div>
+          </div>
+        </details>
         <div class="grid">
           <div class="card span-4">
             <div class="stat">
@@ -775,6 +848,20 @@
         <div class="card">
           <div style="font-weight:900;font-size:1.05rem">Editor visivo (GrapesJS)</div>
           <div class="hint" style="margin-top:6px">Modifica sezioni principali con drag&drop, testi e stili. Salva e pubblica senza toccare il codice.</div>
+          <details class="help-card" style="margin-top:12px">
+            <summary>Guida rapida</summary>
+            <div class="help-grid">
+              <ul>
+                <li>Seleziona la pagina (Home, Header, Footer…).</li>
+                <li>Premi “Carica” per importare i contenuti attuali.</li>
+                <li>“Salva bozza” salva senza pubblicare; “Pubblica” rende visibile sul sito.</li>
+              </ul>
+              <div class="help-badges">
+                <span class="help-badge">Bozza ≠ Pubblicato</span>
+                <span class="help-badge">Esito azioni: notifiche in basso a destra</span>
+              </div>
+            </div>
+          </details>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
             <div class="field">
               <label>Pagina</label>
@@ -813,6 +900,20 @@
             </div>
             <button class="btn" type="button" id="clearFormBtn">Nuova Scheda</button>
           </div>
+          <details class="help-card" style="margin-top:12px">
+            <summary>Guida rapida</summary>
+            <div class="help-grid">
+              <ul>
+                <li>Compila i campi obbligatori e aggiungi almeno una foto.</li>
+                <li>Trascina le foto nell’area: verranno ottimizzate automaticamente.</li>
+                <li>Premi “Salva scheda”: vedrai un feedback chiaro di successo o errore.</li>
+              </ul>
+              <div class="help-badges">
+                <span class="help-badge">Copertina: prima foto</span>
+                <span class="help-badge">Upload: barra di avanzamento</span>
+              </div>
+            </div>
+          </details>
 
           <form id="newForm" style="margin-top:14px">
             <input type="hidden" id="editId" name="editId" value="" />
@@ -1425,8 +1526,8 @@
                 </select>
               </div>
               <div class="field" style="min-width:auto">
-                <label class="sr-only" for="listReset">Reset</label>
-                <button class="btn" type="button" id="listReset">Reset</button>
+                <label class="sr-only" for="listReset">Pulisci filtri</label>
+                <button class="btn" type="button" id="listReset">Pulisci filtri</button>
               </div>
             </div>
           </div>
@@ -1652,7 +1753,7 @@
                 <div style="font-weight:900;font-size:1.05rem">Pulizia</div>
                 <div class="hint" style="margin-top:6px">Elimina tutti i dati salvati nel browser.</div>
               </div>
-              <button class="btn btn-danger" type="button" id="wipeBtn">Svuota database</button>
+              <button class="btn btn-danger" type="button" id="wipeBtn">Elimina dati locali</button>
             </div>
           </div>
         </div>
@@ -1667,6 +1768,79 @@
   <script src="https://unpkg.com/grapesjs"></script>
   <script>
     const AUTH_KEY = 'admin_auth_v2';
+    const toastWrap = document.getElementById('toastWrap');
+
+    function showToast(variant, title, message, opts) {
+      if (!toastWrap) return;
+      const o = opts && typeof opts === 'object' ? opts : {};
+      const v = String(variant || 'info');
+      const t = String(title || '').trim();
+      const m = String(message || '').trim();
+      const timeoutMs = Number.isFinite(o.timeoutMs) ? o.timeoutMs : (v === 'error' ? 5200 : v === 'warning' ? 4200 : 2600);
+
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.setAttribute('data-variant', v);
+
+      const icon = document.createElement('div');
+      icon.className = 'toast-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = v === 'success' ? 'OK' : v === 'warning' ? '!' : v === 'error' ? 'X' : 'i';
+
+      const body = document.createElement('div');
+      const titleEl = document.createElement('div');
+      titleEl.className = 'toast-title';
+      titleEl.textContent = t || (v === 'success' ? 'Operazione completata' : v === 'warning' ? 'Attenzione' : v === 'error' ? 'Errore' : 'Info');
+      const msgEl = document.createElement('div');
+      msgEl.className = 'toast-msg';
+      msgEl.textContent = m || '';
+      body.appendChild(titleEl);
+      if (m) body.appendChild(msgEl);
+
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'toast-close';
+      close.textContent = 'Chiudi';
+      close.addEventListener('click', () => {
+        try { toast.remove(); } catch {}
+      });
+
+      toast.appendChild(icon);
+      toast.appendChild(body);
+      toast.appendChild(close);
+
+      const progressWrap = document.createElement('div');
+      progressWrap.className = 'toast-progress';
+      const progressBar = document.createElement('div');
+      progressWrap.appendChild(progressBar);
+      toast.appendChild(progressWrap);
+
+      toastWrap.appendChild(toast);
+
+      let closed = false;
+      const cleanup = () => {
+        if (closed) return;
+        closed = true;
+        try { toast.remove(); } catch {}
+      };
+
+      if (timeoutMs > 0) {
+        const startedAt = Date.now();
+        const tick = () => {
+          const p = Math.max(0, Math.min(1, (Date.now() - startedAt) / timeoutMs));
+          progressBar.style.transform = `scaleX(${String(1 - p)})`;
+          if (p >= 1) return cleanup();
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }
+      if (timeoutMs <= 0) progressWrap.style.display = 'none';
+      if (o.persist === true) progressWrap.style.display = 'none';
+      if (o.persist === true) return { close: cleanup };
+
+      setTimeout(cleanup, timeoutMs + 250);
+      return { close: cleanup };
+    }
 
     // Elementi UI Principali
     const loginOverlay = document.getElementById('loginOverlay');
@@ -2607,8 +2781,10 @@
           gjsEditor.setStyle(css || '');
         }
         if (builderStatus) builderStatus.textContent = fallbackUsed ? 'Caricato (fallback)' : 'Caricato';
+        showToast(fallbackUsed ? 'warning' : 'success', 'Editor caricato', fallbackUsed ? 'Caricati contenuti di fallback dal file locale.' : 'Contenuti caricati dal server.', { timeoutMs: 2600 });
       } catch {
         if (builderStatus) builderStatus.textContent = 'Errore caricamento';
+        showToast('error', 'Errore caricamento', 'Impossibile caricare i contenuti nell’editor.');
       }
     }
     async function builderSave() {
@@ -2618,44 +2794,54 @@
       const html = gjsEditor.getHtml();
       const css = gjsEditor.getCss();
       builderStatus.textContent = 'Salvataggio…';
+      showToast('info', 'Salvataggio bozza', `Salvataggio in corso (${page})…`, { timeoutMs: 1400 });
       try {
         const r1 = await fetch(apiUrl('/api/content'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' }, body: JSON.stringify({ content_key: 'page_' + page + '_fragment', content_type: 'html', data: String(html || '') }) });
         if (!r1.ok) {
           if (r1.status === 401) { builderStatus.textContent = 'Sessione scaduta. Accedi di nuovo.'; logout(); return; }
           builderStatus.textContent = 'Errore salvataggio';
+          showToast('error', 'Errore salvataggio', 'Impossibile salvare la bozza.');
           return;
         }
         const r2 = await fetch(apiUrl('/api/content'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' }, body: JSON.stringify({ content_key: 'page_' + page + '_styles', content_type: 'html', data: String(css || '') }) });
         if (!r2.ok) {
           if (r2.status === 401) { builderStatus.textContent = 'Sessione scaduta. Accedi di nuovo.'; logout(); return; }
           builderStatus.textContent = 'Errore salvataggio';
+          showToast('error', 'Errore salvataggio', 'Impossibile salvare gli stili della bozza.');
           return;
         }
         builderStatus.textContent = 'Bozza salvata';
+        showToast('success', 'Bozza salvata', `Bozza salvata per ${page}.`, { timeoutMs: 2600 });
       } catch {
         builderStatus.textContent = 'Errore salvataggio';
+        showToast('error', 'Errore salvataggio', 'Errore di rete o server durante il salvataggio.');
       }
     }
     async function builderPublish() {
       const page = String(builderPageKey?.value || 'home');
       builderStatus.textContent = 'Pubblicazione…';
+      showToast('info', 'Pubblicazione', `Pubblicazione in corso (${page})…`, { timeoutMs: 1600 });
       try {
         const token = window.RoulotteStore.getAuthToken();
         const r1 = await fetch(apiUrl('/api/content/page_' + page + '_fragment/publish'), { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
         if (!r1.ok) {
           if (r1.status === 401) { builderStatus.textContent = 'Sessione scaduta. Accedi di nuovo.'; logout(); return; }
           builderStatus.textContent = 'Errore pubblicazione';
+          showToast('error', 'Errore pubblicazione', 'Impossibile pubblicare il contenuto.');
           return;
         }
         const r2 = await fetch(apiUrl('/api/content/page_' + page + '_styles/publish'), { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
         if (!r2.ok) {
           if (r2.status === 401) { builderStatus.textContent = 'Sessione scaduta. Accedi di nuovo.'; logout(); return; }
           builderStatus.textContent = 'Errore pubblicazione';
+          showToast('error', 'Errore pubblicazione', 'Impossibile pubblicare gli stili.');
           return;
         }
         builderStatus.textContent = 'Pubblicato';
+        showToast('success', 'Pubblicato', `Pubblicazione completata (${page}).`, { timeoutMs: 3000 });
       } catch {
         builderStatus.textContent = 'Errore pubblicazione';
+        showToast('error', 'Errore pubblicazione', 'Errore di rete o server durante la pubblicazione.');
       }
     }
     if (builderLoadBtn) builderLoadBtn.addEventListener('click', builderLoad);
@@ -3348,7 +3534,10 @@
       try {
         const res = await fetch(url);
         const blob = await res.blob();
-        if (!blob.type.startsWith('image/')) return;
+        if (!blob.type.startsWith('image/')) {
+          showToast('error', 'URL non valido', 'Il link non sembra un’immagine.');
+          return;
+        }
         const obj = await processImageFromBlob(blob);
         if (!obj.file) {
           const ext = obj.type === 'image/webp' ? 'webp' : 'jpg';
@@ -3359,12 +3548,16 @@
         draftPhotos.push(obj);
         photoUrlInput.value = '';
         renderPhotos();
-      } catch {}
+        showToast('success', 'Foto aggiunta', 'Immagine inserita da URL.');
+      } catch {
+        showToast('error', 'Errore URL', 'Impossibile scaricare o processare l’immagine.');
+      }
     });
 
     async function processVideoFromBlob(file) {
       if (file.size > (8 * 1024 * 1024)) {
         photoHint.textContent = 'Video troppo pesante. Usa un URL (YouTube/Vimeo) o un file < 8MB.';
+        showToast('warning', 'Video troppo pesante', 'Usa un URL oppure un file sotto 8MB.');
         return null;
       }
       const url = URL.createObjectURL(file);
@@ -3397,7 +3590,9 @@
     async function handleFiles(files) {
       const fileList = Array.from(files || []);
       const toTake = fileList;
+      const before = draftPhotos.length;
       photoHint.textContent = 'Elaborazione…';
+      if (toTake.length > 0) showToast('info', 'Elaborazione file', `Sto preparando ${toTake.length} file…`, { timeoutMs: 1400 });
 
       for (const f of toTake) {
         try {
@@ -3419,11 +3614,16 @@
               }
             }
           }
-        } catch(e) { photoHint.textContent = 'Errore elaborazione file.'; }
+        } catch(e) {
+          photoHint.textContent = 'Errore elaborazione file.';
+          showToast('error', 'Errore file', 'Almeno un file non è stato elaborato correttamente.');
+        }
       }
       photosInput.value = '';
       renderPhotos();
       photoHint.textContent = '';
+      const added = Math.max(0, draftPhotos.length - before);
+      if (added > 0) showToast('success', 'Foto aggiunte', `Aggiunte ${added} foto. Totale: ${draftPhotos.length}.`);
     }
 
     function renderPhotos() {
@@ -3545,7 +3745,16 @@
     newForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const tokenCheck = window.RoulotteStore.getAuthToken();
-      if (!tokenCheck) { formMsg.hidden = false; formMsg.textContent = 'Sessione scaduta. Accedi di nuovo.'; logout(); return; }
+      if (!tokenCheck) {
+        formMsg.hidden = false;
+        formMsg.textContent = 'Sessione scaduta. Accedi di nuovo.';
+        showToast('error', 'Sessione scaduta', 'Accedi di nuovo per continuare.');
+        logout();
+        return;
+      }
+      const submitBtn = newForm.querySelector('button[type="submit"]');
+      const prevSubmitText = submitBtn ? String(submitBtn.textContent || '') : '';
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Salvataggio…'; }
       const marca = String(marcaEl.value || '').trim();
       const modello = String(modelloEl.value || '').trim();
       const prezzo = Number(prezzoEl.value);
@@ -3554,6 +3763,8 @@
       if (!marca || !modello || !Number.isFinite(prezzo) || !Number.isFinite(anno)) {
         formMsg.hidden = false;
         formMsg.textContent = 'Campi obbligatori mancanti.';
+        showToast('error', 'Dati mancanti', 'Compila Marca, Modello, Prezzo e Anno.');
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = prevSubmitText || 'Salva scheda'; }
         return;
       }
 
@@ -3655,11 +3866,15 @@
         if (!allowed.includes(t)) {
           formMsg.hidden = false;
           formMsg.textContent = 'Formato non supportato. Usa JPG, PNG o WEBP.';
+          showToast('error', 'Formato non supportato', 'Usa JPG, PNG o WEBP.');
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = prevSubmitText || 'Salva scheda'; }
           return;
         }
         if (s > maxSize) {
           formMsg.hidden = false;
           formMsg.textContent = 'File troppo grande. Max 10MB per foto.';
+          showToast('error', 'File troppo grande', 'Max 10MB per foto.');
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = prevSubmitText || 'Salva scheda'; }
           return;
         }
       }
@@ -3667,6 +3882,7 @@
       const progEl = document.getElementById('uploadProg');
       if (progEl) { progEl.value = 0; progEl.style.display = ''; }
       formMsg.hidden = true;
+      showToast('info', editId ? 'Salvataggio modifica' : 'Creazione scheda', newFiles.length ? 'Salvataggio e upload foto in corso…' : 'Salvataggio in corso…', { timeoutMs: 1600 });
 
       try {
         const onProgress = function(p){ if (progEl) progEl.value = p; };
@@ -3695,6 +3911,7 @@
         clearForm();
         refreshAll();
         switchSection('list');
+        showToast('success', editId ? 'Modifica salvata' : 'Scheda creata', newFiles.length ? 'Operazione completata (foto incluse).' : 'Operazione completata.');
 
       } catch (err) {
         if (progEl) { progEl.style.display = 'none'; progEl.value = 0; }
@@ -3702,6 +3919,7 @@
         const msg = String((err && err.message) ? err.message : 'Errore durante il salvataggio. Riprova.');
         if (msg.includes('CONFLICT')) {
           formMsg.textContent = 'Conflitto dati rilevato: la scheda è stata aggiornata da un altro dispositivo. Ricarico i dati…';
+          showToast('warning', 'Conflitto dati', 'La scheda è stata aggiornata altrove. Ricarico…', { timeoutMs: 4200 });
           try { await window.RoulotteStore.reloadRoulottes(); } catch {}
           try { refreshAll(); } catch {}
           if (editIdEl && editIdEl.value) {
@@ -3709,9 +3927,12 @@
           }
         } else {
           formMsg.textContent = msg;
+          showToast('error', 'Errore salvataggio', msg);
         }
         console.error(err);
         if (msg.includes('UNAUTHORIZED') || msg.includes('401')) { logout(); }
+      } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = prevSubmitText || 'Salva scheda'; }
       }
     });
 
@@ -3837,6 +4058,177 @@
 
     let centralSettingsPanel = null;
 
+    const CS_MODE_STORAGE_KEY = 'roulotte_cs_mode';
+    const CS_MODE_BASIC = 'basic';
+    const CS_MODE_ADVANCED = 'advanced';
+
+    const CS_BASIC_KEYS = new Set([
+      'annunci.pubblicazione.enabled',
+      'annunci.pubblicazione.default_visibility',
+      'annunci.pubblicazione.require_photos_for_publish',
+      'annunci.pubblicazione.require_price_for_publish',
+      'annunci.listing.default_sort',
+      'annunci.listing.page_size',
+      'annunci.homepage.featured_enabled',
+      'annunci.homepage.max_items',
+      'annunci.labels.badge_text',
+      'annunci.labels.contact_phone',
+      'annunci.labels.contact_email',
+      'regole_tecniche.upload.photo_max_bytes',
+      'regole_tecniche.upload.photo_max_count_per_annuncio',
+      'regole_tecniche.upload.photo_allowed_mimetypes',
+      'regole_tecniche.cache.asset_max_age_seconds',
+      'regole_tecniche.public.posthog_host',
+      'regole_tecniche.public.posthog_key',
+      'regole_tecniche.public.google_client_id',
+    ]);
+
+    const CS_KEY_META = new Map([
+      ['annunci.pubblicazione.enabled', {
+        label: 'Pubblicazione annunci: attiva',
+        help: 'Se disattivi, il sito non mostra la lista pubblica degli annunci.',
+        group_basic: 'Pubblicazione'
+      }],
+      ['annunci.pubblicazione.default_visibility', {
+        label: 'Stato predefinito nuovi annunci',
+        help: 'Stato usato quando crei una scheda senza scegliere “Pubblicazione”.',
+        group_basic: 'Pubblicazione',
+        options: [
+          { value: 'bozza', label: 'Bozza' },
+          { value: 'verifica', label: 'Verifica' },
+          { value: 'pubblicato', label: 'Pubblicato' },
+          { value: 'venduto', label: 'Venduto' },
+        ]
+      }],
+      ['annunci.pubblicazione.require_photos_for_publish', {
+        label: 'Richiedi foto per pubblicare',
+        help: 'Blocca la pubblicazione se la scheda non ha almeno una foto.',
+        group_basic: 'Pubblicazione'
+      }],
+      ['annunci.pubblicazione.require_price_for_publish', {
+        label: 'Richiedi prezzo per pubblicare',
+        help: 'Blocca la pubblicazione se il prezzo non è impostato.',
+        group_basic: 'Pubblicazione'
+      }],
+      ['annunci.listing.default_sort', {
+        label: 'Ordinamento predefinito lista',
+        help: 'Ordine con cui vengono mostrati gli annunci nella lista pubblica.',
+        group_basic: 'Lista annunci',
+        options: [
+          { value: 'newest', label: 'Più recenti' },
+          { value: 'priceAsc', label: 'Prezzo crescente' },
+          { value: 'priceDesc', label: 'Prezzo decrescente' },
+          { value: 'yearDesc', label: 'Anno decrescente' },
+          { value: 'yearAsc', label: 'Anno crescente' },
+        ]
+      }],
+      ['annunci.listing.page_size', {
+        label: 'Annunci per pagina',
+        help: 'Quanti annunci mostrare in una pagina della lista pubblica.',
+        placeholder: 'Es. 24',
+        min: 1,
+        max: 200,
+        step: 1,
+        inputmode: 'numeric',
+        group_basic: 'Lista annunci'
+      }],
+      ['annunci.homepage.featured_enabled', {
+        label: 'Homepage: evidenza attiva',
+        help: 'Mostra una sezione “in evidenza” in homepage (se configurata).',
+        group_basic: 'Homepage'
+      }],
+      ['annunci.homepage.max_items', {
+        label: 'Homepage: massimo elementi',
+        help: 'Numero massimo di annunci da mostrare nella sezione in homepage.',
+        placeholder: 'Es. 6',
+        min: 0,
+        max: 50,
+        step: 1,
+        inputmode: 'numeric',
+        group_basic: 'Homepage'
+      }],
+      ['annunci.labels.badge_text', {
+        label: 'Etichetta contatto (testo)',
+        help: 'Testo breve che appare vicino ai contatti, es. “Contattaci”.',
+        placeholder: 'Es. Contattaci',
+        group_basic: 'Contatti'
+      }],
+      ['annunci.labels.contact_phone', {
+        label: 'Telefono contatto',
+        help: 'Numero visibile nel sito. Usa formato internazionale se possibile.',
+        placeholder: 'Es. +39 333 123 4567',
+        format: 'tel',
+        group_basic: 'Contatti'
+      }],
+      ['annunci.labels.contact_email', {
+        label: 'Email contatto',
+        help: 'Indirizzo visibile nel sito per richieste e informazioni.',
+        placeholder: 'Es. info@tuodominio.it',
+        format: 'email',
+        group_basic: 'Contatti'
+      }],
+      ['regole_tecniche.upload.photo_max_bytes', {
+        label: 'Dimensione massima foto',
+        help: 'Blocca il caricamento di foto oltre questa dimensione.',
+        placeholder: 'Es. 10485760 (10 MB)',
+        group_basic: 'Foto',
+        unit: 'bytes'
+      }],
+      ['regole_tecniche.upload.photo_max_count_per_annuncio', {
+        label: 'Numero massimo foto per annuncio',
+        help: 'Limite per evitare schede troppo pesanti e lente.',
+        placeholder: 'Es. 12',
+        min: 1,
+        max: 100,
+        step: 1,
+        inputmode: 'numeric',
+        group_basic: 'Foto'
+      }],
+      ['regole_tecniche.upload.photo_allowed_mimetypes', {
+        label: 'Formati foto consentiti',
+        help: 'Lista separata da virgola. Se lasci vuoto, l’upload può fallire.',
+        placeholder: 'Es. image/jpeg, image/png, image/webp',
+        group_basic: 'Foto'
+      }],
+      ['regole_tecniche.cache.asset_max_age_seconds', {
+        label: 'Cache di immagini e file (durata)',
+        help: 'Quanto a lungo il browser mantiene i file statici prima di richiederli di nuovo.',
+        placeholder: 'Es. 86400 (1 giorno)',
+        min: 0,
+        step: 1,
+        inputmode: 'numeric',
+        group_basic: 'Cache',
+        unit: 'seconds'
+      }],
+      ['regole_tecniche.public.posthog_host', {
+        label: 'PostHog: server',
+        help: 'Indirizzo del server di tracciamento (es. PostHog Cloud o self-hosted).',
+        placeholder: 'Es. https://app.posthog.com',
+        format: 'url',
+        group_basic: 'Tracking'
+      }],
+      ['regole_tecniche.public.posthog_key', {
+        label: 'PostHog: chiave progetto',
+        help: 'Abilita il tracciamento visitatori. Se lasci vuoto, il tracciamento resta disattivo.',
+        placeholder: 'Es. phc_…',
+        group_basic: 'Tracking'
+      }],
+      ['regole_tecniche.public.google_client_id', {
+        label: 'Google: Client ID',
+        help: 'Identificatore OAuth del progetto Google (usato solo se l’integrazione è attiva).',
+        placeholder: 'Es. 123…apps.googleusercontent.com',
+        group_basic: 'Tracking'
+      }],
+    ]);
+
+    function csGetDefaultMode() {
+      try {
+        const v = String(localStorage.getItem(CS_MODE_STORAGE_KEY) || '').trim();
+        if (v === CS_MODE_ADVANCED) return CS_MODE_ADVANCED;
+      } catch {}
+      return CS_MODE_BASIC;
+    }
+
     function csGetDeep(obj, path) {
       if (!obj || typeof obj !== 'object') return undefined;
       const parts = String(path || '').split('.').filter(Boolean);
@@ -3855,6 +4247,80 @@
       if (k === 'annunci') return 'Annunci';
       if (k === 'regole_tecniche') return 'Regole tecniche';
       return k || 'Altro';
+    }
+
+    function csSectionKey(key) {
+      const parts = String(key || '').split('.').filter(Boolean);
+      if (parts.length < 2) return String(key || '');
+      return parts.slice(0, 2).join('.');
+    }
+
+    function csSectionLabel(sectionKey) {
+      const k = String(sectionKey || '').trim();
+      if (k === 'regole_tecniche.upload') return 'Foto e caricamenti';
+      if (k === 'regole_tecniche.cache') return 'Cache';
+      if (k === 'regole_tecniche.public') return 'Dati pubblici e tracking';
+      if (k === 'regole_tecniche.integrazioni') return 'Integrazioni (tecnico)';
+      if (k === 'regole_tecniche.sicurezza') return 'Sicurezza (tecnico)';
+      if (k === 'trasporto.routing') return 'Percorsi e routing (tecnico)';
+      if (k === 'trasporto.pricing') return 'Prezzi trasporto (tecnico)';
+      if (k === 'annunci.pubblicazione') return 'Pubblicazione annunci';
+      if (k === 'annunci.homepage') return 'Homepage';
+      if (k === 'annunci.listing') return 'Lista annunci';
+      if (k === 'annunci.labels') return 'Etichette contatto';
+      return k;
+    }
+
+    function csIsHiddenSection(sectionKey) {
+      const k = String(sectionKey || '');
+      return (
+        k === 'regole_tecniche.integrazioni' ||
+        k === 'regole_tecniche.sicurezza' ||
+        k === 'trasporto.routing' ||
+        k === 'trasporto.pricing'
+      );
+    }
+
+    function csFormatBytes(n) {
+      const v = Number(n);
+      if (!Number.isFinite(v) || v <= 0) return '';
+      const mb = v / (1024 * 1024);
+      if (mb < 1024) return mb.toFixed(mb >= 10 ? 0 : 1) + ' MB';
+      const gb = mb / 1024;
+      return gb.toFixed(gb >= 10 ? 0 : 1) + ' GB';
+    }
+
+    function csFormatSeconds(n) {
+      const v = Number(n);
+      if (!Number.isFinite(v) || v <= 0) return '';
+      if (v < 60) return `${Math.round(v)} s`;
+      const m = v / 60;
+      if (m < 60) return `${Math.round(m)} min`;
+      const h = m / 60;
+      if (h < 24) return `${Math.round(h)} h`;
+      const d = h / 24;
+      return `${Math.round(d)} gg`;
+    }
+
+    function csGetKeyMeta(key) {
+      const k = String(key || '').trim();
+      return CS_KEY_META.get(k) || null;
+    }
+
+    function csKeyLabel(key) {
+      const meta = csGetKeyMeta(key);
+      if (meta && meta.label) return String(meta.label);
+      const parts = String(key || '').split('.').filter(Boolean);
+      return parts.length ? parts[parts.length - 1] : String(key || '');
+    }
+
+    function csKeyHelp(key, type, isSecret) {
+      const meta = csGetKeyMeta(key);
+      const bits = [];
+      if (meta && meta.help) bits.push(String(meta.help));
+      const suffix = (isSecret ? 'Segreto' : 'Pubblico') + ' · ' + String(type || 'string');
+      bits.push(suffix);
+      return bits.join(' ');
     }
 
     function csValueToInputString(type, value) {
@@ -3949,6 +4415,25 @@
       actions.style.alignItems = 'center';
       actions.style.flexWrap = 'wrap';
 
+      const modeWrap = document.createElement('div');
+      modeWrap.style.display = 'flex';
+      modeWrap.style.alignItems = 'center';
+      modeWrap.style.gap = '8px';
+
+      const modeLabel = document.createElement('div');
+      modeLabel.className = 'hint';
+      modeLabel.style.margin = '0';
+      modeLabel.textContent = 'Modalità';
+
+      const modeSel = document.createElement('select');
+      modeSel.className = 'btn';
+      modeSel.style.padding = '8px 10px';
+      modeSel.innerHTML = '<option value="basic">Base (consigliata)</option><option value="advanced">Avanzata (tecnica)</option>';
+      modeSel.value = csGetDefaultMode();
+
+      modeWrap.appendChild(modeLabel);
+      modeWrap.appendChild(modeSel);
+
       const reloadBtn = document.createElement('button');
       reloadBtn.className = 'btn';
       reloadBtn.type = 'button';
@@ -3959,6 +4444,7 @@
       saveBtn.type = 'button';
       saveBtn.textContent = 'Salva';
 
+      actions.appendChild(modeWrap);
       actions.appendChild(reloadBtn);
       actions.appendChild(saveBtn);
 
@@ -3991,6 +4477,8 @@
         metaEl: meta,
         msgEl: msg,
         groupsEl: groups,
+        modeEl: modeSel,
+        mode: modeSel.value === CS_MODE_ADVANCED ? CS_MODE_ADVANCED : CS_MODE_BASIC,
         reloadBtn,
         saveBtn,
         loaded: false,
@@ -4000,7 +4488,109 @@
         secretsSet: new Set(),
         snapshot: new Map(),
       };
+
+      modeSel.addEventListener('change', () => {
+        const p = centralSettingsPanel;
+        if (!p) return;
+        const v = modeSel.value === CS_MODE_ADVANCED ? CS_MODE_ADVANCED : CS_MODE_BASIC;
+        p.mode = v;
+        try { localStorage.setItem(CS_MODE_STORAGE_KEY, v); } catch {}
+        try { csRenderPanel(); } catch {}
+      });
       return centralSettingsPanel;
+    }
+
+    function csBuildInput(def, p, isSuperuser) {
+      const key = String(def && def.key || '').trim();
+      const type = String(def && def.type || 'string').trim();
+      const isSecret = def && def.is_secret === true;
+      const meta = csGetKeyMeta(key);
+
+      let input = null;
+      if (type === 'boolean') {
+        const sel = document.createElement('select');
+        sel.innerHTML = '<option value="">Non impostato</option><option value="true">Sì</option><option value="false">No</option>';
+        input = sel;
+      } else if (type === 'string[]') {
+        const ta = document.createElement('textarea');
+        ta.rows = 2;
+        ta.placeholder = meta && meta.placeholder ? String(meta.placeholder) : 'Valori separati da virgola';
+        input = ta;
+      } else if (type === 'string' && meta && Array.isArray(meta.options) && meta.options.length) {
+        const sel = document.createElement('select');
+        sel.innerHTML = '<option value="">Non impostato</option>' + meta.options.map(o => {
+          const v = String(o && o.value !== undefined ? o.value : '');
+          const l = String(o && o.label !== undefined ? o.label : v);
+          return `<option value="${v.replace(/"/g, '&quot;')}">${l.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</option>`;
+        }).join('');
+        input = sel;
+      } else {
+        const inp = document.createElement('input');
+        if (type === 'number') {
+          inp.type = 'number';
+          inp.step = meta && meta.step !== undefined ? String(meta.step) : 'any';
+        } else {
+          if (isSecret) inp.type = 'password';
+          else if (meta && meta.format === 'email') inp.type = 'email';
+          else if (meta && meta.format === 'url') inp.type = 'url';
+          else if (meta && meta.format === 'tel') inp.type = 'tel';
+          else inp.type = 'text';
+        }
+        if (meta && meta.placeholder) inp.placeholder = String(meta.placeholder);
+        if (meta && meta.min !== undefined) inp.min = String(meta.min);
+        if (meta && meta.max !== undefined) inp.max = String(meta.max);
+        if (meta && meta.inputmode) inp.inputMode = String(meta.inputmode);
+        input = inp;
+      }
+
+      input.setAttribute('data-cs-key', key);
+      input.setAttribute('data-cs-type', type);
+      input.setAttribute('data-cs-secret', isSecret ? '1' : '0');
+
+      const right = document.createElement('div');
+      right.className = 'field';
+      right.style.display = 'grid';
+      right.style.gap = '4px';
+      right.appendChild(input);
+
+      const extra = document.createElement('div');
+      extra.className = 'hint';
+      extra.style.marginTop = '2px';
+      extra.hidden = true;
+      right.appendChild(extra);
+
+      const setExtra = () => {
+        const raw = String(input.value || '').trim();
+        if (!raw) { extra.hidden = true; extra.textContent = ''; return; }
+        if (meta && meta.unit === 'bytes' && type === 'number') {
+          const pretty = csFormatBytes(Number(raw));
+          if (pretty) { extra.hidden = false; extra.textContent = `≈ ${pretty}`; return; }
+        }
+        if (meta && meta.unit === 'seconds' && type === 'number') {
+          const pretty = csFormatSeconds(Number(raw));
+          if (pretty) { extra.hidden = false; extra.textContent = `≈ ${pretty}`; return; }
+        }
+        extra.hidden = true;
+        extra.textContent = '';
+      };
+
+      input.addEventListener('input', setExtra);
+      input.addEventListener('change', setExtra);
+
+      if (isSecret && !isSuperuser) {
+        input.disabled = true;
+        if (input && input.tagName === 'INPUT') {
+          input.placeholder = p && p.secretsSet && p.secretsSet.has(key) ? 'Impostato (nascosto)' : 'Non impostato';
+        } else if (input && input.tagName === 'SELECT') {
+          input.innerHTML = `<option value="">${(p && p.secretsSet && p.secretsSet.has(key)) ? 'Impostato (nascosto)' : 'Non impostato'}</option>`;
+        }
+      } else {
+        const v = csGetDeep(p.settings, key);
+        input.value = csValueToInputString(type, v);
+        setExtra();
+      }
+
+      return { right, input, setExtra, type, isSecret, key };
     }
 
     function csRenderPanel() {
@@ -4009,22 +4599,103 @@
 
       const defs = Array.isArray(p.defs) ? p.defs : [];
       const allowedPrefixes = ['trasporto.', 'annunci.', 'regole_tecniche.'];
-      const visibleDefs = defs
+      const allVisible = defs
         .filter(d => d && typeof d === 'object' && allowedPrefixes.some(pref => String(d.key || '').startsWith(pref)))
         .sort((a, b) => String(a.key || '').localeCompare(String(b.key || '')));
-
-      const byGroup = new Map();
-      for (const def of visibleDefs) {
-        const key = String(def.key || '');
-        const groupKey = key.split('.')[0] || '';
-        if (!byGroup.has(groupKey)) byGroup.set(groupKey, []);
-        byGroup.get(groupKey).push(def);
-      }
 
       p.groupsEl.innerHTML = '';
       p.snapshot.clear();
 
       const isSuperuser = String(p.role || '') === 'superuser';
+      const mode = String(p.mode || CS_MODE_BASIC);
+      if (p.metaEl) {
+        p.metaEl.textContent = mode === CS_MODE_ADVANCED
+          ? 'Modalità avanzata: modifica solo se sai cosa stai facendo. Le impostazioni tecniche possono cambiare il comportamento del sito.'
+          : 'Modalità base: impostazioni consigliate per un uso normale.';
+      }
+      if (mode === CS_MODE_BASIC) {
+        const defsBasic = allVisible.filter(d => CS_BASIC_KEYS.has(String(d.key || '').trim()));
+        const byBasicGroup = new Map();
+        for (const def of defsBasic) {
+          const key = String(def.key || '').trim();
+          const meta = csGetKeyMeta(key);
+          const g = meta && meta.group_basic ? String(meta.group_basic) : 'Altro';
+          if (!byBasicGroup.has(g)) byBasicGroup.set(g, []);
+          byBasicGroup.get(g).push(def);
+        }
+
+        for (const [g, defsInGroup] of Array.from(byBasicGroup.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0])))) {
+          const details = document.createElement('details');
+          details.open = true;
+          details.style.border = '1px solid var(--border)';
+          details.style.borderRadius = '14px';
+          details.style.padding = '10px 12px';
+          details.style.background = 'rgba(255,255,255,.35)';
+
+          const summary = document.createElement('summary');
+          summary.style.cursor = 'pointer';
+          summary.style.fontWeight = '900';
+          summary.textContent = g;
+          details.appendChild(summary);
+
+          const body = document.createElement('div');
+          body.style.marginTop = '10px';
+          body.style.display = 'grid';
+          body.style.gap = '10px';
+
+          for (const def of defsInGroup.sort((a, b) => String(a.key || '').localeCompare(String(b.key || '')))) {
+            const key = String(def.key || '').trim();
+            const type = String(def.type || 'string').trim();
+            const isSecret = def.is_secret === true;
+
+            const row = document.createElement('div');
+            row.style.display = 'grid';
+            row.style.gridTemplateColumns = 'minmax(260px, 2fr) minmax(240px, 1fr)';
+            row.style.gap = '10px';
+            row.style.alignItems = 'end';
+
+            const left = document.createElement('div');
+            left.className = 'field';
+
+            const label = document.createElement('label');
+            label.textContent = csKeyLabel(key);
+            left.appendChild(label);
+
+            const help = document.createElement('div');
+            help.className = 'hint';
+            help.style.marginTop = '4px';
+            help.textContent = csKeyHelp(key, type, isSecret);
+            left.appendChild(help);
+
+            const keyHint = document.createElement('div');
+            keyHint.className = 'hint';
+            keyHint.style.marginTop = '2px';
+            keyHint.textContent = `Chiave: ${key}`;
+            left.appendChild(keyHint);
+
+            const built = csBuildInput(def, p, isSuperuser);
+
+            const currentValueForSnap = built.isSecret ? '' : csGetDeep(p.settings, key);
+            p.snapshot.set(key, csCanonical(type, currentValueForSnap));
+
+            row.appendChild(left);
+            row.appendChild(built.right);
+            body.appendChild(row);
+          }
+
+          details.appendChild(body);
+          p.groupsEl.appendChild(details);
+        }
+        return;
+      }
+
+      const byGroup = new Map();
+      for (const def of allVisible) {
+        const key = String(def.key || '');
+        const groupKey = key.split('.')[0] || '';
+        if (!byGroup.has(groupKey)) byGroup.set(groupKey, []);
+        byGroup.get(groupKey).push(def);
+      }
 
       for (const [groupKey, defsInGroup] of Array.from(byGroup.entries()).sort((a, b) => String(a[0] || '').localeCompare(String(b[0] || '')))) {
         const details = document.createElement('details');
@@ -4040,71 +4711,80 @@
         summary.textContent = csGroupLabel(groupKey);
         details.appendChild(summary);
 
+        const sections = new Map();
+        for (const def of defsInGroup) {
+          const k = String(def && def.key || '').trim();
+          const sec = csSectionKey(k);
+          if (!sections.has(sec)) sections.set(sec, []);
+          sections.get(sec).push(def);
+        }
+
         const body = document.createElement('div');
         body.style.marginTop = '10px';
         body.style.display = 'grid';
         body.style.gap = '10px';
 
-        for (const def of defsInGroup) {
-          const key = String(def.key || '').trim();
-          const type = String(def.type || 'string').trim();
-          const isSecret = def.is_secret === true;
+        for (const [secKey, defsInSection] of Array.from(sections.entries()).sort((a, b) => String(a[0] || '').localeCompare(String(b[0] || '')))) {
+          const secDetails = document.createElement('details');
+          secDetails.open = !csIsHiddenSection(secKey);
+          secDetails.style.border = '1px solid var(--border)';
+          secDetails.style.borderRadius = '12px';
+          secDetails.style.padding = '10px 12px';
+          secDetails.style.background = 'rgba(255,255,255,.25)';
 
-          const row = document.createElement('div');
-          row.style.display = 'grid';
-          row.style.gridTemplateColumns = 'minmax(260px, 2fr) minmax(220px, 1fr)';
-          row.style.gap = '10px';
-          row.style.alignItems = 'end';
+          const secSummary = document.createElement('summary');
+          secSummary.style.cursor = 'pointer';
+          secSummary.style.fontWeight = '900';
+          secSummary.textContent = csSectionLabel(secKey);
+          secDetails.appendChild(secSummary);
 
-          const left = document.createElement('div');
-          left.className = 'field';
-          const label = document.createElement('label');
-          label.textContent = key;
-          const meta = document.createElement('div');
-          meta.className = 'hint';
-          meta.style.marginTop = '4px';
-          meta.textContent = (isSecret ? 'Segreto' : 'Pubblico') + ' · ' + type;
-          left.appendChild(label);
-          left.appendChild(meta);
+          const secBody = document.createElement('div');
+          secBody.style.marginTop = '10px';
+          secBody.style.display = 'grid';
+          secBody.style.gap = '10px';
 
-          const right = document.createElement('div');
-          right.className = 'field';
+          for (const def of defsInSection.sort((a, b) => String(a.key || '').localeCompare(String(b.key || '')))) {
+            const key = String(def.key || '').trim();
+            const type = String(def.type || 'string').trim();
+            const isSecret = def.is_secret === true;
 
-          let input = null;
-          if (type === 'boolean') {
-            const sel = document.createElement('select');
-            sel.innerHTML = '<option value="">Non impostato</option><option value="true">Sì</option><option value="false">No</option>';
-            input = sel;
-          } else {
-            const inp = document.createElement('input');
-            if (type === 'number') {
-              inp.type = 'number';
-              inp.step = 'any';
-            } else {
-              inp.type = isSecret ? 'password' : 'text';
-            }
-            input = inp;
+            const row = document.createElement('div');
+            row.style.display = 'grid';
+            row.style.gridTemplateColumns = 'minmax(260px, 2fr) minmax(240px, 1fr)';
+            row.style.gap = '10px';
+            row.style.alignItems = 'end';
+
+            const left = document.createElement('div');
+            left.className = 'field';
+
+            const label = document.createElement('label');
+            label.textContent = csKeyLabel(key);
+            left.appendChild(label);
+
+            const help = document.createElement('div');
+            help.className = 'hint';
+            help.style.marginTop = '4px';
+            help.textContent = csKeyHelp(key, type, isSecret);
+            left.appendChild(help);
+
+            const keyHint = document.createElement('div');
+            keyHint.className = 'hint';
+            keyHint.style.marginTop = '2px';
+            keyHint.textContent = `Chiave: ${key}`;
+            left.appendChild(keyHint);
+
+            const built = csBuildInput(def, p, isSuperuser);
+
+            const currentValueForSnap = built.isSecret ? '' : csGetDeep(p.settings, key);
+            p.snapshot.set(key, csCanonical(type, currentValueForSnap));
+
+            row.appendChild(left);
+            row.appendChild(built.right);
+            secBody.appendChild(row);
           }
 
-          input.setAttribute('data-cs-key', key);
-          input.setAttribute('data-cs-type', type);
-          input.setAttribute('data-cs-secret', isSecret ? '1' : '0');
-
-          if (isSecret && !isSuperuser) {
-            input.disabled = true;
-            input.placeholder = p.secretsSet.has(key) ? 'Impostato (nascosto)' : 'Non impostato';
-          } else {
-            const v = csGetDeep(p.settings, key);
-            input.value = csValueToInputString(type, v);
-          }
-
-          const currentValueForSnap = isSecret ? '' : csGetDeep(p.settings, key);
-          p.snapshot.set(key, csCanonical(type, currentValueForSnap));
-
-          right.appendChild(input);
-          row.appendChild(left);
-          row.appendChild(right);
-          body.appendChild(row);
+          secDetails.appendChild(secBody);
+          body.appendChild(secDetails);
         }
 
         details.appendChild(body);

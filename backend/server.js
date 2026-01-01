@@ -122,6 +122,9 @@ app.get('/api/config', (req, res) => {
     ors_enabled: orsEnabled(),
     posthog_host: getPosthogHost(),
     posthog_key: getPosthogKey(),
+    contact_phone: String(getSettingStringFirst(['annunci.labels.contact_phone'], '') || '').trim(),
+    contact_whatsapp: String(getSettingStringFirst(['annunci.labels.contact_whatsapp'], '') || '').trim(),
+    contact_email: String(getSettingStringFirst(['annunci.labels.contact_email'], '') || '').trim(),
   });
 });
 
@@ -352,7 +355,40 @@ const SETTINGS_DEFS = [
   { key: 'annunci.listing.filters.weight_max', type: 'number', is_secret: false, aliases: [] },
   { key: 'annunci.labels.badge_text', type: 'string', is_secret: false, aliases: [] },
   { key: 'annunci.labels.contact_phone', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.labels.contact_whatsapp', type: 'string', is_secret: false, aliases: [] },
   { key: 'annunci.labels.contact_email', type: 'string', is_secret: false, aliases: [] },
+
+  { key: 'annunci.nuova_roulotte.defaults.category_id', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.stato', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.stato_annuncio', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.tipologia_mezzo', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.pronta_consegna', type: 'boolean', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.permuta', type: 'string', is_secret: false, aliases: [] },
+
+  { key: 'annunci.nuova_roulotte.defaults.condizione_generale', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.stato_interni', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.stato_esterni', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.infiltrazioni', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.odori', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.provenienza', type: 'string', is_secret: false, aliases: [] },
+
+  { key: 'annunci.nuova_roulotte.defaults.targata', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.libretto_circolazione', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.omologata_circolazione', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.numero_assi', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.presa_220_esterna', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.impianto_12v', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.batteria_servizi', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.illuminazione_led', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.impianto_gas', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.serbatoio_acqua_pulita', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.serbatoio_acque_grigie', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.riscaldamento', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.tipo_riscaldamento', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.climatizzatore', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.predisposizione_clima', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.veranda_tendalino', type: 'string', is_secret: false, aliases: [] },
+  { key: 'annunci.nuova_roulotte.defaults.portabici', type: 'string', is_secret: false, aliases: [] },
 
   { key: 'regole_tecniche.upload.photo_max_bytes', type: 'number', is_secret: false, aliases: ['upload.photo_max_bytes'] },
   { key: 'regole_tecniche.upload.photo_allowed_mimetypes', type: 'string[]', is_secret: false, aliases: ['upload.photo_allowed_mimetypes'] },
@@ -560,6 +596,70 @@ function getRenderDeployHookUrl() {
     ['regole_tecniche.integrazioni.render.deploy_hook_url', 'deploy.render_deploy_hook_url'],
     String(process.env.RENDER_DEPLOY_HOOK_URL || process.env.RENDER_DEPLOY_HOOK || '')
   ).trim();
+}
+
+const ANNUNCIO_STATUS_ALLOWED = new Set(['bozza', 'verifica', 'pubblicato', 'venduto']);
+
+function normalizeAnnuncioStatus(raw, fallback) {
+  const s = String(raw || '').trim().toLowerCase();
+  if (ANNUNCIO_STATUS_ALLOWED.has(s)) return s;
+  const fb = String(fallback || '').trim().toLowerCase();
+  if (ANNUNCIO_STATUS_ALLOWED.has(fb)) return fb;
+  return 'bozza';
+}
+
+function isAnnunciPublishingEnabled() {
+  const b = parseBool(getSettingString('annunci.pubblicazione.enabled', ''));
+  return b === null ? true : b;
+}
+
+function getAnnunciDefaultVisibility() {
+  return normalizeAnnuncioStatus(getSettingString('annunci.pubblicazione.default_visibility', ''), 'bozza');
+}
+
+function getAnnunciRequirePhotosForPublish() {
+  const b = parseBool(getSettingString('annunci.pubblicazione.require_photos_for_publish', ''));
+  return b === null ? false : b;
+}
+
+function getAnnunciRequirePriceForPublish() {
+  const b = parseBool(getSettingString('annunci.pubblicazione.require_price_for_publish', ''));
+  return b === null ? false : b;
+}
+
+function getAnnunciListingDefaultSort() {
+  const raw = String(getSettingString('annunci.listing.default_sort', '') || '').trim();
+  return raw || 'newest';
+}
+
+function getAnnunciListingPageSize() {
+  const n = getSettingNumber('annunci.listing.page_size', 0);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 36;
+}
+
+function getAnnunciListingMaxPageSize() {
+  const n = getSettingNumber('annunci.listing.max_page_size', 0);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 100;
+}
+
+function sortRoulottesForListing(list, sort) {
+  const s = String(sort || '').trim();
+  const arr = Array.isArray(list) ? [...list] : [];
+  if (s === 'priceAsc') arr.sort((a, b) => (Number(a && a.prezzo) || 0) - (Number(b && b.prezzo) || 0));
+  else if (s === 'priceDesc') arr.sort((a, b) => (Number(b && b.prezzo) || 0) - (Number(a && a.prezzo) || 0));
+  else if (s === 'yearDesc') arr.sort((a, b) => (Number(b && b.anno) || 0) - (Number(a && a.anno) || 0));
+  else if (s === 'yearAsc') arr.sort((a, b) => (Number(a && a.anno) || 0) - (Number(b && b.anno) || 0));
+  else arr.sort((a, b) => new Date(b && (b.updatedAt || b.createdAt) || 0) - new Date(a && (a.updatedAt || a.createdAt) || 0));
+  return arr;
+}
+
+function clampInt(n, min, max, fallback) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return fallback;
+  const i = Math.floor(x);
+  if (i < min) return min;
+  if (i > max) return max;
+  return i;
 }
 
 const serverWss = new WebSocketServer({ server, path: '/ws' });
@@ -2057,11 +2157,26 @@ app.get('/api/roulottes', async (req, res) => {
   try {
     const admin = tryGetAdminFromReq(req);
     const isAdmin = !!admin;
+    if (!isAdmin && !isAnnunciPublishingEnabled()) return res.json([]);
 
     if (directusEnabled()) {
       try {
         const list = isAdmin ? await fetchDirectusRoulottesForAdmin() : await fetchDirectusRoulottes();
-        return res.json(list);
+        const sort = String(req.query.sort || '').trim() || (isAdmin ? 'newest' : getAnnunciListingDefaultSort());
+        const sorted = sortRoulottesForListing(list, sort);
+        if (isAdmin) return res.json(sorted);
+
+        const hasPagingParams = req.query.page !== undefined || req.query.limit !== undefined || req.query.offset !== undefined;
+        if (!hasPagingParams) return res.json(sorted);
+
+        const maxSize = getAnnunciListingMaxPageSize();
+        const defaultSize = clampInt(getAnnunciListingPageSize(), 1, maxSize, 36);
+        const limit = clampInt(req.query.limit, 1, maxSize, defaultSize);
+        const page = clampInt(req.query.page, 1, 1_000_000, 1);
+        const offset = req.query.offset !== undefined
+          ? clampInt(req.query.offset, 0, 100_000_000, 0)
+          : (page - 1) * limit;
+        return res.json(sorted.slice(offset, offset + limit));
       } catch (e) {
         console.warn('Directus non disponibile, fallback al DB:', String(e && e.message ? e.message : e));
       }
@@ -2096,10 +2211,12 @@ app.get('/api/roulottes', async (req, res) => {
         updatedAt: row.updated_at,
       }));
 
-    if (isAdmin) return res.json(list);
+    const sort = String(req.query.sort || '').trim() || (isAdmin ? 'newest' : getAnnunciListingDefaultSort());
+
+    if (isAdmin) return res.json(sortRoulottesForListing(list, sort));
 
     const allowed = new Set(['pubblicato', 'venduto']);
-    const out = list.filter((r) => {
+    const filtered = list.filter((r) => {
       if (!r || typeof r !== 'object') return false;
       if (r.visibile === false) return false;
       const sRaw = r.stato_annuncio !== undefined && r.stato_annuncio !== null ? String(r.stato_annuncio) : '';
@@ -2113,7 +2230,18 @@ app.get('/api/roulottes', async (req, res) => {
       return true;
     });
 
-    res.json(out);
+    const sorted = sortRoulottesForListing(filtered, sort);
+    const hasPagingParams = req.query.page !== undefined || req.query.limit !== undefined || req.query.offset !== undefined;
+    if (!hasPagingParams) return res.json(sorted);
+
+    const maxSize = getAnnunciListingMaxPageSize();
+    const defaultSize = clampInt(getAnnunciListingPageSize(), 1, maxSize, 36);
+    const limit = clampInt(req.query.limit, 1, maxSize, defaultSize);
+    const page = clampInt(req.query.page, 1, 1_000_000, 1);
+    const offset = req.query.offset !== undefined
+      ? clampInt(req.query.offset, 0, 100_000_000, 0)
+      : (page - 1) * limit;
+    return res.json(sorted.slice(offset, offset + limit));
 
   } catch (err) {
     if (isDbUnavailable(err)) return res.json([]);
@@ -2124,6 +2252,10 @@ app.get('/api/roulottes', async (req, res) => {
 
 app.get('/api/search', async (req, res) => {
   try {
+    const admin = tryGetAdminFromReq(req);
+    const isAdmin = !!admin;
+    if (!isAdmin && !isAnnunciPublishingEnabled()) return res.json([]);
+
     const q = String(req.query.q || '').trim();
     const limit = Math.min(Math.max(Number(req.query.limit || 36) || 36, 1), 100);
     const stato = String(req.query.stato || '').trim();
