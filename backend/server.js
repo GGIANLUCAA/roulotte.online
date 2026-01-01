@@ -50,6 +50,8 @@ function trySyncStaticAssets() {
     fs.mkdirSync(publicStaticRoot, { recursive: true });
   } catch {}
 
+  const overwriteExisting = String(process.env.SYNC_STATIC_OVERWRITE || '').trim() === '1' || process.env.NODE_ENV !== 'production';
+
   const files = [
     'admin.html',
     'admin.css',
@@ -66,6 +68,7 @@ function trySyncStaticAssets() {
     const dst = path.join(publicStaticRoot, f);
     try {
       if (!fs.existsSync(src)) continue;
+      if (!overwriteExisting && fs.existsSync(dst)) continue;
       fs.copyFileSync(src, dst);
     } catch {}
   }

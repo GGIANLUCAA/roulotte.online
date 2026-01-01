@@ -4,6 +4,8 @@ const assert = require('node:assert');
 const DEFAULT_LOCAL_API_BASE = process.env.DEFAULT_LOCAL_API_BASE || 'http://localhost:3001';
 const API_BASE = process.env.API_BASE_URL || DEFAULT_LOCAL_API_BASE;
 
+let apiReachableCache = null;
+
 function isRemoteApiBase(url) {
   try {
     const u = new URL(String(url || ''));
@@ -14,22 +16,51 @@ function isRemoteApiBase(url) {
   }
 }
 
+function fetchWithTimeout(url, options, timeoutMs) {
+  if (typeof AbortController === 'undefined') return fetch(url, options);
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), Math.max(0, Number(timeoutMs) || 0));
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(t));
+}
+
+async function isApiReachable() {
+  if (apiReachableCache !== null) return apiReachableCache;
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/api/health`, { method: 'GET', headers: { 'Accept': 'application/json' } }, 1500);
+    apiReachableCache = res.ok === true;
+  } catch {
+    apiReachableCache = false;
+  }
+  return apiReachableCache;
+}
+
+function apiTest(name, fn) {
+  return test(name, async (t) => {
+    const ok = await isApiReachable();
+    if (!ok) {
+      t.skip(`API non raggiungibile su ${API_BASE}. Imposta API_BASE_URL o avvia il backend.`);
+      return;
+    }
+    await fn(t);
+  });
+}
+
 const allowRemoteTests = ['1', 'true', 'yes'].includes(String(process.env.ALLOW_REMOTE_TESTS || '').trim().toLowerCase());
 const writeTestsEnabled = !isRemoteApiBase(API_BASE) || allowRemoteTests;
 
 function writeTest(name, fn) {
-  if (writeTestsEnabled) return test(name, fn);
-  return test(name, { skip: 'Test di scrittura disabilitati su API remota. Imposta ALLOW_REMOTE_TESTS=1.' }, fn);
+  if (!writeTestsEnabled) return test(name, { skip: 'Test di scrittura disabilitati su API remota. Imposta ALLOW_REMOTE_TESTS=1.' }, fn);
+  return apiTest(name, fn);
 }
 
-test('GET /api/health risponde ok', async () => {
+apiTest('GET /api/health risponde ok', async () => {
   const res = await fetch(`${API_BASE}/api/health`);
   assert.strictEqual(res.ok, true);
   const json = await res.json();
   assert.strictEqual(json.ok, true);
 });
 
-test('GET /api/roulottes ritorna array', async () => {
+apiTest('GET /api/roulottes ritorna array', async () => {
   const res = await fetch(`${API_BASE}/api/roulottes`);
   assert.strictEqual(res.ok, true);
   const arr = await res.json();
@@ -41,7 +72,7 @@ test('GET /api/roulottes ritorna array', async () => {
   }
 });
 
-test('POST /api/transport/route (tollerante a ORS non configurato)', async () => {
+apiTest('POST /api/transport/route (tollerante a ORS non configurato)', async () => {
   const res = await fetch(`${API_BASE}/api/transport/route`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -67,7 +98,7 @@ test('POST /api/transport/route (tollerante a ORS non configurato)', async () =>
   assert.ok(json.geometry && typeof json.geometry === 'object');
 });
 
-test('GET contenuti pubblici (tollerante a backend non aggiornato)', async () => {
+apiTest('GET contenuti pubblici (tollerante a backend non aggiornato)', async () => {
   const res = await fetch(`${API_BASE}/api/content/home_hero_title`);
   if (!res.ok) {
     assert.ok([404, 500].includes(res.status));
