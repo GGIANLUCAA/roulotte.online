@@ -1713,12 +1713,19 @@
       return v;
     }
 
-    function getApiBaseUrlOverride() {
+    function getApiBaseUrlOverride(opts) {
+      const o = (opts && typeof opts === 'object') ? opts : {};
+      const includeStorage = o.includeStorage !== undefined ? !!o.includeStorage : true;
       try {
         const p = new URLSearchParams(location.search || '');
         const qp = String(p.get('api') || p.get('api_base') || '').trim();
-        if (qp) return setApiBaseUrlOverride(qp);
+        if (qp) {
+          const persist = String(p.get('persist_api') || '').trim() === '1' || (location && location.protocol === 'file:');
+          if (persist) return setApiBaseUrlOverride(qp);
+          return normalizeApiBaseUrl(qp);
+        }
       } catch {}
+      if (!includeStorage) return '';
       try {
         const v = String(localStorage.getItem(API_BASE_STORAGE_KEY) || '').trim();
         return normalizeApiBaseUrl(v);
@@ -1730,8 +1737,8 @@
     function getApiBaseUrl() {
       const isLocalHost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
       if (isLocalHost) return 'http://localhost:3001';
-      if (location && location.protocol === 'file:') return DEFAULT_REMOTE_API_BASE_URL;
-      return getApiBaseUrlOverride() || '';
+      if (location && location.protocol === 'file:') return getApiBaseUrlOverride({ includeStorage: true }) || DEFAULT_REMOTE_API_BASE_URL;
+      return getApiBaseUrlOverride({ includeStorage: false }) || '';
     }
 
     let posthogInitStarted = false;
@@ -2331,7 +2338,13 @@
       const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
       const timer = ctrl ? setTimeout(() => ctrl.abort(), Math.max(300, Number(timeoutMs) || 0)) : null;
       try {
-        const url = getApiBaseUrl() + '/api/share-links/roulottes?token=' + encodeURIComponent(t);
+        const origin = (function () {
+          try {
+            if (location && location.origin && location.origin !== 'null') return String(location.origin || '');
+          } catch {}
+          return '';
+        })();
+        const url = origin + '/api/share-links/roulottes?token=' + encodeURIComponent(t);
         const r = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' }, signal: ctrl ? ctrl.signal : undefined });
         const j = await r.json().catch(() => null);
         if (!r.ok) {

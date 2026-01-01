@@ -19,20 +19,26 @@
     }
   }
 
-  function getApiBaseUrlOverride() {
+  function getApiBaseUrlOverride(opts) {
+    const o = (opts && typeof opts === 'object') ? opts : {};
+    const includeStorage = o.includeStorage !== undefined ? !!o.includeStorage : true;
     try {
       const p = new URLSearchParams(location.search || '');
       const qp = String(p.get('api') || p.get('api_base') || '').trim();
       if (qp) {
         const v = normalizeApiBaseUrl(qp);
-        try {
-          if (!v) localStorage.removeItem(API_BASE_STORAGE_KEY);
-          else localStorage.setItem(API_BASE_STORAGE_KEY, v);
-        } catch {}
+        const persist = String(p.get('persist_api') || '').trim() === '1' || isFileProtocol();
+        if (persist) {
+          try {
+            if (!v) localStorage.removeItem(API_BASE_STORAGE_KEY);
+            else localStorage.setItem(API_BASE_STORAGE_KEY, v);
+          } catch {}
+        }
         return v;
       }
     } catch {}
 
+    if (!includeStorage) return '';
     try {
       const v = String(localStorage.getItem(API_BASE_STORAGE_KEY) || '').trim();
       return normalizeApiBaseUrl(v);
@@ -43,8 +49,8 @@
 
   function getApiBaseUrl() {
     if (isLocal) return 'http://localhost:3001';
-    if (isFileProtocol()) return DEFAULT_REMOTE_API_BASE_URL;
-    return getApiBaseUrlOverride() || '';
+    if (isFileProtocol()) return getApiBaseUrlOverride({ includeStorage: true }) || DEFAULT_REMOTE_API_BASE_URL;
+    return getApiBaseUrlOverride({ includeStorage: false }) || '';
   }
 
   function apiUrl(path) {
