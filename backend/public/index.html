@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="it" data-theme="light">
   <head>
     <meta charset="UTF-8" />
@@ -20,10 +20,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-    <script src="roulotte-store.js"></script>
+    <script src="roulotte-store.js?v=20260105"></script>
   <title>Roulotte online</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20260105">
 </head>
 <body>
   <a class="skip-link" href="#contenuto" data-i18n="a11y.skipToContent">Vai al contenuto</a>
@@ -41,12 +41,6 @@
           <h1>Roulotte online</h1>
         </div>
       </a>
-      <button class="nav-toggle" type="button" id="navToggle" aria-expanded="false" data-i18n="nav.menu">Menu</button>
-      <nav id="mainNav" aria-label="Navigazione">
-        <a class="nav-link" href="index.html" data-i18n="nav.catalog">Catalogo</a>
-        <a class="nav-link" href="#trasporto" data-i18n="nav.transport">Trasporto</a>
-        <a class="nav-link" href="admin.html" data-i18n="nav.admin">Admin</a>
-      </nav>
       <div class="actions" aria-label="Azioni rapide">
         <select id="langSelect" class="btn" aria-label="Lingua" style="min-width:92px">
           <option value="it">IT</option>
@@ -54,79 +48,208 @@
           <option value="de">DE</option>
           <option value="fr">FR</option>
         </select>
-        <a class="btn" id="quickEditBtn" href="admin.html?section=builder&page=home" hidden data-i18n="actions.editSite">Modifica sito</a>
-        <a class="btn" href="admin.html" data-i18n="actions.adminArea">Area Admin</a>
-        <button class="btn" type="button" id="themeToggle">Tema: Chiaro</button>
+        <button class="btn icon-btn" type="button" id="themeToggle" aria-label="Tema"></button>
+        <button class="btn icon-btn" type="button" id="voiceToggle" aria-label="Comandi vocali" title="Comandi vocali" aria-pressed="false" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z"/>
+            <path d="M19 11a7 7 0 0 1-14 0"/>
+            <path d="M12 19v3"/>
+            <path d="M8 22h8"/>
+          </svg>
+        </button>
         <button class="btn" type="button" id="copySearchLink" data-i18n="actions.copySearchLink">Copia link ricerca</button>
         <button class="btn btn-primary" type="button" id="resetFilters" data-i18n="actions.resetFilters">Reset filtri</button>
+        <a class="btn icon-btn" id="adminStar" href="admin.html" aria-label="Admin" title="Admin">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.7-6.3 3.7 1.7-7L2 9.2l7.1-.6L12 2z"/>
+          </svg>
+        </a>
+        <span id="apiOverrideBadge" class="tag" hidden style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
       </div>
     </header>
 
-    <section class="hero" id="editableHome" aria-label="Ricerca">
-      <div class="hero-card">
-        <h2 id="heroTitle" data-i18n="hero.title" data-i18n-default="Trova la roulotte giusta">Trova la roulotte giusta</h2>
-        <p id="heroText" data-i18n="hero.text" data-i18n-default="Filtra per marca, modello, anno e stato. I risultati si aggiornano in tempo reale.">Filtra per marca, modello, anno e stato. I risultati si aggiornano in tempo reale.</p>
-        <div id="editableFilters" class="controls" role="search" aria-label="Ricerca e filtri">
-          <div class="field">
-            <label for="q" data-i18n="filters.searchLabel">Cerca</label>
-            <input id="q" name="q" type="search" autocomplete="off" placeholder="Es. Adria, Hobby, 2021..." data-i18n-placeholder="filters.searchPlaceholder" />
-          </div>
-          <div class="field">
-            <label for="categoryFilter" data-i18n="filters.category">Categoria</label>
-            <select id="categoryFilter" name="categoryFilter">
-              <option value="" data-i18n="filters.all">Tutte</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="statoFilter" data-i18n="filters.status">Stato</label>
-            <select id="statoFilter" name="statoFilter">
-              <option value="" data-i18n="filters.any">Tutti</option>
-              <option value="Ottimo" data-i18n="status.excellent">Ottimo</option>
-              <option value="Buono" data-i18n="status.good">Buono</option>
-              <option value="Da sistemare" data-i18n="status.toFix">Da sistemare</option>
-              <option value="Nuovo" data-i18n="status.new">Nuovo</option>
-              <option value="Venduto" data-i18n="status.sold">Venduto</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="sort" data-i18n="filters.sort">Ordina</label>
-            <select id="sort" name="sort">
-              <option value="newest" data-i18n="sort.newest">Più recenti</option>
-              <option value="priceAsc" data-i18n="sort.priceAsc">Prezzo crescente</option>
-              <option value="priceDesc" data-i18n="sort.priceDesc">Prezzo decrescente</option>
-              <option value="yearDesc" data-i18n="sort.yearDesc">Anno più nuovo</option>
-              <option value="yearAsc" data-i18n="sort.yearAsc">Anno più vecchio</option>
-            </select>
-          </div>
-          <div class="field">
-            <label data-i18n="filters.price">Prezzo</label>
-            <div class="price-range" aria-label="Filtro prezzo">
-              <input id="priceMin" inputmode="numeric" placeholder="Min" data-i18n-placeholder="filters.min" />
-              <input id="priceMax" inputmode="numeric" placeholder="Max" data-i18n-placeholder="filters.max" />
+    <section id="editableHome" class="home" aria-label="Home">
+      <section class="home-hero" aria-label="Introduzione">
+        <div class="home-hero-inner">
+          <div class="home-hero-copy">
+            <h2 id="heroTitle" data-i18n="hero.title" data-i18n-default="Trova la tua roulotte pronta all’uso">Trova la tua roulotte pronta all’uso</h2>
+            <p class="home-hero-sub" data-i18n="hero.text" data-i18n-default="Vendita, ritiro e trasporto roulotte in tutta Italia">Vendita, ritiro e trasporto roulotte in tutta Italia</p>
+            <div class="home-hero-actions" aria-label="Azioni principali">
+              <a class="btn btn-primary" href="#catalogo" id="ctaCatalog" data-i18n="actions.viewCatalog" data-i18n-default="Vedi le roulotte disponibili">Vedi le roulotte disponibili</a>
+              <a class="btn" href="/trasporto-roulotte" id="ctaTransport" data-i18n="actions.calcTransport" data-i18n-default="Calcola trasporto">Calcola trasporto</a>
             </div>
           </div>
-          <div class="field" style="align-content:end">
-            <label class="sr-only" for="hasPhoto" data-i18n="filters.onlyWithPhotos">Solo con foto</label>
-            <label class="check-pill" for="hasPhoto">
-              <input id="hasPhoto" type="checkbox" />
-              <span data-i18n="filters.onlyWithPhotos">Solo con foto</span>
-            </label>
+        </div>
+      </section>
+
+      <section class="home-search" aria-label="Ricerca roulotte">
+        <div class="card home-search-card">
+          <div class="hint" style="margin-bottom:10px" data-i18n="home.searchHint" data-i18n-default="Scegli una categoria, imposta un budget e ordina i risultati.">Scegli una categoria, imposta un budget e ordina i risultati.</div>
+          <div id="editableFilters" class="controls controls-simple" role="search" aria-label="Ricerca e filtri">
+            <div class="field">
+              <label for="q" data-i18n="filters.searchLabel">Cerca</label>
+              <input id="q" name="q" type="search" autocomplete="off" placeholder="Es. Adria, Hobby, 2021..." data-i18n-placeholder="filters.searchPlaceholder" />
+            </div>
+            <div class="field">
+              <label for="categoryFilter" data-i18n="filters.category">Categoria</label>
+              <select id="categoryFilter" name="categoryFilter">
+                <option value="" data-i18n="filters.all">Tutte</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="statoFilter" data-i18n="filters.status">Stato</label>
+              <select id="statoFilter" name="statoFilter">
+                <option value="" data-i18n="filters.any">Tutti</option>
+                <option value="Ottimo" data-i18n="status.excellent">Ottimo</option>
+                <option value="Buono" data-i18n="status.good">Buono</option>
+                <option value="Da sistemare" data-i18n="status.toFix">Da sistemare</option>
+                <option value="Nuovo" data-i18n="status.new">Nuovo</option>
+                <option value="Venduto" data-i18n="status.sold">Venduto</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="sort" data-i18n="filters.sort">Ordina</label>
+              <select id="sort" name="sort">
+                <option value="newest" data-i18n="sort.newest">Più recenti</option>
+                <option value="priceAsc" data-i18n="sort.priceAsc">Prezzo crescente</option>
+                <option value="priceDesc" data-i18n="sort.priceDesc">Prezzo decrescente</option>
+                <option value="yearDesc" data-i18n="sort.yearDesc">Anno più nuovo</option>
+                <option value="yearAsc" data-i18n="sort.yearAsc">Anno più vecchio</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="priceMax" data-i18n="home.priceMaxLabel" data-i18n-default="Prezzo max">Prezzo max</label>
+              <div class="price-range price-range-single" aria-label="Filtro prezzo massimo">
+                <input id="priceMax" inputmode="numeric" placeholder="Max" data-i18n-placeholder="filters.max" />
+              </div>
+            </div>
+            <div class="field" style="align-content:end">
+              <button class="btn btn-primary" type="button" id="homeSearchBtn" data-i18n="actions.search" data-i18n-default="Cerca">Cerca</button>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="meta-card">
-        <div class="hero-card" aria-label="Informazioni">
-          <div class="pill"><span data-i18n="meta.totalCards">Totale schede</span><strong id="totalCount">0</strong></div>
-          <div class="pill"><span data-i18n="meta.results">Risultati</span><strong id="resultCount">0</strong></div>
-          <div class="pill"><span data-i18n="meta.updated">Aggiornamento</span><strong id="lastUpdated">—</strong></div>
-        </div>
-        
-      </div>
+      </section>
     </section>
 
+    <main id="transportPage" role="main" aria-label="Trasporto roulotte" hidden>
+      <div class="page-hero">
+        <h2 data-i18n="transport.pageTitle" data-i18n-default="Trasporto roulotte">Trasporto roulotte</h2>
+        <p class="hint" data-i18n="transport.sectionHint" data-i18n-default="Apri una scheda per precompilare i dati tecnici. Inserisci solo partenza e arrivo.">Apri una scheda per precompilare i dati tecnici. Inserisci solo partenza e arrivo.</p>
+        <div class="page-hero-actions">
+          <a class="btn btn-primary" href="/index.html#catalogo" data-i18n="transport.goToCatalog" data-i18n-default="Vai al catalogo">Vai al catalogo</a>
+        </div>
+      </div>
+      <section class="card transport-standalone" aria-label="Calcolo trasporto" style="margin:14px 0">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <div style="font-weight:900;font-size:1.05rem" data-i18n="transport.sectionTitle">Calcolatore trasporto</div>
+            <div class="hint" style="margin-top:6px" data-i18n="transport.disclaimer">Prezzo indicativo e non vincolante. È solo una stima. Contattaci per conferma finale.</div>
+          </div>
+          <div class="field" style="min-width:240px">
+            <label data-i18n="transport.roulotte">Roulotte</label>
+            <input id="transportStandaloneTitle" readonly />
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:10px;margin-top:12px">
+          <div class="card transport-mini" style="padding:12px">
+            <div class="hint" data-i18n="transport.length">Lunghezza</div>
+            <div id="transportStandaloneLength" style="font-weight:900;margin-top:6px">—</div>
+          </div>
+          <div class="card transport-mini" style="padding:12px">
+            <div class="hint" data-i18n="transport.width">Larghezza</div>
+            <div id="transportStandaloneWidth" style="font-weight:900;margin-top:6px">—</div>
+          </div>
+          <div class="card transport-mini" style="padding:12px">
+            <div class="hint" data-i18n="transport.weight">Peso</div>
+            <div id="transportStandaloneWeight" style="font-weight:900;margin-top:6px">—</div>
+          </div>
+          <div class="card transport-mini" style="padding:12px">
+            <div class="hint" data-i18n="transport.axles">Doppio asse</div>
+            <div id="transportStandaloneAxles" style="font-weight:900;margin-top:6px">—</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+          <div class="field">
+            <label for="transportStandaloneFrom" data-i18n="transport.from">Partenza</label>
+            <input id="transportStandaloneFrom" autocomplete="off" placeholder="Es. Roma" />
+          </div>
+          <div class="field">
+            <label for="transportStandaloneTo" data-i18n="transport.to">Arrivo</label>
+            <input id="transportStandaloneTo" autocomplete="off" placeholder="Es. Milano" />
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:160px 180px 1fr;gap:12px;align-items:end;margin-top:12px">
+          <div class="field">
+            <label for="transportStandaloneTrainableEdit" data-i18n="transport.trainable">Trainabile</label>
+            <select id="transportStandaloneTrainableEdit">
+              <option value="">—</option>
+              <option value="true" data-i18n="transport.yes">Sì</option>
+              <option value="false" data-i18n="transport.no">No</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="transportStandalonePerKmEdit" data-i18n="transport.costPerKm">Costo €/km</label>
+            <input id="transportStandalonePerKmEdit" inputmode="decimal" placeholder="1,30" />
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+            <label class="check-pill" for="transportStandaloneConfirm" style="min-height:44px">
+              <input id="transportStandaloneConfirm" type="checkbox" />
+              <span data-i18n="transport.confirm">Confermo i dati</span>
+            </label>
+            <button class="btn btn-primary" type="button" id="transportStandaloneCalcBtn" data-i18n="transport.calc">Calcola</button>
+          </div>
+        </div>
+
+        <div id="transportStandaloneStatus" class="hint" style="margin-top:10px"></div>
+
+        <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:10px;margin-top:12px">
+          <div class="card transport-mini" style="padding:12px">
+            <div class="hint" data-i18n="transport.distanceRoundTrip">Distanza (andata/ritorno)</div>
+            <div id="transportStandaloneDistance" style="font-weight:900;margin-top:6px">—</div>
+          </div>
+          <div class="card transport-mini" style="padding:12px">
+            <div class="hint" data-i18n="transport.durationRoundTrip">Durata (andata/ritorno)</div>
+            <div id="transportStandaloneDuration" style="font-weight:900;margin-top:6px">—</div>
+          </div>
+          <div class="card transport-mini" style="padding:12px">
+            <div class="hint" data-i18n="transport.estimatedPrice">Stima prezzo (andata/ritorno)</div>
+            <div id="transportStandalonePrice" style="font-weight:900;margin-top:6px">€ —</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+          <div class="card transport-mini" style="padding:12px">
+            <div class="hint" data-i18n="transport.type">Tipo di trasporto</div>
+            <div id="transportStandaloneType" style="font-weight:900;margin-top:6px">—</div>
+            <div id="transportStandaloneReason" class="hint" style="margin-top:6px"></div>
+          </div>
+          <div class="card transport-mini" style="padding:12px">
+            <div class="hint" data-i18n="transport.other">Revisionata / Timone</div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">
+              <div><span class="hint" data-i18n="transport.revised">Revisionata</span> <span id="transportStandaloneRevised" style="font-weight:900">—</span></div>
+              <div><span class="hint" data-i18n="transport.drawbar">Timone</span> <span id="transportStandaloneDrawbar" style="font-weight:900">—</span></div>
+            </div>
+          </div>
+        </div>
+
+        <input id="transportStandaloneLengthEdit" hidden />
+        <input id="transportStandaloneWidthEdit" hidden />
+        <input id="transportStandaloneWeightEdit" hidden />
+        <select id="transportStandaloneAxlesEdit" hidden></select>
+        <select id="transportStandaloneRevisedEdit" hidden></select>
+        <select id="transportStandaloneDrawbarEdit" hidden></select>
+        <span id="transportStandaloneTrainable" hidden></span>
+
+        <div id="transportStandaloneMap" style="height:260px;border:1px solid var(--border);border-radius:12px;margin-top:12px"></div>
+      </section>
+    </main>
+
     <main id="contenuto" role="main" aria-label="Elenco roulotte">
+      <div id="catalogo"></div>
       <div class="results-head">
-        <h3 data-i18n="results.title">Disponibilità</h3>
         <div class="sr-only" aria-live="polite" id="liveStatus"></div>
       </div>
       <div id="editableListTop"></div>
@@ -136,70 +259,9 @@
           <button class="btn btn-primary" type="button" id="retryLoad" hidden data-i18n="errors.retry">Riprova</button>
         </div>
       </div>
-      <section id="cards" class="grid" aria-label="Risultati"></section>
+      <section id="cards" class="grid" aria-label="Elenco"></section>
       <div id="editableListBottom"></div>
     </main>
-
-    <section id="trasporto" aria-label="Calcolatore trasporto" style="padding:10px 0 30px">
-      <div class="calc-card">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-          <div>
-            <h3 data-i18n="transport.sectionTitle">Calcolatore trasporto roulotte</h3>
-            <div class="calc-hint" data-i18n="transport.sectionHint">Apri una scheda roulotte per compilare automaticamente i dati tecnici. Inserisci solo partenza e destinazione.</div>
-          </div>
-          <a class="btn" href="#contenuto" data-i18n="transport.goToCatalog">Vai al catalogo</a>
-        </div>
-
-        <div class="calc-row" aria-label="Impostazioni preventivo">
-          <div class="field">
-            <label data-i18n="transport.selected">Selezione</label>
-            <input id="transportStandaloneTitle" readonly value="—" />
-          </div>
-          <div class="field">
-            <label for="transportStandaloneTrainableEdit" data-i18n="transport.trainableQuestion">Roulotte trainabile?</label>
-            <select id="transportStandaloneTrainableEdit">
-              <option value="true">Sì</option>
-              <option value="false">No</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="transportStandalonePerKmEdit" data-i18n="transport.perKm">Costo al km (€/km)</label>
-            <input id="transportStandalonePerKmEdit" inputmode="decimal" placeholder="Es. 1,30" />
-          </div>
-        </div>
-
-        <div class="calc-row" aria-label="Indirizzi">
-          <div class="field">
-            <label for="transportStandaloneFrom" data-i18n="transport.from">Indirizzo di partenza</label>
-            <input id="transportStandaloneFrom" placeholder="Es. Milano, Via..." />
-          </div>
-          <div class="field">
-            <label for="transportStandaloneTo" data-i18n="transport.to">Indirizzo di destinazione</label>
-            <input id="transportStandaloneTo" placeholder="Es. Roma, Via..." />
-          </div>
-        </div>
-
-        <div class="calc-actions">
-          <button class="btn btn-primary" type="button" id="transportStandaloneCalcBtn" disabled data-i18n="transport.calculate">Calcola percorso</button>
-          <div class="calc-hint" id="transportStandaloneStatus" aria-live="polite"></div>
-        </div>
-
-        <div class="calc-grid" aria-label="Risultato">
-          <div class="calc-kv"><span data-i18n="transport.distanceRoundTrip">Distanza (andata/ritorno)</span><strong id="transportStandaloneDistance">—</strong></div>
-          <div class="calc-kv"><span data-i18n="transport.durationRoundTrip">Durata (andata/ritorno)</span><strong id="transportStandaloneDuration">—</strong></div>
-        </div>
-
-        <div class="calc-price">
-          <div>
-            <div style="font-weight:900" data-i18n="transport.estimateTitle">Stima prezzo (andata/ritorno)</div>
-            <div class="calc-hint" data-i18n="transport.disclaimer">Prezzo indicativo e non vincolante. È solo una stima. Contattaci per conferma finale.</div>
-          </div>
-          <strong id="transportStandalonePrice">€ —</strong>
-        </div>
-
-        <div id="transportStandaloneMap" class="calc-map" aria-label="Mappa percorso"></div>
-      </div>
-    </section>
 
     <footer id="editableFooter" role="contentinfo"></footer>
   </div>
@@ -221,60 +283,81 @@
       <div id="detailGallery" class="gallery" aria-label="Galleria foto"></div>
       <div id="detailPlanimetria" style="display:none"></div>
       <div id="detailVideo" style="display:none"></div>
-      <div class="calc-card" aria-label="Calcolatore trasporto">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-          <div>
-            <h4 data-i18n="transport.dialogTitle">Calcolatore trasporto</h4>
-            <div class="calc-hint" data-i18n="transport.dialogHint">Dati già compilati dalla scheda. Inserisci solo partenza e destinazione.</div>
+      <div class="card" style="padding:12px;margin-top:10px">
+        <div style="font-weight:900" data-i18n="transport.dialogTitle">Calcolatore di trasporto</div>
+        <div class="hint" style="margin-top:6px" data-i18n="transport.disclaimer">Prezzo indicativo e non vincolante. È solo una stima. Contattaci per conferma finale.</div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+          <div class="field">
+            <label for="transportDialogFrom" data-i18n="transport.from">Partenza</label>
+            <input id="transportDialogFrom" autocomplete="off" placeholder="Es. Roma" />
           </div>
-          <a class="btn" href="#trasporto" data-i18n="transport.openStandalone">Apri in sezione dedicata</a>
+          <div class="field">
+            <label for="transportDialogTo" data-i18n="transport.to">Arrivo</label>
+            <input id="transportDialogTo" autocomplete="off" placeholder="Es. Milano" />
+          </div>
         </div>
 
-        <div class="calc-row" aria-label="Impostazioni preventivo">
+        <div style="display:grid;grid-template-columns:160px 180px 1fr;gap:12px;align-items:end;margin-top:12px">
           <div class="field">
-            <label for="transportDialogTrainableEdit" data-i18n="transport.trainableQuestion">Roulotte trainabile?</label>
+            <label for="transportDialogTrainableEdit" data-i18n="transport.trainable">Trainabile</label>
             <select id="transportDialogTrainableEdit">
-              <option value="true">Sì</option>
-              <option value="false">No</option>
+              <option value="">—</option>
+              <option value="true" data-i18n="transport.yes">Sì</option>
+              <option value="false" data-i18n="transport.no">No</option>
             </select>
           </div>
           <div class="field">
-            <label for="transportDialogPerKmEdit" data-i18n="transport.perKm">Costo al km (€/km)</label>
-            <input id="transportDialogPerKmEdit" inputmode="decimal" placeholder="Es. 1,30" />
+            <label for="transportDialogPerKmEdit" data-i18n="transport.costPerKm">Costo €/km</label>
+            <input id="transportDialogPerKmEdit" inputmode="decimal" placeholder="1,30" />
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+            <label class="check-pill" for="transportDialogConfirm" style="min-height:44px">
+              <input id="transportDialogConfirm" type="checkbox" />
+              <span data-i18n="transport.confirm">Confermo i dati</span>
+            </label>
+            <button class="btn btn-primary" type="button" id="transportDialogCalcBtn" data-i18n="transport.calc">Calcola</button>
           </div>
         </div>
 
-        <div class="calc-row" aria-label="Indirizzi">
-          <div class="field">
-            <label for="transportDialogFrom" data-i18n="transport.from">Indirizzo di partenza</label>
-            <input id="transportDialogFrom" placeholder="Es. Milano, Via..." />
+        <div id="transportDialogStatus" class="hint" style="margin-top:10px"></div>
+
+        <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:10px;margin-top:12px">
+          <div class="card" style="padding:12px">
+            <div class="hint" data-i18n="transport.distanceRoundTrip">Distanza (andata/ritorno)</div>
+            <div id="transportDialogDistance" style="font-weight:900;margin-top:6px">—</div>
           </div>
-          <div class="field">
-            <label for="transportDialogTo" data-i18n="transport.to">Indirizzo di destinazione</label>
-            <input id="transportDialogTo" placeholder="Es. Roma, Via..." />
+          <div class="card" style="padding:12px">
+            <div class="hint" data-i18n="transport.durationRoundTrip">Durata (andata/ritorno)</div>
+            <div id="transportDialogDuration" style="font-weight:900;margin-top:6px">—</div>
+          </div>
+          <div class="card" style="padding:12px">
+            <div class="hint" data-i18n="transport.estimatedPrice">Stima prezzo (andata/ritorno)</div>
+            <div id="transportDialogPrice" style="font-weight:900;margin-top:6px">€ —</div>
           </div>
         </div>
 
-        <div class="calc-actions">
-          <button class="btn btn-primary" type="button" id="transportDialogCalcBtn" disabled data-i18n="transport.calculate">Calcola percorso</button>
-          <div class="calc-hint" id="transportDialogStatus" aria-live="polite"></div>
+        <div class="card" style="padding:12px;margin-top:10px">
+          <div class="hint" data-i18n="transport.type">Tipo di trasporto</div>
+          <div id="transportDialogType" style="font-weight:900;margin-top:6px">—</div>
+          <div id="transportDialogReason" class="hint" style="margin-top:6px"></div>
         </div>
 
-        <div class="calc-grid" aria-label="Risultato">
-          <div class="calc-kv"><span data-i18n="transport.distanceRoundTrip">Distanza (andata/ritorno)</span><strong id="transportDialogDistance">—</strong></div>
-          <div class="calc-kv"><span data-i18n="transport.durationRoundTrip">Durata (andata/ritorno)</span><strong id="transportDialogDuration">—</strong></div>
-        </div>
-
-        <div class="calc-price">
-          <div>
-            <div style="font-weight:900" data-i18n="transport.estimateTitle">Stima prezzo (andata/ritorno)</div>
-            <div class="calc-hint" data-i18n="transport.disclaimer">Prezzo indicativo e non vincolante. È solo una stima. Contattaci per conferma finale.</div>
-          </div>
-          <strong id="transportDialogPrice">€ —</strong>
-        </div>
-
-        <div id="transportDialogMap" class="calc-map" aria-label="Mappa percorso"></div>
+        <input id="transportDialogLengthEdit" hidden />
+        <input id="transportDialogWidthEdit" hidden />
+        <input id="transportDialogWeightEdit" hidden />
+        <select id="transportDialogAxlesEdit" hidden></select>
+        <select id="transportDialogRevisedEdit" hidden></select>
+        <select id="transportDialogDrawbarEdit" hidden></select>
+        <span id="transportDialogLength" hidden></span>
+        <span id="transportDialogWidth" hidden></span>
+        <span id="transportDialogWeight" hidden></span>
+        <span id="transportDialogAxles" hidden></span>
+        <span id="transportDialogTrainable" hidden></span>
+        <span id="transportDialogRevised" hidden></span>
+        <span id="transportDialogDrawbar" hidden></span>
       </div>
+      <div id="transportDialogMap" style="height:260px;border:1px solid var(--border);border-radius:12px;margin-top:10px"></div>
     </div>
   </dialog>
   <div id="imgLightbox" role="dialog" aria-modal="true" aria-label="Galleria immagini" aria-hidden="true" tabindex="-1" style="position:fixed;inset:0;display:none;background:rgba(0,0,0,.9);z-index:99999;align-items:center;justify-content:center">
@@ -286,10 +369,10 @@
     <div id="lbCaption" style="position:absolute;bottom:20px;right:20px;color:#fff;max-width:50vw;text-align:right"></div>
   </div>
 
-  <script src="roulotte-store.js"></script>
-  <script src="live-reload.js"></script>
+  <script src="roulotte-store.js?v=20260105"></script>
+  <script src="live-reload.js?v=20260105"></script>
   <script src="https://unpkg.com/i18next@23.16.8/dist/umd/i18next.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="app.js"></script>
+<script src="app.js?v=20260105"></script>
 </body>
 </html>

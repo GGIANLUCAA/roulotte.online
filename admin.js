@@ -1,4 +1,4 @@
-﻿    const AUTH_KEY = 'admin_auth_v2';
+    const AUTH_KEY = 'admin_auth_v2';
     const toastWrap = document.getElementById('toastWrap');
 
     function showToast(variant, title, message, opts) {
@@ -89,6 +89,7 @@
     const navButtons = Array.from(document.querySelectorAll('.nav-btn'));
     const refreshBtn = document.getElementById('refreshBtn');
     const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const voiceToggleBtn = document.getElementById('voiceToggleBtn');
     const logoutBtn = document.getElementById('logoutBtn');
     const logoutBtnMobile = document.getElementById('logoutBtnMobile');
 
@@ -181,14 +182,37 @@
 
     const noteEl = document.getElementById('note');
     const editor = document.getElementById('editor'); // Nuovo WYSIWYG
+    const noteStatsEl = document.getElementById('noteStats');
 
     // Upload
     const photosInput = document.getElementById('photosInput');
     const dropzone = document.getElementById('dropzone'); // Nuovo
     const photosPreview = document.getElementById('photosPreview');
     const photoHint = document.getElementById('photoHint');
+    const photoCountEl = document.getElementById('photoCount');
+    const photoUrlInput = document.getElementById('photoUrlInput');
+    const addPhotoUrlBtn = document.getElementById('addPhotoUrlBtn');
+    const autoAltBtn = document.getElementById('autoAltBtn');
+    const clearPhotosBtn = document.getElementById('clearPhotosBtn');
+    const newFormChecklist = document.getElementById('newFormChecklist');
+    const newFormChecklistHint = document.getElementById('newFormChecklistHint');
+    const saveAndPublishBtn = document.getElementById('saveAndPublishBtn');
+    const aiInput = document.getElementById('aiInput');
+    const aiAnalyzeBtn = document.getElementById('aiAnalyzeBtn');
+    const aiApplyBtn = document.getElementById('aiApplyBtn');
+    const aiClearBtn = document.getElementById('aiClearBtn');
+    const aiSuggestionsEl = document.getElementById('aiSuggestions');
+    const copyLastBtn = document.getElementById('copyLastBtn');
     let draftPhotos = [];
     let draftEditingUpdatedAt = '';
+    let aiPendingSuggestions = [];
+    let newFormDirty = false;
+    function setNewFormDirty(v) { newFormDirty = !!v; }
+    function markNewFormDirty() { newFormDirty = true; }
+    if (newForm) {
+      newForm.addEventListener('input', () => markNewFormDirty(), true);
+      newForm.addEventListener('change', () => markNewFormDirty(), true);
+    }
 
     // Categorie
     const catList = document.getElementById('catList');
@@ -217,12 +241,26 @@
     const pushServerBtn = document.getElementById('pushServerBtn');
     const syncMsg = document.getElementById('syncMsg');
     const wipeBtn = document.getElementById('wipeBtn');
+    const siteStatsUpdatedAtEl = document.getElementById('siteStatsUpdatedAt');
+    const siteStatsTotalEl = document.getElementById('siteStatsTotal');
+    const siteStatsResultsEl = document.getElementById('siteStatsResults');
     const builderPageKey = document.getElementById('builderPageKey');
     const builderLoadBtn = document.getElementById('builderLoadBtn');
     const builderSaveBtn = document.getElementById('builderSaveBtn');
     const builderPublishBtn = document.getElementById('builderPublishBtn');
+    const builderPreviewBtn = document.getElementById('builderPreviewBtn');
+    const builderUndoBtn = document.getElementById('builderUndoBtn');
+    const builderRedoBtn = document.getElementById('builderRedoBtn');
+    const builderPreviewDialog = document.getElementById('builderPreviewDialog');
+    const builderPreviewFrame = document.getElementById('builderPreviewFrame');
+    const builderPreviewCloseBtn = document.getElementById('builderPreviewCloseBtn');
+    const builderPreviewReloadBtn = document.getElementById('builderPreviewReloadBtn');
     const builderStatus = document.getElementById('builderStatus');
     let gjsEditor = null;
+    let builderAutoLoaded = false;
+    let builderLoading = false;
+    let builderDirty = false;
+    let builderStatusBase = String(builderStatus && builderStatus.textContent || 'Inattivo');
 
     // Elenco
     const listMeta = document.getElementById('listMeta');
@@ -256,7 +294,7 @@
     function normalize(s) { return String(s ?? '').trim().toLowerCase(); }
     function formatPrice(v) { 
       const n = Number(v); 
-      return Number.isFinite(n) ? 'â‚¬ ' + n.toLocaleString('it-IT') : 'â‚¬ â€”'; 
+      return Number.isFinite(n) ? '€ ' + n.toLocaleString('it-IT') : '€ —'; 
     }
     async function copyText(text) {
       const t = String(text || '');
@@ -309,14 +347,403 @@
     }
     function setBoolSelect(el, v) {
       if (!el) return;
-      if (v === true) el.value = 'SÃ¬';
+      if (v === true) el.value = 'Sì';
       else if (v === false) el.value = 'No';
       else el.value = '';
     }
     function boolLabel(v) {
-      if (v === true) return 'SÃ¬';
+      if (v === true) return 'Sì';
       if (v === false) return 'No';
-      return 'â€”';
+      return '—';
+    }
+
+    function setInvalidControl(el, invalid) {
+      if (!el) return;
+      const bad = invalid === true;
+      if (bad) {
+        el.classList.add('is-invalid');
+        el.setAttribute('aria-invalid', 'true');
+      } else {
+        el.classList.remove('is-invalid');
+        el.removeAttribute('aria-invalid');
+      }
+    }
+
+    function computeNewFormChecklistState() {
+      const marca = String(marcaEl?.value || '').trim();
+      const modello = String(modelloEl?.value || '').trim();
+      const prezzo = Number(prezzoEl?.value);
+      const anno = Number(annoEl?.value);
+      const tipologiaMezzo = String(tipologiaMezzoEl?.value || '').trim();
+      const statoAnnuncio = String((statoAnnuncioEl && statoAnnuncioEl.value) ? statoAnnuncioEl.value : 'bozza');
+
+      const state = {
+        marca: marca.length > 0,
+        modello: modello.length > 0,
+        prezzo: Number.isFinite(prezzo) && prezzo > 0,
+        anno: Number.isFinite(anno) && anno >= 1970 && anno <= 2100,
+        tipologiaMezzo: tipologiaMezzo.length > 0,
+        foto: Array.isArray(draftPhotos) && draftPhotos.length > 0,
+        statoAnnuncio
+      };
+      state.requiredOk = state.marca && state.modello && state.prezzo && state.anno && state.tipologiaMezzo;
+      state.publishOk = state.requiredOk && state.foto;
+      return state;
+    }
+
+    function updateNewFormChecklistUi() {
+      const state = computeNewFormChecklistState();
+
+      if (photoCountEl) {
+        photoCountEl.textContent = 'Foto selezionate: ' + String((draftPhotos && draftPhotos.length) ? draftPhotos.length : 0);
+      }
+
+      if (newFormChecklist) {
+        const items = Array.from(newFormChecklist.querySelectorAll('.check-item'));
+        items.forEach((it) => {
+          const key = String(it.getAttribute('data-key') || '').trim();
+          const ok = !!state[key];
+          const dot = it.querySelector('.check-dot');
+          if (ok) it.classList.add('is-ok');
+          else it.classList.remove('is-ok');
+          if (dot) {
+            dot.classList.toggle('is-ok', ok);
+            dot.classList.toggle('is-bad', !ok);
+          }
+        });
+        if (newFormChecklistHint) {
+          if (state.publishOk) newFormChecklistHint.textContent = 'Pronto: puoi pubblicare.';
+          else if (state.requiredOk && !state.foto) newFormChecklistHint.textContent = 'Aggiungi almeno una foto per pubblicare.';
+          else {
+            const missing = [];
+            if (!state.marca) missing.push('Marca');
+            if (!state.modello) missing.push('Modello');
+            if (!state.prezzo) missing.push('Prezzo (> 0)');
+            if (!state.anno) missing.push('Anno');
+            if (!state.tipologiaMezzo) missing.push('Tipologia');
+            newFormChecklistHint.textContent = 'Manca: ' + missing.join(', ') + '.';
+          }
+        }
+      }
+
+      const submitBtn = newForm ? newForm.querySelector('button[type="submit"]') : null;
+      const requiresPhoto = state.statoAnnuncio !== 'bozza';
+      if (submitBtn) submitBtn.disabled = !state.requiredOk || (requiresPhoto && !state.foto);
+      if (saveAndPublishBtn) saveAndPublishBtn.disabled = !state.publishOk;
+    }
+
+    function focusAndHighlight(el) {
+      if (!el) return;
+      try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+      try { if (typeof el.focus === 'function') el.focus({ preventScroll: true }); } catch {}
+      try {
+        el.classList.add('jump-highlight');
+        setTimeout(() => { try { el.classList.remove('jump-highlight'); } catch {} }, 900);
+      } catch {}
+    }
+    function jumpToNewFormField(key) {
+      const k = String(key || '').trim();
+      if (!k) return;
+      const map = {
+        marca: marcaEl,
+        modello: modelloEl,
+        prezzo: prezzoEl,
+        anno: annoEl,
+        tipologiaMezzo: tipologiaMezzoEl,
+        foto: dropzone || photoUrlInput || photosInput
+      };
+      focusAndHighlight(map[k]);
+    }
+    if (newFormChecklist) {
+      newFormChecklist.addEventListener('click', (e) => {
+        const t = e && e.target;
+        if (!t || typeof t.closest !== 'function') return;
+        const item = t.closest('.check-item');
+        if (!item) return;
+        const key = item.getAttribute('data-key');
+        jumpToNewFormField(key);
+      });
+    }
+
+    function stripHtmlToText(html) {
+      try {
+        const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
+        return String((doc.body && doc.body.textContent) ? doc.body.textContent : '').trim();
+      } catch {
+        return String(html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      }
+    }
+
+    function updateNoteStats() {
+      if (!noteStatsEl) return;
+      const text = stripHtmlToText(editor ? editor.innerHTML : (noteEl ? noteEl.value : ''));
+      const chars = text.length;
+      const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
+      noteStatsEl.textContent = `(${words} parole, ${chars} caratteri)`;
+    }
+
+    function toTitleCase(s) {
+      return String(s || '').toLowerCase().replace(/\b\p{L}/gu, (m) => m.toUpperCase()).trim();
+    }
+
+    function normalizePhone(raw) {
+      const digits = String(raw || '').replace(/[^\d+]/g, '');
+      const d = digits.replace(/\D/g, '');
+      if (!d) return '';
+      if (d.startsWith('39') && d.length >= 11) return '+' + d;
+      if (d.length === 10 && d.startsWith('3')) return '+39' + d;
+      if (d.length === 9 && d.startsWith('3')) return '+39' + d;
+      return digits.startsWith('+') ? digits : '+' + d;
+    }
+
+    function parsePriceFromText(text) {
+      const t = String(text || '');
+      const m = t.match(/(?:€\s*)?(\d{1,3}(?:[.\s]\d{3})+|\d+)(?:[.,](\d{2}))?\s*€?/i);
+      if (!m) return null;
+      const intPart = String(m[1] || '').replace(/[.\s]/g, '');
+      const dec = (m[2] !== undefined) ? String(m[2] || '') : '';
+      const num = Number(intPart + (dec ? '.' + dec : ''));
+      return Number.isFinite(num) ? num : null;
+    }
+
+    function parseYearFromText(text) {
+      const t = String(text || '');
+      const years = Array.from(t.matchAll(/\b(19\d{2}|20\d{2})\b/g)).map(m => Number(m[1]));
+      const y = years.find(v => v >= 1970 && v <= 2100);
+      return Number.isFinite(y) ? y : null;
+    }
+
+    function inferYesNo(text, keyword) {
+      const t = String(text || '').toLowerCase();
+      const k = String(keyword || '').toLowerCase();
+      const idx = t.indexOf(k);
+      if (idx < 0) return '';
+      const around = t.slice(Math.max(0, idx - 18), Math.min(t.length, idx + k.length + 22));
+      if (/(no|assent|mai|nessun)/i.test(around)) return 'No';
+      if (/(sì|si|presen|ok|inclus)/i.test(around)) return 'Sì';
+      return '';
+    }
+
+    function inferEnum(text, options) {
+      const t = String(text || '').toLowerCase();
+      const opts = Array.isArray(options) ? options : [];
+      for (const o of opts) {
+        const v = String(o || '').trim();
+        if (!v) continue;
+        if (t.includes(v.toLowerCase())) return v;
+      }
+      return '';
+    }
+
+    function inferTipologiaMezzo(text) {
+      const t = String(text || '').toLowerCase();
+      if (t.includes('casa mobile') || t.includes('casa-mobile') || t.includes('mobilhome') || t.includes('mobile home')) return 'Casa mobile';
+      if (t.includes('campeggio') || t.includes('stanziale')) return 'Roulotte da campeggio';
+      if (t.includes('progetto') || t.includes('da sistemare')) return 'Da sistemare / progetto';
+      if (t.includes('roulotte') || t.includes('caravan') || t.includes('caravana')) return 'Roulotte stradale';
+      return '';
+    }
+
+    function inferMarcaModello(text) {
+      const raw = String(text || '').trim();
+      if (!raw) return { marca: '', modello: '' };
+      const firstLine = raw.split(/\r?\n/).map(s => s.trim()).find(Boolean) || raw;
+      const head = firstLine.split(/[|•·]/)[0].split(' - ')[0].split(' – ')[0].trim();
+      const cleaned = head
+        .replace(/\b(roulotte|caravan|caravans|caravana|venduta|venduto|vendo|vendesi)\b/gi, '')
+        .replace(/\b(19\d{2}|20\d{2})\b/g, '')
+        .replace(/€.*$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!cleaned) return { marca: '', modello: '' };
+      const parts = cleaned.split(' ').filter(Boolean);
+      if (parts.length === 1) return { marca: toTitleCase(parts[0]), modello: '' };
+      const known = new Set(['hobby','adria','knaus','fendt','bürstner','burstner','dethleffs','caravelair','hymer','weinsberg','tabbert','wilks','swift','bailey','eriba','laika']);
+      const first = String(parts[0] || '').toLowerCase();
+      const marca = toTitleCase(parts[0]);
+      const modello = parts.slice(1).join(' ').trim();
+      if (known.has(first)) return { marca, modello };
+      return { marca, modello };
+    }
+
+    function findCategoryIdByNameLike(keyword) {
+      if (!categoryIdEl) return '';
+      const k = String(keyword || '').toLowerCase().trim();
+      if (!k) return '';
+      const opts = Array.from(categoryIdEl.querySelectorAll('option'));
+      const found = opts.find(o => String(o.textContent || '').toLowerCase().includes(k));
+      return found ? String(found.value || '') : '';
+    }
+
+    function buildAiSuggestionsFromText(text) {
+      const raw = String(text || '').trim();
+      const lower = raw.toLowerCase();
+      const suggestions = [];
+
+      const mm = inferMarcaModello(raw);
+      if (mm.marca) suggestions.push({ key: 'marca', label: 'Marca', value: mm.marca, reason: 'Prima riga testo' });
+      if (mm.modello) suggestions.push({ key: 'modello', label: 'Modello', value: mm.modello, reason: 'Prima riga testo' });
+
+      const yr = parseYearFromText(raw);
+      if (yr) suggestions.push({ key: 'anno', label: 'Anno', value: String(yr), reason: 'Anno trovato nel testo' });
+
+      const pr = parsePriceFromText(raw);
+      if (Number.isFinite(pr)) suggestions.push({ key: 'prezzo', label: 'Prezzo', value: String(pr), reason: 'Prezzo trovato nel testo' });
+
+      const tipo = inferTipologiaMezzo(raw);
+      if (tipo) suggestions.push({ key: 'tipologiaMezzo', label: 'Tipologia', value: tipo, reason: 'Parole chiave (roulotte/campeggio/casa mobile)' });
+
+      const stato = inferEnum(lower, ['ottimo', 'buono', 'nuovo', 'da sistemare', 'venduto']);
+      if (stato) suggestions.push({ key: 'stato', label: 'Stato', value: toTitleCase(stato), reason: 'Parola chiave nel testo' });
+
+      if (lower.includes('vendut')) suggestions.push({ key: 'stato_annuncio', label: 'Pubblicazione', value: 'venduto', reason: 'Parola chiave “vendut*”' });
+      else if (lower.includes('pubblicat')) suggestions.push({ key: 'stato_annuncio', label: 'Pubblicazione', value: 'pubblicato', reason: 'Parola chiave “pubblicat*”' });
+
+      const infil = inferYesNo(raw, 'infiltr');
+      if (infil) suggestions.push({ key: 'infiltrazioni', label: 'Infiltrazioni', value: infil === 'No' ? 'No' : infil === 'Sì' ? 'Sì' : infil, reason: 'Parola chiave “infiltr*”' });
+
+      const targ = inferYesNo(raw, 'targ');
+      if (targ) suggestions.push({ key: 'targata', label: 'Targata', value: targ, reason: 'Parola chiave “targ*”' });
+
+      const lib = inferYesNo(raw, 'librett');
+      if (lib) suggestions.push({ key: 'librettoCircolazione', label: 'Libretto', value: lib, reason: 'Parola chiave “librett*”' });
+
+      const omo = inferYesNo(raw, 'omolog');
+      if (omo) suggestions.push({ key: 'omologataCircolazione', label: 'Omologata circolazione', value: omo, reason: 'Parola chiave “omolog*”' });
+
+      const perm = inferYesNo(raw, 'permuta');
+      if (perm) suggestions.push({ key: 'permuta', label: 'Permuta', value: perm === 'Sì' ? 'Sì' : 'No', reason: 'Parola chiave “permuta”' });
+
+      if (lower.includes('pronta consegna') || lower.includes('subito disponibile') || lower.includes('disponibile subito')) {
+        suggestions.push({ key: 'prontaConsegna', label: 'Pronta consegna', value: 'Sì', reason: 'Parola chiave “pronta consegna / subito”' });
+      }
+
+      const email = (raw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i) || [])[0] || '';
+      if (email) suggestions.push({ key: 'contattoEmail', label: 'Email', value: email, reason: 'Email nel testo' });
+
+      const phoneMatch = raw.match(/(?:\+39\s*)?(?:3\d[\s.-]*){8,11}/);
+      if (phoneMatch && phoneMatch[0]) {
+        const ph = normalizePhone(phoneMatch[0]);
+        if (ph) suggestions.push({ key: 'contattoTelefono', label: 'Telefono', value: ph, reason: 'Telefono nel testo' });
+      }
+
+      if (lower.includes('veranda') || lower.includes('tendalino')) suggestions.push({ key: 'verandaTendalino', label: 'Veranda/Tendalino', value: 'Sì', reason: 'Parola chiave “veranda/tendalino”' });
+      if (lower.includes('portabici')) suggestions.push({ key: 'portabici', label: 'Portabici', value: 'Sì', reason: 'Parola chiave “portabici”' });
+      if (lower.includes('clima') || lower.includes('climatizz')) suggestions.push({ key: 'climatizzatore', label: 'Climatizzatore', value: 'Sì', reason: 'Parola chiave “clima”' });
+
+      if (tipo) {
+        const catId = findCategoryIdByNameLike(tipo);
+        if (catId) suggestions.push({ key: 'categoryId', label: 'Categoria', value: catId, reason: 'Categoria simile a tipologia' });
+      }
+
+      if (raw.length >= 40) suggestions.push({ key: 'note', label: 'Descrizione', value: raw, reason: 'Testo incollato' });
+
+      const seen = new Set();
+      return suggestions.filter(s => {
+        const k = String(s.key || '');
+        if (!k || seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+    }
+
+    function renderAiSuggestions(list) {
+      if (!aiSuggestionsEl) return;
+      const arr = Array.isArray(list) ? list : [];
+      if (!arr.length) {
+        aiSuggestionsEl.textContent = 'Nessun suggerimento trovato.';
+        if (aiApplyBtn) aiApplyBtn.disabled = true;
+        return;
+      }
+      const lines = arr.map(s => `${s.label}: ${s.value} — ${s.reason}`);
+      aiSuggestionsEl.textContent = lines.join('\n');
+      if (aiApplyBtn) aiApplyBtn.disabled = false;
+    }
+
+    function applyAiSuggestions(list) {
+      const arr = Array.isArray(list) ? list : [];
+      const setSelectIfPossible = (el, v) => {
+        if (!el) return false;
+        const value = String(v ?? '').trim();
+        if (!value) return false;
+        const opt = Array.from(el.querySelectorAll('option')).find(o => String(o.value || '') === value || String(o.textContent || '').trim().toLowerCase() === value.toLowerCase());
+        if (opt) { el.value = String(opt.value || ''); return true; }
+        return false;
+      };
+      const setIfEmpty = (el, v, force) => {
+        if (!el) return false;
+        const value = String(v ?? '').trim();
+        if (!value) return false;
+        const cur = String(el.value ?? '').trim();
+        if (!force && cur) return false;
+        el.value = value;
+        try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+        try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
+        return true;
+      };
+
+      let applied = 0;
+      for (const s of arr) {
+        const key = String(s.key || '').trim();
+        const val = s.value;
+        if (key === 'marca') applied += setIfEmpty(marcaEl, val, false) ? 1 : 0;
+        else if (key === 'modello') applied += setIfEmpty(modelloEl, val, false) ? 1 : 0;
+        else if (key === 'anno') applied += setIfEmpty(annoEl, val, false) ? 1 : 0;
+        else if (key === 'prezzo') applied += setIfEmpty(prezzoEl, val, false) ? 1 : 0;
+        else if (key === 'tipologiaMezzo') applied += setSelectIfPossible(tipologiaMezzoEl, val) ? 1 : 0;
+        else if (key === 'stato') applied += setSelectIfPossible(statoEl, val) ? 1 : 0;
+        else if (key === 'stato_annuncio') applied += setSelectIfPossible(statoAnnuncioEl, val) ? 1 : 0;
+        else if (key === 'infiltrazioni') applied += setSelectIfPossible(infiltrazioniEl, val) ? 1 : 0;
+        else if (key === 'targata') applied += setSelectIfPossible(targataEl, val) ? 1 : 0;
+        else if (key === 'librettoCircolazione') applied += setSelectIfPossible(librettoCircolazioneEl, val) ? 1 : 0;
+        else if (key === 'omologataCircolazione') applied += setSelectIfPossible(omologataCircolazioneEl, val) ? 1 : 0;
+        else if (key === 'contattoTelefono') applied += setIfEmpty(contattoTelefonoEl, val, false) ? 1 : 0;
+        else if (key === 'contattoEmail') applied += setIfEmpty(contattoEmailEl, val, false) ? 1 : 0;
+        else if (key === 'categoryId') applied += setSelectIfPossible(categoryIdEl, val) ? 1 : 0;
+        else if (key === 'prontaConsegna') { if (prontaConsegnaEl && !prontaConsegnaEl.checked) { prontaConsegnaEl.checked = true; applied++; } }
+        else if (key === 'permuta') { if (!getRadioValue('permuta') && (val === 'Sì' || val === 'No')) { setRadioValue('permuta', val); applied++; } }
+        else if (key === 'verandaTendalino') applied += setSelectIfPossible(verandaTendalinoEl, val) ? 1 : 0;
+        else if (key === 'portabici') applied += setSelectIfPossible(portabiciEl, val) ? 1 : 0;
+        else if (key === 'climatizzatore') applied += setSelectIfPossible(climatizzatoreEl, val) ? 1 : 0;
+        else if (key === 'note') {
+          const cur = String((editor && editor.innerHTML) ? editor.innerHTML : '').trim();
+          if (!cur && editor) {
+            editor.textContent = String(val || '');
+            noteEl.value = editor.innerHTML;
+            applied++;
+          }
+        }
+      }
+      updateNewFormChecklistUi();
+      updateNoteStats();
+      try { saveDraft(); } catch {}
+      return applied;
+    }
+
+    function renderBuilderStatus() {
+      if (!builderStatus) return;
+      const parts = [];
+      const base = String(builderStatusBase || '').trim();
+      if (base) parts.push(base);
+      if (builderDirty) parts.push('Modifiche non salvate');
+      builderStatus.textContent = parts.length ? parts.join(' · ') : 'Inattivo';
+    }
+    function setBuilderStatusBase(text) {
+      builderStatusBase = String(text || '');
+      renderBuilderStatus();
+    }
+    function setBuilderDirty(next) {
+      builderDirty = !!next;
+      renderBuilderStatus();
+    }
+
+    function syncBuilderThemeToCanvas() {
+      try {
+        if (!gjsEditor || !gjsEditor.Canvas) return;
+        const doc = gjsEditor.Canvas.getDocument && gjsEditor.Canvas.getDocument();
+        if (!doc || !doc.documentElement) return;
+        doc.documentElement.dataset.theme = document.documentElement.dataset.theme || 'light';
+      } catch {}
     }
 
     function applyTheme(theme) {
@@ -324,6 +751,7 @@
       document.documentElement.dataset.theme = next;
       localStorage.setItem('admin_theme', next);
       if (themeToggleBtn) themeToggleBtn.textContent = next === 'dark' ? 'Tema: Scuro' : 'Tema: Chiaro';
+      syncBuilderThemeToCanvas();
     }
     function initTheme() {
       const saved = localStorage.getItem('admin_theme');
@@ -334,7 +762,265 @@
         });
       }
     }
+
+    let adminVoiceRecognition = null;
+    let adminVoiceActive = false;
+    let adminVoiceLastErrorAt = 0;
+    let adminVoiceLastStartAt = 0;
+    let adminVoiceRestartTimer = null;
+
+    function getAdminVoiceCtor() {
+      const w = window;
+      return (w && (w.SpeechRecognition || w.webkitSpeechRecognition)) || null;
+    }
+
+    function updateAdminVoiceToggleUi() {
+      if (!voiceToggleBtn) return;
+      voiceToggleBtn.textContent = adminVoiceActive ? 'Voce: On' : 'Voce: Off';
+      voiceToggleBtn.setAttribute('aria-pressed', adminVoiceActive ? 'true' : 'false');
+      if (adminVoiceActive) voiceToggleBtn.classList.add('listening');
+      else voiceToggleBtn.classList.remove('listening');
+    }
+
+    function setAdminVoiceActive(next) {
+      adminVoiceActive = !!next;
+      updateAdminVoiceToggleUi();
+    }
+
+    function stopAdminVoiceRecognition(opts) {
+      const o = opts && typeof opts === 'object' ? opts : {};
+      const silent = o.silent === true;
+      if (adminVoiceRestartTimer) { clearTimeout(adminVoiceRestartTimer); adminVoiceRestartTimer = null; }
+      if (adminVoiceRecognition) {
+        try { adminVoiceRecognition.onend = null; } catch {}
+        try { adminVoiceRecognition.stop(); } catch {}
+      }
+      setAdminVoiceActive(false);
+      if (!silent) showToast('info', 'Voce', 'Comandi vocali disattivati.', { timeoutMs: 1600 });
+    }
+
+    function stripDiacritics(s) {
+      try { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch { return String(s || ''); }
+    }
+
+    function normalizeVoiceMatch(s) {
+      return stripDiacritics(String(s || '').toLowerCase()).replace(/[^a-z0-9]+/g, ' ').trim();
+    }
+
+    function getActiveSectionId() {
+      const el = document.querySelector('.section.active');
+      return el && el.id ? String(el.id) : '';
+    }
+
+    function parseNumberFromVoice(text) {
+      const t = normalizeVoiceMatch(text);
+      const m = t.match(/(\d+(?:[.,]\d+)?)/);
+      if (!m) return null;
+      let n = Number(String(m[1]).replace(/\./g, '').replace(',', '.'));
+      if (!Number.isFinite(n)) return null;
+      if (/\bmila\b/.test(t) && n > 0 && n < 1000) n = n * 1000;
+      return n;
+    }
+
+    function setFieldValue(el, value) {
+      if (!el) return false;
+      try { el.value = value; } catch { return false; }
+      try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
+      return true;
+    }
+
+    function setSelectBySpoken(selectEl, spoken) {
+      if (!selectEl) return false;
+      const target = normalizeVoiceMatch(spoken);
+      if (!target) return false;
+      const opts = Array.from(selectEl.options || []);
+      let best = null;
+      for (const o of opts) {
+        const label = normalizeVoiceMatch(o && o.textContent ? o.textContent : '');
+        if (!label) continue;
+        if (label === target) { best = o; break; }
+        if (!best && (label.includes(target) || target.includes(label))) best = o;
+      }
+      if (!best) return false;
+      return setFieldValue(selectEl, best.value);
+    }
+
+    function setEditorHtml(html) {
+      if (!editor || !noteEl) return false;
+      editor.innerHTML = String(html || '');
+      try { editor.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+      return true;
+    }
+
+    function handleAdminVoiceCommand(raw) {
+      const text = String(raw || '').trim();
+      if (!text) return;
+      const lower = normalizeVoiceMatch(text);
+
+      if (/\b(ferma|stop|disattiva)\b/.test(lower) && /\bvoce\b/.test(lower)) {
+        stopAdminVoiceRecognition({ silent: false });
+        return;
+      }
+      if (/\b(attiva|avvia)\b/.test(lower) && /\bvoce\b/.test(lower)) {
+        startAdminVoiceRecognition({ silent: false });
+        return;
+      }
+
+      if (getActiveSectionId() !== 'new') {
+        showToast('info', 'Voce', 'Vai su “Nuova Roulotte” per compilare con la voce.', { timeoutMs: 2200 });
+        return;
+      }
+
+      let m = null;
+      if ((m = lower.match(/^marca\s+(.+)$/))) {
+        setFieldValue(marcaEl, m[1]);
+        showToast('success', 'Voce', 'Marca aggiornata.', { timeoutMs: 1600 });
+        return;
+      }
+      if ((m = lower.match(/^modello\s+(.+)$/))) {
+        setFieldValue(modelloEl, m[1]);
+        showToast('success', 'Voce', 'Modello aggiornato.', { timeoutMs: 1600 });
+        return;
+      }
+      if ((m = lower.match(/^versione\s+(.+)$/))) {
+        setFieldValue(versioneEl, m[1]);
+        showToast('success', 'Voce', 'Versione aggiornata.', { timeoutMs: 1600 });
+        return;
+      }
+      if ((m = lower.match(/^anno\s+(.+)$/))) {
+        const n = parseNumberFromVoice(m[1]);
+        if (n === null) { showToast('warning', 'Voce', 'Anno non riconosciuto.', { timeoutMs: 2200 }); return; }
+        setFieldValue(annoEl, String(Math.floor(n)));
+        showToast('success', 'Voce', 'Anno aggiornato.', { timeoutMs: 1600 });
+        return;
+      }
+      if ((m = lower.match(/^prezzo\s+(.+)$/))) {
+        const n = parseNumberFromVoice(m[1]);
+        if (n === null) { showToast('warning', 'Voce', 'Prezzo non riconosciuto.', { timeoutMs: 2200 }); return; }
+        setFieldValue(prezzoEl, String(n));
+        showToast('success', 'Voce', 'Prezzo aggiornato.', { timeoutMs: 1600 });
+        return;
+      }
+      if ((m = lower.match(/^categoria\s+(.+)$/))) {
+        const ok = setSelectBySpoken(categoryIdEl, m[1]);
+        if (!ok) { showToast('warning', 'Voce', 'Categoria non trovata.', { timeoutMs: 2200 }); return; }
+        showToast('success', 'Voce', 'Categoria aggiornata.', { timeoutMs: 1600 });
+        return;
+      }
+      if ((m = lower.match(/^stato\s+(.+)$/))) {
+        const ok = setSelectBySpoken(statoEl, m[1]);
+        if (!ok) { showToast('warning', 'Voce', 'Stato non trovato.', { timeoutMs: 2200 }); return; }
+        showToast('success', 'Voce', 'Stato aggiornato.', { timeoutMs: 1600 });
+        return;
+      }
+      if ((m = lower.match(/^(stato\s+annuncio|annuncio)\s+(.+)$/))) {
+        const ok = setSelectBySpoken(statoAnnuncioEl, m[2]);
+        if (!ok) { showToast('warning', 'Voce', 'Stato annuncio non trovato.', { timeoutMs: 2200 }); return; }
+        showToast('success', 'Voce', 'Stato annuncio aggiornato.', { timeoutMs: 1600 });
+        return;
+      }
+      if (/\b(genera|rigenera)\b/.test(lower) && /\bdescriz/.test(lower)) {
+        try {
+          if (typeof window.generateDescription === 'function') window.generateDescription();
+          showToast('success', 'Voce', 'Descrizione generata.', { timeoutMs: 1800 });
+        } catch {
+          showToast('error', 'Voce', 'Errore durante la generazione descrizione.', { timeoutMs: 2600 });
+        }
+        return;
+      }
+      if ((m = lower.match(/^descrizione\s+(.+)$/))) {
+        const html = '<p>' + escapeHtmlText(m[1]) + '</p>';
+        setEditorHtml(html);
+        showToast('success', 'Voce', 'Descrizione impostata.', { timeoutMs: 1800 });
+        return;
+      }
+      if ((m = lower.match(/^(aggiungi\s+descrizione|aggiungi\s+nota|nota)\s+(.+)$/))) {
+        const add = '<p>' + escapeHtmlText(m[2]) + '</p>';
+        const cur = String(editor && editor.innerHTML ? editor.innerHTML : '');
+        setEditorHtml((cur ? (cur + '<br>' + add) : add));
+        showToast('success', 'Voce', 'Testo aggiunto in descrizione.', { timeoutMs: 1800 });
+        return;
+      }
+
+      showToast('info', 'Voce', 'Comando non riconosciuto.', { timeoutMs: 2000 });
+    }
+
+    function startAdminVoiceRecognition(opts) {
+      const o = opts && typeof opts === 'object' ? opts : {};
+      const silent = o.silent === true;
+      const Ctor = getAdminVoiceCtor();
+      if (!Ctor) return;
+      if (adminVoiceRestartTimer) { clearTimeout(adminVoiceRestartTimer); adminVoiceRestartTimer = null; }
+
+      if (!adminVoiceRecognition) {
+        adminVoiceRecognition = new Ctor();
+        adminVoiceRecognition.interimResults = false;
+        adminVoiceRecognition.continuous = true;
+        adminVoiceRecognition.maxAlternatives = 1;
+        adminVoiceRecognition.onresult = (e) => {
+          try {
+            const results = e && e.results ? e.results : null;
+            const last = results && results.length ? results[results.length - 1] : null;
+            const t = last && last[0] && last[0].transcript ? String(last[0].transcript) : '';
+            if (t) handleAdminVoiceCommand(t);
+          } catch {}
+        };
+        adminVoiceRecognition.onerror = (e) => {
+          adminVoiceLastErrorAt = Date.now();
+          const code = e && e.error ? String(e.error) : '';
+          if (code === 'not-allowed' || code === 'service-not-allowed') {
+            showToast('error', 'Voce', 'Permesso microfono negato.', { timeoutMs: 3200 });
+            stopAdminVoiceRecognition({ silent: true });
+            return;
+          }
+          if (code === 'no-speech') return;
+          showToast('error', 'Voce', 'Errore comandi vocali.', { timeoutMs: 2600 });
+        };
+      }
+
+      adminVoiceRecognition.lang = 'it-IT';
+      adminVoiceRecognition.onend = () => {
+        if (!adminVoiceActive) return;
+        const now = Date.now();
+        if (now - adminVoiceLastErrorAt < 800) return;
+        if (now - adminVoiceLastStartAt < 800) return;
+        adminVoiceRestartTimer = setTimeout(() => {
+          if (!adminVoiceActive) return;
+          startAdminVoiceRecognition({ silent: true });
+        }, 250);
+      };
+
+      try {
+        adminVoiceLastStartAt = Date.now();
+        adminVoiceRecognition.start();
+        setAdminVoiceActive(true);
+        if (!silent) showToast('info', 'Voce Attiva', 'In ascolto… Prova "Marca Adria", "Anno 2020", "Genera descrizione"…', { timeoutMs: 4000 });
+      } catch {
+        showToast('error', 'Voce', 'Impossibile avviare i comandi vocali.', { timeoutMs: 2600 });
+        stopAdminVoiceRecognition({ silent: true });
+      }
+    }
+
+    function toggleAdminVoiceRecognition() {
+      if (adminVoiceActive) stopAdminVoiceRecognition({ silent: false });
+      else startAdminVoiceRecognition({ silent: false });
+    }
+
+    function initAdminVoice() {
+      if (!voiceToggleBtn) return;
+      const Ctor = getAdminVoiceCtor();
+      if (!Ctor) {
+        voiceToggleBtn.disabled = true;
+        voiceToggleBtn.textContent = 'Voce: non supportata';
+        voiceToggleBtn.setAttribute('aria-pressed', 'false');
+        return;
+      }
+      updateAdminVoiceToggleUi();
+      voiceToggleBtn.addEventListener('click', () => toggleAdminVoiceRecognition());
+    }
+
     initTheme();
+    initAdminVoice();
 
     // --- Auth ---
     function isAuthed() { return sessionStorage.getItem(AUTH_KEY) === '1'; }
@@ -355,6 +1041,7 @@
       app.removeAttribute('aria-hidden');
     }
     function logout() {
+      stopAdminVoiceRecognition({ silent: true });
       setAuthed(false);
       showLogin();
       try { if (typeof window.RoulotteStore?.setAuthToken === 'function') window.RoulotteStore.setAuthToken(''); } catch {}
@@ -410,8 +1097,15 @@
     }
 
     function getApiBaseUrl() {
-      if (isLocalHost()) return 'http://localhost:3001';
-      if (location && location.protocol === 'file:') return DEFAULT_REMOTE_API_BASE_URL;
+      if (isLocalHost()) {
+        const override = getApiBaseUrlOverride();
+        if (override) return override;
+        const port = String(location.port || '');
+        const devServerPorts = new Set(['4173', '5173']);
+        if (devServerPorts.has(port)) return `${location.protocol}//${location.hostname}:3001`;
+        return '';
+      }
+      if (location && location.protocol === 'file:') return getApiBaseUrlOverride() || DEFAULT_REMOTE_API_BASE_URL;
       return getApiBaseUrlOverride() || DEFAULT_REMOTE_API_BASE_URL;
     }
 
@@ -420,7 +1114,21 @@
     }
 
     function getWsBaseUrl() {
-      if (isLocalHost()) return 'ws://localhost:3001';
+      if (isLocalHost()) {
+        const override = getApiBaseUrlOverride();
+        if (override) {
+          try {
+            const u = new URL(override);
+            const proto = u.protocol === 'https:' ? 'wss' : 'ws';
+            return proto + '//' + u.host;
+          } catch {}
+        }
+        const port = String(location.port || '');
+        const devServerPorts = new Set(['4173', '5173']);
+        if (devServerPorts.has(port)) return `ws://${location.hostname}:3001`;
+        const proto = (location.protocol === 'https:') ? 'wss' : 'ws';
+        return proto + '://' + location.host;
+      }
       const apiBase = getApiBaseUrl();
       try {
         const u = new URL(apiBase);
@@ -442,13 +1150,13 @@
       if (loginWsBaseEl) loginWsBaseEl.textContent = getWsBaseUrl();
 
       const hasOverride = !!getApiBaseUrlOverride() || (location && location.protocol === 'file:');
-      if (clearApiOverrideBtn) clearApiOverrideBtn.style.display = (hasOverride && !isLocalHost()) ? '' : 'none';
+      if (clearApiOverrideBtn) clearApiOverrideBtn.style.display = hasOverride ? '' : 'none';
     }
 
     async function checkLoginApiHealth(timeoutMs = 1500) {
       if (!loginApiHealthEl) return;
       updateLoginDiagnostics();
-      loginApiHealthEl.textContent = 'Verificaâ€¦';
+      loginApiHealthEl.textContent = 'Verifica…';
       const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
       const t = ctrl ? setTimeout(() => ctrl.abort(), Math.max(300, Number(timeoutMs) || 0)) : null;
       try {
@@ -748,10 +1456,32 @@
             container: '#gjs',
             height: '70vh',
             storageManager: false,
-            fromElement: false
+            fromElement: false,
+            canvas: {
+              styles: [
+                'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
+                'style.css'
+              ]
+            }
           });
-          builderStatus.textContent = 'Editor pronto';
+          try {
+            gjsEditor.on('update', () => {
+              if (builderLoading) return;
+              setBuilderDirty(true);
+            });
+          } catch {}
+          syncBuilderThemeToCanvas();
+          setBuilderStatusBase('Editor pronto');
+          setBuilderDirty(false);
+          if (!builderAutoLoaded) {
+            builderAutoLoaded = true;
+            setTimeout(() => { try { builderLoad(); } catch {} }, 0);
+          }
         } catch {}
+      }
+      if (sectionId === 'builder' && gjsEditor && !builderAutoLoaded) {
+        builderAutoLoaded = true;
+        setTimeout(() => { try { builderLoad(); } catch {} }, 0);
       }
       if (sectionId === 'settings') {
         try { ensureCentralSettingsPanel(); } catch {}
@@ -775,12 +1505,58 @@
     const quillWrap = document.getElementById('quillWrap');
     let quill = null;
 
+    function escapeHtmlText(s) {
+      return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function sanitizeHtmlForPreview(html) {
+      const raw = String(html || '');
+      if (!raw) return '';
+      try {
+        const doc = new DOMParser().parseFromString(raw, 'text/html');
+        const root = doc.body || doc;
+        root.querySelectorAll('script,iframe,object,embed,link,meta,base,form,input,textarea,select,option').forEach(n => n.remove());
+        root.querySelectorAll('*').forEach((el) => {
+          const attrs = Array.from(el.attributes || []);
+          attrs.forEach((a) => {
+            const name = String(a && a.name || '').toLowerCase();
+            const value = String(a && a.value || '');
+            if (!name) return;
+            if (name.startsWith('on')) { el.removeAttribute(a.name); return; }
+            if (name === 'src' || name === 'href' || name === 'xlink:href') {
+              const v = value.trim().toLowerCase();
+              if (v.startsWith('javascript:') || v.startsWith('data:text/html') || v.startsWith('data:application/xhtml') || v.startsWith('vbscript:')) {
+                el.removeAttribute(a.name);
+                return;
+              }
+              if (name === 'href' && v.startsWith('data:')) {
+                el.removeAttribute(a.name);
+                return;
+              }
+              if (name === 'src' && v.startsWith('data:') && !v.startsWith('data:image/')) {
+                el.removeAttribute(a.name);
+                return;
+              }
+            }
+          });
+        });
+        return root.innerHTML || '';
+      } catch {
+        return escapeHtmlText(raw);
+      }
+    }
+
     function renderContentPreview() {
       const t = String(contentTypeEl?.value || 'html');
       const d = String(contentDataEl?.value || '');
       if (!contentPreviewEl) return;
       if (t === 'markdown') {
-        let html = d;
+        let html = escapeHtmlText(d);
         html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
         html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
         html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
@@ -790,7 +1566,7 @@
         html = html.replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
         contentPreviewEl.innerHTML = html;
       } else {
-        contentPreviewEl.innerHTML = d;
+        contentPreviewEl.innerHTML = sanitizeHtmlForPreview(d);
       }
     }
 
@@ -830,7 +1606,7 @@
               <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
                 <div>
                   <div style="font-weight:900">${esc(u.username)}</div>
-                  <div class="hint" style="margin-top:4px">Creato: ${u.created_at ? esc(new Date(u.created_at).toLocaleString()) : 'â€”'} Â· Aggiornato: ${u.updated_at ? esc(new Date(u.updated_at).toLocaleString()) : 'â€”'}</div>
+                  <div class="hint" style="margin-top:4px">Creato: ${u.created_at ? esc(new Date(u.created_at).toLocaleString()) : '—'} · Aggiornato: ${u.updated_at ? esc(new Date(u.updated_at).toLocaleString()) : '—'}</div>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                   <input type="password" data-user-pass="${esc(u.username)}" placeholder="Nuova password" style="min-width:220px" />
@@ -966,7 +1742,7 @@
 
     async function builderLoad() {
       const page = String((builderPageKey && builderPageKey.value) ? builderPageKey.value : 'home');
-      if (builderStatus) builderStatus.textContent = 'Caricamentoâ€¦';
+      setBuilderStatusBase('Caricamento…');
 
       async function safeFetchContent(key) {
         try {
@@ -1037,71 +1813,81 @@
       }
 
       try {
+        builderLoading = true;
         if (gjsEditor) {
           gjsEditor.setComponents(html || '');
           gjsEditor.setStyle(css || '');
         }
-        if (builderStatus) builderStatus.textContent = fallbackUsed ? 'Caricato (fallback)' : 'Caricato';
+        setBuilderStatusBase(fallbackUsed ? 'Caricato (fallback)' : 'Caricato');
+        setBuilderDirty(false);
         showToast(fallbackUsed ? 'warning' : 'success', 'Editor caricato', fallbackUsed ? 'Caricati contenuti di fallback dal file locale.' : 'Contenuti caricati dal server.', { timeoutMs: 2600 });
       } catch {
-        if (builderStatus) builderStatus.textContent = 'Errore caricamento';
-        showToast('error', 'Errore caricamento', 'Impossibile caricare i contenuti nellâ€™editor.');
+        setBuilderStatusBase('Errore caricamento');
+        showToast('error', 'Errore caricamento', 'Impossibile caricare i contenuti nell’editor.');
+      } finally {
+        builderLoading = false;
       }
     }
-    async function builderSave() {
-      if (!gjsEditor) return;
+    async function builderSave(opts) {
+      const o = opts && typeof opts === 'object' ? opts : {};
+      const silent = o.silent === true;
+      if (!gjsEditor) return false;
       const page = String(builderPageKey?.value || 'home');
       const token = window.RoulotteStore.getAuthToken();
       const html = gjsEditor.getHtml();
       const css = gjsEditor.getCss();
-      builderStatus.textContent = 'Salvataggioâ€¦';
-      showToast('info', 'Salvataggio bozza', `Salvataggio in corso (${page})â€¦`, { timeoutMs: 1400 });
+      setBuilderStatusBase('Salvataggio…');
+      if (!silent) showToast('info', 'Salvataggio bozza', `Salvataggio in corso (${page})…`, { timeoutMs: 1400 });
       try {
         const r1 = await fetch(apiUrl('/api/content'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' }, body: JSON.stringify({ content_key: 'page_' + page + '_fragment', content_type: 'html', data: String(html || '') }) });
         if (!r1.ok) {
-          if (r1.status === 401) { builderStatus.textContent = 'Sessione scaduta. Accedi di nuovo.'; logout(); return; }
-          builderStatus.textContent = 'Errore salvataggio';
-          showToast('error', 'Errore salvataggio', 'Impossibile salvare la bozza.');
-          return;
+          if (r1.status === 401) { setBuilderStatusBase('Sessione scaduta. Accedi di nuovo.'); logout(); return false; }
+          setBuilderStatusBase('Errore salvataggio');
+          if (!silent) showToast('error', 'Errore salvataggio', 'Impossibile salvare la bozza.');
+          return false;
         }
         const r2 = await fetch(apiUrl('/api/content'), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' }, body: JSON.stringify({ content_key: 'page_' + page + '_styles', content_type: 'html', data: String(css || '') }) });
         if (!r2.ok) {
-          if (r2.status === 401) { builderStatus.textContent = 'Sessione scaduta. Accedi di nuovo.'; logout(); return; }
-          builderStatus.textContent = 'Errore salvataggio';
-          showToast('error', 'Errore salvataggio', 'Impossibile salvare gli stili della bozza.');
-          return;
+          if (r2.status === 401) { setBuilderStatusBase('Sessione scaduta. Accedi di nuovo.'); logout(); return false; }
+          setBuilderStatusBase('Errore salvataggio');
+          if (!silent) showToast('error', 'Errore salvataggio', 'Impossibile salvare gli stili della bozza.');
+          return false;
         }
-        builderStatus.textContent = 'Bozza salvata';
-        showToast('success', 'Bozza salvata', `Bozza salvata per ${page}.`, { timeoutMs: 2600 });
+        setBuilderStatusBase('Bozza salvata');
+        setBuilderDirty(false);
+        if (!silent) showToast('success', 'Bozza salvata', `Bozza salvata per ${page}.`, { timeoutMs: 2600 });
+        return true;
       } catch {
-        builderStatus.textContent = 'Errore salvataggio';
-        showToast('error', 'Errore salvataggio', 'Errore di rete o server durante il salvataggio.');
+        setBuilderStatusBase('Errore salvataggio');
+        if (!silent) showToast('error', 'Errore salvataggio', 'Errore di rete o server durante il salvataggio.');
+        return false;
       }
     }
     async function builderPublish() {
       const page = String(builderPageKey?.value || 'home');
-      builderStatus.textContent = 'Pubblicazioneâ€¦';
-      showToast('info', 'Pubblicazione', `Pubblicazione in corso (${page})â€¦`, { timeoutMs: 1600 });
+      setBuilderStatusBase('Pubblicazione…');
+      showToast('info', 'Pubblicazione', `Pubblicazione in corso (${page})…`, { timeoutMs: 1600 });
       try {
         const token = window.RoulotteStore.getAuthToken();
         const r1 = await fetch(apiUrl('/api/content/page_' + page + '_fragment/publish'), { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
         if (!r1.ok) {
-          if (r1.status === 401) { builderStatus.textContent = 'Sessione scaduta. Accedi di nuovo.'; logout(); return; }
-          builderStatus.textContent = 'Errore pubblicazione';
+          if (r1.status === 401) { setBuilderStatusBase('Sessione scaduta. Accedi di nuovo.'); logout(); return; }
+          setBuilderStatusBase('Errore pubblicazione');
           showToast('error', 'Errore pubblicazione', 'Impossibile pubblicare il contenuto.');
           return;
         }
         const r2 = await fetch(apiUrl('/api/content/page_' + page + '_styles/publish'), { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
         if (!r2.ok) {
-          if (r2.status === 401) { builderStatus.textContent = 'Sessione scaduta. Accedi di nuovo.'; logout(); return; }
-          builderStatus.textContent = 'Errore pubblicazione';
+          if (r2.status === 401) { setBuilderStatusBase('Sessione scaduta. Accedi di nuovo.'); logout(); return; }
+          setBuilderStatusBase('Errore pubblicazione');
           showToast('error', 'Errore pubblicazione', 'Impossibile pubblicare gli stili.');
           return;
         }
-        builderStatus.textContent = 'Pubblicato';
+        setBuilderStatusBase('Pubblicato');
+        setBuilderDirty(false);
         showToast('success', 'Pubblicato', `Pubblicazione completata (${page}).`, { timeoutMs: 3000 });
       } catch {
-        builderStatus.textContent = 'Errore pubblicazione';
+        setBuilderStatusBase('Errore pubblicazione');
         showToast('error', 'Errore pubblicazione', 'Errore di rete o server durante la pubblicazione.');
       }
     }
@@ -1109,6 +1895,40 @@
     if (builderSaveBtn) builderSaveBtn.addEventListener('click', builderSave);
     if (builderPublishBtn) builderPublishBtn.addEventListener('click', builderPublish);
     if (builderPageKey) builderPageKey.addEventListener('change', builderLoad);
+    if (builderUndoBtn) builderUndoBtn.addEventListener('click', () => { try { if (gjsEditor) gjsEditor.runCommand('core:undo'); } catch {} });
+    if (builderRedoBtn) builderRedoBtn.addEventListener('click', () => { try { if (gjsEditor) gjsEditor.runCommand('core:redo'); } catch {} });
+    async function openBuilderPreview() {
+      if (!builderPreviewDialog || !builderPreviewFrame) return;
+      if (!gjsEditor) return;
+      const ok = await builderSave({ silent: true });
+      if (!ok) {
+        showToast('error', 'Anteprima', 'Impossibile salvare la bozza per l’anteprima.', { timeoutMs: 2600 });
+        return;
+      }
+      const page = String(builderPageKey?.value || 'home');
+      builderPreviewFrame.src = 'index.html?preview=1&page=' + encodeURIComponent(page) + '&ts=' + Date.now();
+      try {
+        if (typeof builderPreviewDialog.showModal === 'function') builderPreviewDialog.showModal();
+        else builderPreviewDialog.setAttribute('open', 'open');
+      } catch {}
+    }
+    function closeBuilderPreview() {
+      if (!builderPreviewDialog) return;
+      try {
+        if (typeof builderPreviewDialog.close === 'function') builderPreviewDialog.close();
+        else builderPreviewDialog.removeAttribute('open');
+      } catch {}
+      try { if (builderPreviewFrame) builderPreviewFrame.src = 'about:blank'; } catch {}
+    }
+    function reloadBuilderPreview() {
+      if (!builderPreviewFrame) return;
+      const page = String(builderPageKey?.value || 'home');
+      builderPreviewFrame.src = 'index.html?preview=1&page=' + encodeURIComponent(page) + '&ts=' + Date.now();
+    }
+    if (builderPreviewBtn) builderPreviewBtn.addEventListener('click', openBuilderPreview);
+    if (builderPreviewCloseBtn) builderPreviewCloseBtn.addEventListener('click', closeBuilderPreview);
+    if (builderPreviewReloadBtn) builderPreviewReloadBtn.addEventListener('click', reloadBuilderPreview);
+    if (builderPreviewDialog) builderPreviewDialog.addEventListener('close', () => { try { if (builderPreviewFrame) builderPreviewFrame.src = 'about:blank'; } catch {} });
 
     const mediaInput = document.getElementById('mediaInput');
     const mediaRefreshBtn = document.getElementById('mediaRefreshBtn');
@@ -1225,6 +2045,12 @@
       // Calcolo Totali
       const soldItems = list.filter(r => r.stato === 'Venduto');
       const availableItems = list.filter(r => r.stato !== 'Venduto');
+
+      if (siteStatsUpdatedAtEl) {
+        siteStatsUpdatedAtEl.textContent = db.updatedAt ? new Date(db.updatedAt).toLocaleString() : '—';
+      }
+      if (siteStatsTotalEl) siteStatsTotalEl.textContent = String(list.length);
+      if (siteStatsResultsEl) siteStatsResultsEl.textContent = String(availableItems.length);
       
       statAvailable.textContent = String(availableItems.length);
       statSold.textContent = `${soldItems.length} veicoli`;
@@ -1266,7 +2092,7 @@
       const logs = db.logs || [];
       activityLog.innerHTML = logs.length 
         ? logs.map(l => `<div class="log-item">[${new Date(l.timestamp).toLocaleTimeString()}] <strong>${l.user}:</strong> ${l.action}</div>`).join('')
-        : '<div class="hint">Nessuna attivitÃ  recente.</div>';
+        : '<div class="hint">Nessuna attività recente.</div>';
     }
 
     // --- Categorie ---
@@ -1375,7 +2201,7 @@
         statusEl.style.margin = '6px 0';
         editor.parentElement.insertBefore(statusEl, editor);
       }
-      statusEl.textContent = 'Generazione descrizione in corsoâ€¦';
+      statusEl.textContent = 'Generazione descrizione in corso…';
       try {
       const parts = [];
       const marca = marcaEl.value.trim();
@@ -1395,10 +2221,10 @@
       if (statoEl.value) meta.push(`<b>Stato:</b> ${statoEl.value}`);
       if (categoryName) meta.push(`<b>Categoria:</b> ${categoryName}`);
       if (tipologiaMezzo) meta.push(`<b>Tipologia:</b> ${tipologiaMezzo}`);
-      if (prontaConsegnaEl.checked) meta.push(`<b>DisponibilitÃ :</b> Pronta consegna`);
+      if (prontaConsegnaEl.checked) meta.push(`<b>Disponibilità:</b> Pronta consegna`);
       const permuta = getRadioValue('permuta');
       if (permuta) meta.push(`<b>Permuta:</b> ${permuta}`);
-      if (meta.length) parts.push(`<p>${meta.join(' â€¢ ')}</p>`);
+      if (meta.length) parts.push(`<p>${meta.join(' • ')}</p>`);
 
       const tech = [];
       const lunghezzaTot = Number(lunghezzaEl.value);
@@ -1416,7 +2242,7 @@
       if (Number.isFinite(massa) && massa > 0) tech.push(`Massa complessiva: ${massa} kg`);
       if (Number.isFinite(pesoVuoto) && pesoVuoto > 0) tech.push(`Peso a vuoto: ${pesoVuoto} kg`);
 
-      if (tech.length > 0) parts.push("<ul>" + tech.map(t => `<li>${t}</li>`).join('') + "</ul>");
+      if (tech.length > 0) parts.push("<ul class=\"spec-list\">" + tech.map(t => `<li>${t}</li>`).join('') + "</ul>");
       if (documentiEl.value) parts.push(`<p><b>Documenti:</b> ${documentiEl.value}.</p>`);
       if (targataEl.value) parts.push(`<p><b>Targata:</b> ${targataEl.value}.</p>`);
       if (librettoCircolazioneEl.value) parts.push(`<p><b>Libretto:</b> ${librettoCircolazioneEl.value}.</p>`);
@@ -1431,7 +2257,7 @@
       if (lettoFissoEl.value) letto.push(`Letto fisso: ${lettoFissoEl.value}`);
       const idealePer = getCheckedValues('idealePer');
       if (idealePer.length) letto.push(`Ideale per: ${idealePer.join(', ')}`);
-      if (letto.length) parts.push("<ul>" + letto.map(t => `<li>${t}</li>`).join('') + "</ul>");
+      if (letto.length) parts.push("<ul class=\"spec-list\">" + letto.map(t => `<li>${t}</li>`).join('') + "</ul>");
 
       const interna = [];
       if (tipologiaEl.value) interna.push(`Tipologia interna: ${tipologiaEl.value}`);
@@ -1441,7 +2267,7 @@
       if (docciaSeparataEl.value) interna.push(`Doccia separata: ${docciaSeparataEl.value}`);
       if (armadiEl.value) interna.push(`Armadi: ${armadiEl.value}`);
       if (gavoniInterniEl.value) interna.push(`Gavoni interni: ${gavoniInterniEl.value}`);
-      if (interna.length) parts.push("<ul>" + interna.map(t => `<li>${t}</li>`).join('') + "</ul>");
+      if (interna.length) parts.push("<ul class=\"spec-list\">" + interna.map(t => `<li>${t}</li>`).join('') + "</ul>");
 
       const statoMezzo = [];
       if (condizioneGeneraleEl.value) statoMezzo.push(`Condizione: ${condizioneGeneraleEl.value}`);
@@ -1450,7 +2276,7 @@
       if (infiltrazioniEl.value) statoMezzo.push(`Infiltrazioni: ${infiltrazioniEl.value}`);
       if (odoriEl.value) statoMezzo.push(`Odori/muffe: ${odoriEl.value}`);
       if (provenienzaEl.value) statoMezzo.push(`Provenienza: ${provenienzaEl.value}`);
-      if (statoMezzo.length) parts.push("<ul>" + statoMezzo.map(t => `<li>${t}</li>`).join('') + "</ul>");
+      if (statoMezzo.length) parts.push("<ul class=\"spec-list\">" + statoMezzo.map(t => `<li>${t}</li>`).join('') + "</ul>");
 
       const impianti = [];
       if (presa220EsternaEl.value) impianti.push(`Presa 220V esterna: ${presa220EsternaEl.value}`);
@@ -1468,7 +2294,7 @@
       if (predisposizioneClimaEl.value) impianti.push(`Predisposizione clima: ${predisposizioneClimaEl.value}`);
       if (verandaTendalinoEl.value) impianti.push(`Veranda/tendalino: ${verandaTendalinoEl.value}`);
       if (portabiciEl.value) impianti.push(`Portabici: ${portabiciEl.value}`);
-      if (impianti.length) parts.push("<ul>" + impianti.map(t => `<li>${t}</li>`).join('') + "</ul>");
+      if (impianti.length) parts.push("<ul class=\"spec-list\">" + impianti.map(t => `<li>${t}</li>`).join('') + "</ul>");
 
       const html = parts.filter(Boolean).join('<br>');
       editor.innerHTML = html;
@@ -1520,6 +2346,153 @@
       });
     });
 
+    [marcaEl, modelloEl, prezzoEl, annoEl, tipologiaMezzoEl].forEach((el) => {
+      if (!el) return;
+      el.addEventListener('input', () => {
+        setInvalidControl(el, false);
+        updateNewFormChecklistUi();
+      });
+    });
+    if (statoEl && statoAnnuncioEl) {
+      statoEl.addEventListener('change', () => {
+        if (String(statoEl.value || '') === 'Venduto') statoAnnuncioEl.value = 'venduto';
+        else if (String(statoAnnuncioEl.value || '') === 'venduto') statoAnnuncioEl.value = 'bozza';
+        updateNewFormChecklistUi();
+      });
+    }
+    if (statoAnnuncioEl && statoEl) {
+      statoAnnuncioEl.addEventListener('change', () => {
+        if (String(statoAnnuncioEl.value || '') === 'venduto') statoEl.value = 'Venduto';
+        updateNewFormChecklistUi();
+      });
+    } else if (statoAnnuncioEl) statoAnnuncioEl.addEventListener('change', updateNewFormChecklistUi);
+    updateNewFormChecklistUi();
+    updateNoteStats();
+
+    function applyLastTemplate() {
+      let raw = '';
+      try { raw = String(localStorage.getItem('last_roulotte_template') || ''); } catch {}
+      if (!raw) { showToast('warning', 'Nessun modello', 'Nessuna scheda precedente salvata.'); return; }
+      let tmpl = null;
+      try { tmpl = JSON.parse(raw); } catch {}
+      if (!tmpl || typeof tmpl !== 'object') { showToast('warning', 'Modello non valido', 'Impossibile leggere la scheda precedente.'); return; }
+
+      const setValIfEmpty = (el, v) => {
+        if (!el) return false;
+        const cur = String(el.value ?? '').trim();
+        const next = String(v ?? '').trim();
+        if (!next || cur) return false;
+        el.value = next;
+        try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+        try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
+        return true;
+      };
+      const setSelectIfEmpty = (el, v) => {
+        if (!el) return false;
+        const cur = String(el.value ?? '').trim();
+        const next = String(v ?? '').trim();
+        if (!next || cur) return false;
+        const ok = Array.from(el.querySelectorAll('option')).some(o => String(o.value || '') === next);
+        if (!ok) return false;
+        el.value = next;
+        try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
+        return true;
+      };
+
+      let applied = 0;
+      applied += setValIfEmpty(marcaEl, tmpl.marca) ? 1 : 0;
+      applied += setValIfEmpty(modelloEl, tmpl.modello) ? 1 : 0;
+      applied += setValIfEmpty(versioneEl, tmpl.versione) ? 1 : 0;
+      applied += setSelectIfEmpty(statoEl, tmpl.stato) ? 1 : 0;
+      applied += setSelectIfEmpty(statoAnnuncioEl, tmpl.stato_annuncio) ? 1 : 0;
+      applied += setSelectIfEmpty(categoryIdEl, tmpl.categoryId) ? 1 : 0;
+      applied += setValIfEmpty(prezzoEl, tmpl.prezzo) ? 1 : 0;
+      applied += setValIfEmpty(annoEl, tmpl.anno) ? 1 : 0;
+      applied += setSelectIfEmpty(tipologiaMezzoEl, tmpl.tipologiaMezzo) ? 1 : 0;
+      if (prontaConsegnaEl && tmpl.disponibilitaProntaConsegna === true && !prontaConsegnaEl.checked) { prontaConsegnaEl.checked = true; applied++; }
+      if (!getRadioValue('permuta') && tmpl.permuta) { setRadioValue('permuta', tmpl.permuta); applied++; }
+      applied += setSelectIfEmpty(condizioneGeneraleEl, tmpl.condizioneGenerale) ? 1 : 0;
+      applied += setSelectIfEmpty(statoInterniEl, tmpl.statoInterni) ? 1 : 0;
+      applied += setSelectIfEmpty(statoEsterniEl, tmpl.statoEsterni) ? 1 : 0;
+      applied += setSelectIfEmpty(infiltrazioniEl, tmpl.infiltrazioni) ? 1 : 0;
+      applied += setSelectIfEmpty(odoriEl, tmpl.odori) ? 1 : 0;
+      applied += setSelectIfEmpty(provenienzaEl, tmpl.provenienza) ? 1 : 0;
+      applied += setSelectIfEmpty(targataEl, tmpl.targata) ? 1 : 0;
+      applied += setSelectIfEmpty(librettoCircolazioneEl, tmpl.librettoCircolazione) ? 1 : 0;
+      applied += setSelectIfEmpty(omologataCircolazioneEl, tmpl.omologataCircolazione) ? 1 : 0;
+      applied += setValIfEmpty(numeroTelaioEl, tmpl.numeroTelaio) ? 1 : 0;
+      applied += setSelectIfEmpty(numeroAssiEl, tmpl.numeroAssi) ? 1 : 0;
+      applied += setSelectIfEmpty(timoneEl, tmpl.timone) ? 1 : 0;
+      applied += setSelectIfEmpty(frenoRepulsioneEl, tmpl.frenoRepulsione) ? 1 : 0;
+      applied += setValIfEmpty(pesoVuotoEl, tmpl.pesoVuoto) ? 1 : 0;
+      applied += setValIfEmpty(lunghezzaEl, tmpl.lunghezzaTotale) ? 1 : 0;
+      applied += setValIfEmpty(lunghezzaInternaEl, tmpl.lunghezzaInterna) ? 1 : 0;
+      applied += setValIfEmpty(larghezzaEl, tmpl.larghezza) ? 1 : 0;
+      applied += setValIfEmpty(altezzaEl, tmpl.altezza) ? 1 : 0;
+      applied += setValIfEmpty(postiEl, tmpl.postiLetto) ? 1 : 0;
+      applied += setValIfEmpty(massaEl, tmpl.massa) ? 1 : 0;
+      applied += setSelectIfEmpty(documentiEl, tmpl.documenti) ? 1 : 0;
+      applied += setSelectIfEmpty(tipologiaEl, tmpl.tipologia) ? 1 : 0;
+      if ((!getCheckedValues('disposizioneLetti').length) && Array.isArray(tmpl.disposizioneLetti)) { setCheckedValues('disposizioneLetti', tmpl.disposizioneLetti); applied++; }
+      applied += setSelectIfEmpty(lettoFissoEl, tmpl.lettoFisso) ? 1 : 0;
+      if ((!getCheckedValues('idealePer').length) && Array.isArray(tmpl.idealePer)) { setCheckedValues('idealePer', tmpl.idealePer); applied++; }
+      applied += setSelectIfEmpty(tipoDinetteEl, tmpl.tipoDinette) ? 1 : 0;
+      applied += setSelectIfEmpty(cucinaEl, tmpl.cucina) ? 1 : 0;
+      applied += setSelectIfEmpty(bagnoEl, tmpl.bagno) ? 1 : 0;
+      applied += setSelectIfEmpty(docciaSeparataEl, tmpl.docciaSeparata) ? 1 : 0;
+      applied += setSelectIfEmpty(armadiEl, tmpl.armadi) ? 1 : 0;
+      applied += setSelectIfEmpty(gavoniInterniEl, tmpl.gavoniInterni) ? 1 : 0;
+      applied += setSelectIfEmpty(presa220EsternaEl, tmpl.presa220Esterna) ? 1 : 0;
+      applied += setSelectIfEmpty(impianto12VEl, tmpl.impianto12V) ? 1 : 0;
+      applied += setSelectIfEmpty(batteriaServiziEl, tmpl.batteriaServizi) ? 1 : 0;
+      applied += setSelectIfEmpty(illuminazioneLedEl, tmpl.illuminazioneLed) ? 1 : 0;
+      applied += setSelectIfEmpty(impiantoGasEl, tmpl.impiantoGas) ? 1 : 0;
+      applied += setValIfEmpty(numeroBomboleEl, tmpl.numeroBombole) ? 1 : 0;
+      applied += setValIfEmpty(scadenzaImpiantoGasEl, tmpl.scadenzaImpiantoGas) ? 1 : 0;
+      applied += setSelectIfEmpty(serbatoioAcquaPulitaEl, tmpl.serbatoioAcquaPulita) ? 1 : 0;
+      applied += setSelectIfEmpty(serbatoioAcqueGrigieEl, tmpl.serbatoioAcqueGrigie) ? 1 : 0;
+      applied += setSelectIfEmpty(riscaldamentoEl, tmpl.riscaldamento) ? 1 : 0;
+      applied += setSelectIfEmpty(tipoRiscaldamentoEl, tmpl.tipoRiscaldamento) ? 1 : 0;
+      applied += setSelectIfEmpty(climatizzatoreEl, tmpl.climatizzatore) ? 1 : 0;
+      applied += setSelectIfEmpty(predisposizioneClimaEl, tmpl.predisposizioneClima) ? 1 : 0;
+      applied += setSelectIfEmpty(verandaTendalinoEl, tmpl.verandaTendalino) ? 1 : 0;
+      applied += setSelectIfEmpty(portabiciEl, tmpl.portabici) ? 1 : 0;
+      applied += setValIfEmpty(contattoTelefonoEl, tmpl.contattoTelefono) ? 1 : 0;
+      applied += setValIfEmpty(contattoWhatsappEl, tmpl.contattoWhatsapp) ? 1 : 0;
+      applied += setValIfEmpty(contattoEmailEl, tmpl.contattoEmail) ? 1 : 0;
+      applied += setValIfEmpty(localitaEl, tmpl.localita) ? 1 : 0;
+      applied += setValIfEmpty(orariContattoEl, tmpl.orariContatto) ? 1 : 0;
+      applied += setValIfEmpty(videoUrlEl, tmpl.videoUrl) ? 1 : 0;
+      applied += setValIfEmpty(planimetriaUrlEl, tmpl.planimetriaUrl) ? 1 : 0;
+
+      updateNewFormChecklistUi();
+      updateNoteStats();
+      try { saveDraft(); } catch {}
+      showToast('success', 'Modello applicato', `Copiati ${applied} campi dalla scheda precedente.`);
+    }
+
+    if (copyLastBtn) copyLastBtn.addEventListener('click', applyLastTemplate);
+
+    function resetAiUi() {
+      aiPendingSuggestions = [];
+      if (aiApplyBtn) aiApplyBtn.disabled = true;
+      if (aiSuggestionsEl) aiSuggestionsEl.textContent = 'Nessuna analisi eseguita.';
+    }
+    if (aiAnalyzeBtn) aiAnalyzeBtn.addEventListener('click', () => {
+      const text = aiInput ? String(aiInput.value || '') : '';
+      aiPendingSuggestions = buildAiSuggestionsFromText(text);
+      renderAiSuggestions(aiPendingSuggestions);
+      showToast(aiPendingSuggestions.length ? 'success' : 'warning', 'Assistente AI', aiPendingSuggestions.length ? 'Suggerimenti pronti.' : 'Nessun suggerimento trovato.');
+    });
+    if (aiApplyBtn) aiApplyBtn.addEventListener('click', () => {
+      const n = applyAiSuggestions(aiPendingSuggestions);
+      showToast(n ? 'success' : 'warning', 'Assistente AI', n ? `Applicati ${n} suggerimenti.` : 'Nessun suggerimento applicato.');
+    });
+    if (aiClearBtn) aiClearBtn.addEventListener('click', () => {
+      if (aiInput) aiInput.value = '';
+      resetAiUi();
+    });
+
     // --- Editor WYSIWYG Semplice ---
     window.formatDoc = function(cmd, value=null) {
       document.execCommand(cmd, false, value);
@@ -1531,6 +2504,7 @@
     editor.addEventListener('input', () => {
       noteEl.value = editor.innerHTML;
       saveDraft();
+      updateNoteStats();
     });
 
     // --- Autosave Form (LocalStorage temporaneo) ---
@@ -1693,6 +2667,8 @@
           }
         } catch {}
       }
+      updateNewFormChecklistUi();
+      updateNoteStats();
     }
 
     // --- Upload Drag&Drop + Resize ---
@@ -1710,7 +2686,7 @@
     
     dropzone.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files));
     dropzone.addEventListener('click', (e) => {
-      // Evita doppio click se si clicca direttamente sull'input (raro ma possibile se non Ã¨ hidden)
+      // Evita doppio click se si clicca direttamente sull'input (raro ma possibile se non è hidden)
       if (e.target !== photosInput) {
         photosInput.click();
       }
@@ -1789,14 +2765,14 @@
       }
       if (files.length) handleFiles(files);
     });
-    addPhotoUrlBtn.addEventListener('click', async () => {
+    if (addPhotoUrlBtn && photoUrlInput) addPhotoUrlBtn.addEventListener('click', async () => {
       const url = photoUrlInput.value.trim();
       if (!url) return;
       try {
         const res = await fetch(url);
         const blob = await res.blob();
         if (!blob.type.startsWith('image/')) {
-          showToast('error', 'URL non valido', 'Il link non sembra unâ€™immagine.');
+          showToast('error', 'URL non valido', 'Il link non sembra un’immagine.');
           return;
         }
         const obj = await processImageFromBlob(blob);
@@ -1807,13 +2783,45 @@
           if (f) obj.file = f;
         }
         draftPhotos.push(obj);
+        markNewFormDirty();
         photoUrlInput.value = '';
         renderPhotos();
         showToast('success', 'Foto aggiunta', 'Immagine inserita da URL.');
       } catch {
-        showToast('error', 'Errore URL', 'Impossibile scaricare o processare lâ€™immagine.');
+        showToast('error', 'Errore URL', 'Impossibile scaricare o processare l’immagine.');
       }
     });
+    if (photoUrlInput && addPhotoUrlBtn) {
+      photoUrlInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          try { addPhotoUrlBtn.click(); } catch {}
+        }
+      });
+    }
+    function getPhotoAltBase() {
+      const marca = String(marcaEl && marcaEl.value ? marcaEl.value : '').trim();
+      const modello = String(modelloEl && modelloEl.value ? modelloEl.value : '').trim();
+      const anno = String(annoEl && annoEl.value ? annoEl.value : '').trim();
+      const parts = [marca, modello, anno].filter(Boolean);
+      return parts.length ? parts.join(' ') : 'Roulotte';
+    }
+    if (autoAltBtn) {
+      autoAltBtn.addEventListener('click', (e) => {
+        const force = !!(e && e.shiftKey);
+        const base = getPhotoAltBase();
+        if (!draftPhotos || !draftPhotos.length) return;
+        let changed = 0;
+        draftPhotos = draftPhotos.map((ph, idx) => {
+          const cur = String((ph && ph.alt) ? ph.alt : '').trim();
+          if (!force && cur) return ph;
+          changed++;
+          return { ...ph, alt: `${base} - Foto ${idx + 1}` };
+        });
+        renderPhotos();
+        if (changed) showToast('success', 'ALT aggiornati', `Aggiornate ${changed} descrizioni foto.`);
+      });
+    }
 
     async function processVideoFromBlob(file) {
       if (file.size > (8 * 1024 * 1024)) {
@@ -1852,8 +2860,8 @@
       const fileList = Array.from(files || []);
       const toTake = fileList;
       const before = draftPhotos.length;
-      photoHint.textContent = 'Elaborazioneâ€¦';
-      if (toTake.length > 0) showToast('info', 'Elaborazione file', `Sto preparando ${toTake.length} fileâ€¦`, { timeoutMs: 1400 });
+      photoHint.textContent = 'Elaborazione…';
+      if (toTake.length > 0) showToast('info', 'Elaborazione file', `Sto preparando ${toTake.length} file…`, { timeoutMs: 1400 });
 
       for (const f of toTake) {
         try {
@@ -1877,10 +2885,11 @@
           }
         } catch(e) {
           photoHint.textContent = 'Errore elaborazione file.';
-          showToast('error', 'Errore file', 'Almeno un file non Ã¨ stato elaborato correttamente.');
+          showToast('error', 'Errore file', 'Almeno un file non è stato elaborato correttamente.');
         }
       }
       photosInput.value = '';
+      if (draftPhotos.length !== before) markNewFormDirty();
       renderPhotos();
       photoHint.textContent = '';
       const added = Math.max(0, draftPhotos.length - before);
@@ -1891,6 +2900,7 @@
       photosPreview.innerHTML = '';
       if (draftPhotos.length === 0) {
         photosPreview.innerHTML = '<div class="hint" style="grid-column:1/-1">Nessuna foto.</div>';
+        updateNewFormChecklistUi();
         return;
       }
       draftPhotos.forEach((ph, idx) => {
@@ -1917,11 +2927,12 @@
         }
         const rm = document.createElement('button');
         rm.type = 'button';
-        rm.textContent = 'Ã—';
+        rm.textContent = '×';
         rm.title = 'Rimuovi';
         rm.addEventListener('click', (e) => {
           e.stopPropagation();
           draftPhotos = draftPhotos.filter((_, i) => i !== idx);
+          markNewFormDirty();
           renderPhotos();
         });
         box.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', String(idx)); });
@@ -1935,6 +2946,7 @@
           const [item] = arr.splice(from, 1);
           arr.splice(to, 0, item);
           draftPhotos = arr;
+          markNewFormDirty();
           renderPhotos();
         });
         box.appendChild(img);
@@ -1947,10 +2959,11 @@
         caption.style.marginTop = '6px';
         caption.addEventListener('input', () => {
           draftPhotos[idx] = { ...draftPhotos[idx], alt: caption.value };
+          markNewFormDirty();
         });
         const setCover = document.createElement('button');
         setCover.type = 'button';
-        setCover.textContent = idx === 0 ? 'Copertina âœ“' : 'Imposta copertina';
+        setCover.textContent = idx === 0 ? 'Copertina ✓' : 'Imposta copertina';
         setCover.className = 'btn';
         setCover.style.marginTop = '6px';
         setCover.addEventListener('click', () => {
@@ -1975,7 +2988,7 @@
         });
         const downBtn = document.createElement('button');
         downBtn.type = 'button';
-        downBtn.textContent = 'GiÃ¹';
+        downBtn.textContent = 'Giù';
         downBtn.className = 'btn';
         downBtn.style.marginTop = '6px';
         downBtn.addEventListener('click', () => {
@@ -1986,19 +2999,87 @@
           draftPhotos = arr;
           renderPhotos();
         });
+        const aiBtn = document.createElement('button');
+        aiBtn.type = 'button';
+        aiBtn.textContent = 'AI Migliora';
+        aiBtn.className = 'btn btn-primary';
+        aiBtn.style.marginTop = '6px';
+        aiBtn.addEventListener('click', async () => {
+          const token = window.RoulotteStore.getAuthToken();
+          if (!token) { logout(); return; }
+          const ph = draftPhotos[idx] || null;
+          let src = ph && (ph.file || ph.blob) ? null : (ph && (ph.src || ph.url_full || ph.thumb) ? String(ph.src || ph.url_full || ph.thumb) : '');
+          let blob = null;
+          if (ph && ph.file) blob = ph.file;
+          else if (src) {
+            try {
+              const r = await fetch(String(src));
+              blob = await r.blob();
+            } catch {}
+          }
+          if (!blob) {
+            showToast('warning', 'Foto', 'Impossibile leggere la foto.');
+            return;
+          }
+          try {
+            aiBtn.disabled = true;
+            aiBtn.textContent = 'AI…';
+            const fd = new FormData();
+            const type = String(blob.type || 'image/png');
+            const name = 'photo_' + Date.now() + (type.includes('jpeg') ? '.jpg' : type.includes('webp') ? '.webp' : '.png');
+            fd.append('file', blob, name);
+            const res = await fetch(apiUrl('/api/ai/photo/upscale'), {
+              method: 'POST',
+              headers: { 'Authorization': 'Bearer ' + token },
+              body: fd
+            });
+            if (!res.ok) {
+              let detail = '';
+              const ct = String(res.headers.get('content-type') || '');
+              if (ct.includes('application/json')) {
+                const j = await res.json().catch(() => null);
+                if (j && typeof j === 'object') {
+                  const e = String(j.error || '').trim();
+                  const d = String(j.detail || '').trim();
+                  if (e) detail = e + (d ? (': ' + d) : '');
+                }
+              } else {
+                const t = await res.text().catch(() => '');
+                detail = String(t || '').trim().slice(0, 220);
+              }
+              if (!detail) detail = 'HTTP ' + res.status;
+              throw new Error(detail);
+            }
+            const outBlob = await res.blob();
+            const processed = await processImageFromBlob(outBlob);
+            draftPhotos[idx] = { ...processed, alt: ph && ph.alt ? ph.alt : (processed.alt || '') };
+            markNewFormDirty();
+            renderPhotos();
+            showToast('success', 'Foto', 'Foto migliorata.');
+          } catch (e) {
+            const msg = String(e && e.message ? e.message : e).trim();
+            showToast('error', 'Foto', msg || 'AI foto non disponibile o errore.');
+          } finally {
+            aiBtn.disabled = false;
+            aiBtn.textContent = 'AI Migliora';
+          }
+        });
         const wrap = document.createElement('div');
         wrap.style.display = 'grid';
-        wrap.style.gridTemplateRows = '1fr auto auto auto auto';
+        wrap.style.gridTemplateRows = '1fr auto auto auto auto auto';
         wrap.appendChild(box);
         wrap.appendChild(caption);
         wrap.appendChild(setCover);
+        wrap.appendChild(aiBtn);
         wrap.appendChild(upBtn);
         wrap.appendChild(downBtn);
         photosPreview.appendChild(wrap);
       });
+      updateNewFormChecklistUi();
     }
-    clearPhotosBtn.addEventListener('click', () => {
+    if (clearPhotosBtn) clearPhotosBtn.addEventListener('click', () => {
       draftPhotos = [];
+      markNewFormDirty();
       renderPhotos();
     });
 
@@ -2015,17 +3096,33 @@
       }
       const submitBtn = newForm.querySelector('button[type="submit"]');
       const prevSubmitText = submitBtn ? String(submitBtn.textContent || '') : '';
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Salvataggioâ€¦'; }
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Salvataggio…'; }
       const marca = String(marcaEl.value || '').trim();
       const modello = String(modelloEl.value || '').trim();
       const prezzo = Number(prezzoEl.value);
       const anno = Number(annoEl.value);
+      const tipologiaMezzo = String(tipologiaMezzoEl && tipologiaMezzoEl.value ? tipologiaMezzoEl.value : '').trim();
+      const statoAnnuncio = String((statoAnnuncioEl && statoAnnuncioEl.value) ? statoAnnuncioEl.value : 'bozza');
 
-      if (!marca || !modello || !Number.isFinite(prezzo) || !Number.isFinite(anno)) {
+      const missing = [];
+      if (!marca) { missing.push('Marca'); setInvalidControl(marcaEl, true); }
+      if (!modello) { missing.push('Modello'); setInvalidControl(modelloEl, true); }
+      if (!Number.isFinite(prezzo) || prezzo <= 0) { missing.push('Prezzo'); setInvalidControl(prezzoEl, true); }
+      if (!Number.isFinite(anno) || anno < 1970 || anno > 2100) { missing.push('Anno'); setInvalidControl(annoEl, true); }
+      if (!tipologiaMezzo) { missing.push('Tipologia'); setInvalidControl(tipologiaMezzoEl, true); }
+      if (statoAnnuncio !== 'bozza' && (!Array.isArray(draftPhotos) || draftPhotos.length === 0)) missing.push('Foto (per pubblicare)');
+      if (missing.length) {
+        const msg = 'Compila: ' + missing.join(', ') + '.';
         formMsg.hidden = false;
-        formMsg.textContent = 'Campi obbligatori mancanti.';
-        showToast('error', 'Dati mancanti', 'Compila Marca, Modello, Prezzo e Anno.');
+        formMsg.textContent = msg;
+        showToast('error', 'Dati mancanti', msg);
+        if (!marca) { try { marcaEl.focus(); } catch {} }
+        else if (!modello) { try { modelloEl.focus(); } catch {} }
+        else if (!Number.isFinite(prezzo) || prezzo <= 0) { try { prezzoEl.focus(); } catch {} }
+        else if (!Number.isFinite(anno) || anno < 1970 || anno > 2100) { try { annoEl.focus(); } catch {} }
+        else if (!tipologiaMezzo) { try { tipologiaMezzoEl.focus(); } catch {} }
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = prevSubmitText || 'Salva scheda'; }
+        updateNewFormChecklistUi();
         return;
       }
 
@@ -2143,7 +3240,7 @@
       const progEl = document.getElementById('uploadProg');
       if (progEl) { progEl.value = 0; progEl.style.display = ''; }
       formMsg.hidden = true;
-      showToast('info', editId ? 'Salvataggio modifica' : 'Creazione scheda', newFiles.length ? 'Salvataggio e upload foto in corsoâ€¦' : 'Salvataggio in corsoâ€¦', { timeoutMs: 1600 });
+      showToast('info', editId ? 'Salvataggio modifica' : 'Creazione scheda', newFiles.length ? 'Salvataggio e upload foto in corso…' : 'Salvataggio in corso…', { timeoutMs: 1600 });
 
       try {
         const onProgress = function(p){ if (progEl) progEl.value = p; };
@@ -2169,6 +3266,15 @@
           }
         } catch {}
 
+        try {
+          const tmpl = { ...payload };
+          delete tmpl.id;
+          delete tmpl.photos;
+          delete tmpl.existing_photos;
+          delete tmpl.updatedAt;
+          localStorage.setItem('last_roulotte_template', JSON.stringify(tmpl));
+        } catch {}
+
         clearForm();
         refreshAll();
         switchSection('list');
@@ -2179,8 +3285,8 @@
         formMsg.hidden = false;
         const msg = String((err && err.message) ? err.message : 'Errore durante il salvataggio. Riprova.');
         if (msg.includes('CONFLICT')) {
-          formMsg.textContent = 'Conflitto dati rilevato: la scheda Ã¨ stata aggiornata da un altro dispositivo. Ricarico i datiâ€¦';
-          showToast('warning', 'Conflitto dati', 'La scheda Ã¨ stata aggiornata altrove. Ricaricoâ€¦', { timeoutMs: 4200 });
+          formMsg.textContent = 'Conflitto dati rilevato: la scheda è stata aggiornata da un altro dispositivo. Ricarico i dati…';
+          showToast('warning', 'Conflitto dati', 'La scheda è stata aggiornata altrove. Ricarico…', { timeoutMs: 4200 });
           try { await window.RoulotteStore.reloadRoulottes(); } catch {}
           try { refreshAll(); } catch {}
           if (editIdEl && editIdEl.value) {
@@ -2207,12 +3313,42 @@
       draftPhotos = [];
       renderPhotos();
       sessionStorage.removeItem('roulotte_draft');
+      try {
+        if (annoEl && !String(annoEl.value || '').trim()) annoEl.value = String(new Date().getFullYear());
+        if (statoAnnuncioEl) statoAnnuncioEl.value = 'bozza';
+      } catch {}
+      updateNewFormChecklistUi();
+      updateNoteStats();
+      setNewFormDirty(false);
     }
     clearFormBtn.addEventListener('click', () => {
+       const inEdit = !!(editIdEl && String(editIdEl.value || '').trim());
+       if (newFormDirty) {
+         const msg = inEdit
+           ? 'Hai modifiche non salvate. Vuoi davvero annullare la modifica?'
+           : 'Hai modifiche non salvate. Vuoi davvero creare una nuova scheda?';
+         if (!confirm(msg)) return;
+       }
        clearForm();
        switchSection('new');
     });
     goListBtn.addEventListener('click', () => { switchSection('list'); renderList(); });
+    if (saveAndPublishBtn && newForm) {
+      saveAndPublishBtn.addEventListener('click', () => {
+        if (statoAnnuncioEl) {
+          if (statoEl && String(statoEl.value || '') === 'Venduto') statoAnnuncioEl.value = 'venduto';
+          else statoAnnuncioEl.value = 'pubblicato';
+        }
+        updateNewFormChecklistUi();
+        try {
+          if (typeof newForm.requestSubmit === 'function') newForm.requestSubmit();
+          else {
+            const b = newForm.querySelector('button[type="submit"]');
+            if (b) b.click();
+          }
+        } catch {}
+      });
+    }
 
     // --- Settings: Security ---
     securityForm.addEventListener('submit', (e) => {
@@ -2250,7 +3386,7 @@
           });
           if (r.status === 401) { logout(); return; }
           if (r.status === 403) { setAdminUsersMsg('Non autorizzato.', false); return; }
-          if (r.status === 409) { setAdminUsersMsg('Username giÃ  esistente.', false); return; }
+          if (r.status === 409) { setAdminUsersMsg('Username già esistente.', false); return; }
           if (!r.ok) { setAdminUsersMsg('Errore durante la creazione utente.', false); return; }
           if (adminNewUsername) adminNewUsername.value = '';
           if (adminNewPassword) adminNewPassword.value = '';
@@ -2335,6 +3471,13 @@
       'annunci.labels.badge_text',
       'annunci.labels.contact_phone',
       'annunci.labels.contact_email',
+      'regole_tecniche.integrazioni.ai.enabled',
+      'regole_tecniche.integrazioni.ai.provider',
+      'regole_tecniche.integrazioni.ai.base_url',
+      'regole_tecniche.integrazioni.ai.api_key',
+      'regole_tecniche.integrazioni.ai.model',
+      'regole_tecniche.integrazioni.ai.temperature',
+      'regole_tecniche.integrazioni.photo_ai.upscale_url',
       'regole_tecniche.upload.photo_max_bytes',
       'regole_tecniche.upload.photo_max_count_per_annuncio',
       'regole_tecniche.upload.photo_allowed_mimetypes',
@@ -2352,7 +3495,7 @@
       }],
       ['annunci.pubblicazione.default_visibility', {
         label: 'Stato predefinito nuovi annunci',
-        help: 'Stato usato quando crei una scheda senza scegliere â€œPubblicazioneâ€.',
+        help: 'Stato usato quando crei una scheda senza scegliere “Pubblicazione”.',
         group_basic: 'Pubblicazione',
         options: [
           { value: 'bozza', label: 'Bozza' },
@@ -2368,7 +3511,7 @@
       }],
       ['annunci.pubblicazione.require_price_for_publish', {
         label: 'Richiedi prezzo per pubblicare',
-        help: 'Blocca la pubblicazione se il prezzo non Ã¨ impostato.',
+        help: 'Blocca la pubblicazione se il prezzo non è impostato.',
         group_basic: 'Pubblicazione'
       }],
       ['annunci.listing.default_sort', {
@@ -2376,7 +3519,7 @@
         help: 'Ordine con cui vengono mostrati gli annunci nella lista pubblica.',
         group_basic: 'Lista annunci',
         options: [
-          { value: 'newest', label: 'PiÃ¹ recenti' },
+          { value: 'newest', label: 'Più recenti' },
           { value: 'priceAsc', label: 'Prezzo crescente' },
           { value: 'priceDesc', label: 'Prezzo decrescente' },
           { value: 'yearDesc', label: 'Anno decrescente' },
@@ -2395,7 +3538,7 @@
       }],
       ['annunci.homepage.featured_enabled', {
         label: 'Homepage: evidenza attiva',
-        help: 'Mostra una sezione â€œin evidenzaâ€ in homepage (se configurata).',
+        help: 'Mostra una sezione “in evidenza” in homepage (se configurata).',
         group_basic: 'Homepage'
       }],
       ['annunci.homepage.max_items', {
@@ -2410,7 +3553,7 @@
       }],
       ['annunci.labels.badge_text', {
         label: 'Etichetta contatto (testo)',
-        help: 'Testo breve che appare vicino ai contatti, es. â€œContattaciâ€.',
+        help: 'Testo breve che appare vicino ai contatti, es. “Contattaci”.',
         placeholder: 'Es. Contattaci',
         group_basic: 'Contatti'
       }],
@@ -2427,6 +3570,54 @@
         placeholder: 'Es. info@tuodominio.it',
         format: 'email',
         group_basic: 'Contatti'
+      }],
+      ['regole_tecniche.integrazioni.ai.enabled', {
+        label: 'AI: attiva',
+        help: 'Attiva l’AI server-side per analisi e riscrittura testi in admin.',
+        group_basic: 'Integrazioni'
+      }],
+      ['regole_tecniche.integrazioni.ai.provider', {
+        label: 'AI: provider',
+        help: 'Provider compatibile OpenAI (OpenAI oppure OpenRouter).',
+        group_basic: 'Integrazioni',
+        options: [
+          { value: 'openrouter', label: 'OpenRouter' },
+          { value: 'openai', label: 'OpenAI / compatibile' },
+        ]
+      }],
+      ['regole_tecniche.integrazioni.ai.base_url', {
+        label: 'AI: base URL',
+        help: 'Per OpenRouter usa https://openrouter.ai/api/v1. Per OpenAI lascia vuoto.',
+        group_basic: 'Integrazioni',
+        placeholder: 'https://openrouter.ai/api/v1'
+      }],
+      ['regole_tecniche.integrazioni.ai.api_key', {
+        label: 'AI: API key',
+        help: 'Chiave segreta usata dal backend per chiamare il provider.',
+        group_basic: 'Integrazioni',
+        placeholder: 'sk-…'
+      }],
+      ['regole_tecniche.integrazioni.ai.model', {
+        label: 'AI: modello',
+        help: 'Nome modello (OpenRouter es. meta-llama/…:free oppure openrouter/auto).',
+        group_basic: 'Integrazioni',
+        placeholder: 'meta-llama/…:free'
+      }],
+      ['regole_tecniche.integrazioni.ai.temperature', {
+        label: 'AI: temperature',
+        help: '0 = più precisa, 1 = più creativa.',
+        group_basic: 'Integrazioni',
+        placeholder: '0.2',
+        min: 0,
+        max: 2,
+        step: 0.1,
+        inputmode: 'decimal'
+      }],
+      ['regole_tecniche.integrazioni.photo_ai.upscale_url', {
+        label: 'Foto AI: URL upscale',
+        help: 'Endpoint del servizio foto AI (es. http://127.0.0.1:7861/upscale).',
+        group_basic: 'Integrazioni',
+        placeholder: 'http://127.0.0.1:7861/upscale'
       }],
       ['regole_tecniche.upload.photo_max_bytes', {
         label: 'Dimensione massima foto',
@@ -2447,7 +3638,7 @@
       }],
       ['regole_tecniche.upload.photo_allowed_mimetypes', {
         label: 'Formati foto consentiti',
-        help: 'Lista separata da virgola. Se lasci vuoto, lâ€™upload puÃ² fallire.',
+        help: 'Lista separata da virgola. Se lasci vuoto, l’upload può fallire.',
         placeholder: 'Es. image/jpeg, image/png, image/webp',
         group_basic: 'Foto'
       }],
@@ -2471,13 +3662,13 @@
       ['regole_tecniche.public.posthog_key', {
         label: 'PostHog: chiave progetto',
         help: 'Abilita il tracciamento visitatori. Se lasci vuoto, il tracciamento resta disattivo.',
-        placeholder: 'Es. phc_â€¦',
+        placeholder: 'Es. phc_…',
         group_basic: 'Tracking'
       }],
       ['regole_tecniche.public.google_client_id', {
         label: 'Google: Client ID',
-        help: 'Identificatore OAuth del progetto Google (usato solo se lâ€™integrazione Ã¨ attiva).',
-        placeholder: 'Es. 123â€¦apps.googleusercontent.com',
+        help: 'Identificatore OAuth del progetto Google (usato solo se l’integrazione è attiva).',
+        placeholder: 'Es. 123…apps.googleusercontent.com',
         group_basic: 'Tracking'
       }],
     ]);
@@ -2684,7 +3875,7 @@
       const modeLabel = document.createElement('div');
       modeLabel.className = 'hint';
       modeLabel.style.margin = '0';
-      modeLabel.textContent = 'ModalitÃ ';
+      modeLabel.textContent = 'Modalità';
 
       const modeSel = document.createElement('select');
       modeSel.className = 'btn';
@@ -2770,7 +3961,7 @@
       let input = null;
       if (type === 'boolean') {
         const sel = document.createElement('select');
-        sel.innerHTML = '<option value="">Non impostato</option><option value="true">SÃ¬</option><option value="false">No</option>';
+        sel.innerHTML = '<option value="">Non impostato</option><option value="true">Sì</option><option value="false">No</option>';
         input = sel;
       } else if (type === 'string[]') {
         const ta = document.createElement('textarea');
@@ -2825,11 +4016,11 @@
         if (!raw) { extra.hidden = true; extra.textContent = ''; return; }
         if (meta && meta.unit === 'bytes' && type === 'number') {
           const pretty = csFormatBytes(Number(raw));
-          if (pretty) { extra.hidden = false; extra.textContent = `â‰ˆ ${pretty}`; return; }
+          if (pretty) { extra.hidden = false; extra.textContent = `≈ ${pretty}`; return; }
         }
         if (meta && meta.unit === 'seconds' && type === 'number') {
           const pretty = csFormatSeconds(Number(raw));
-          if (pretty) { extra.hidden = false; extra.textContent = `â‰ˆ ${pretty}`; return; }
+          if (pretty) { extra.hidden = false; extra.textContent = `≈ ${pretty}`; return; }
         }
         extra.hidden = true;
         extra.textContent = '';
@@ -2871,8 +4062,8 @@
       const mode = String(p.mode || CS_MODE_BASIC);
       if (p.metaEl) {
         p.metaEl.textContent = mode === CS_MODE_ADVANCED
-          ? 'ModalitÃ  avanzata: modifica solo se sai cosa stai facendo. Le impostazioni tecniche possono cambiare il comportamento del sito.'
-          : 'ModalitÃ  base: impostazioni consigliate per un uso normale.';
+          ? 'Modalità avanzata: modifica solo se sai cosa stai facendo. Le impostazioni tecniche possono cambiare il comportamento del sito.'
+          : 'Modalità base: impostazioni consigliate per un uso normale.';
       }
       if (mode === CS_MODE_BASIC) {
         const defsBasic = allVisible.filter(d => CS_BASIC_KEYS.has(String(d.key || '').trim()));
@@ -3057,7 +4248,7 @@
       const p = csEnsurePanelUi();
       if (!p) return;
       csSetMsg('', true);
-      p.metaEl.textContent = 'Caricamentoâ€¦';
+      p.metaEl.textContent = 'Caricamento…';
       p.reloadBtn.disabled = true;
       p.saveBtn.disabled = true;
 
@@ -3079,9 +4270,9 @@
         const secretsArr = Array.isArray(j && j.secrets_set) ? j.secrets_set : [];
         p.secretsSet = new Set(secretsArr.map(x => String(x || '').trim()).filter(Boolean));
         const updatedAt = String(j && j.updated_at || '').trim();
-        const roleLabel = p.role ? `Ruolo: ${p.role}` : 'Ruolo: â€”';
-        const updatedLabel = updatedAt ? `Ultimo aggiornamento: ${updatedAt}` : 'Ultimo aggiornamento: â€”';
-        p.metaEl.textContent = `${roleLabel} Â· ${updatedLabel}`;
+        const roleLabel = p.role ? `Ruolo: ${p.role}` : 'Ruolo: —';
+        const updatedLabel = updatedAt ? `Ultimo aggiornamento: ${updatedAt}` : 'Ultimo aggiornamento: —';
+        p.metaEl.textContent = `${roleLabel} · ${updatedLabel}`;
         csRenderPanel();
         p.loaded = true;
       } catch {
@@ -3148,7 +4339,7 @@
         if (!r.ok) {
           if (j && j.errors && typeof j.errors === 'object') {
             const pairs = Object.entries(j.errors).map(([k, v]) => `${k}: ${v}`);
-            csSetMsg('Errore validazione: ' + pairs.join(' Â· '), false);
+            csSetMsg('Errore validazione: ' + pairs.join(' · '), false);
             return;
           }
           csSetMsg('Errore durante il salvataggio.', false);
@@ -3191,13 +4382,13 @@
         btn.addEventListener('click', async () => {
           msg.hidden = false;
           msg.style.color = 'var(--muted)';
-          msg.textContent = 'Richiesta di aggiornamento inviataâ€¦';
+          msg.textContent = 'Richiesta di aggiornamento inviata…';
           btn.disabled = true;
           try {
             const token = window.RoulotteStore.getAuthToken();
             const r = await fetch(apiUrl('/api/deploy/trigger'), { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
             if (r.ok) {
-              msg.textContent = 'Aggiornamento avviato su Render. Il sito sarÃ  aggiornato in pochi minuti.';
+              msg.textContent = 'Aggiornamento avviato su Render. Il sito sarà aggiornato in pochi minuti.';
               msg.style.color = 'var(--success)';
             } else {
               msg.style.color = 'var(--danger)';
@@ -3208,7 +4399,7 @@
                 if (detail) base += ' (' + detail.slice(0, 220) + ')';
                 const needOneOf = j && Array.isArray(j.need_one_of) ? j.need_one_of : null;
                 if (j && j.error === 'RENDER_CONFIG' && needOneOf) {
-                  base = 'Errore aggiornamento: RENDER_CONFIG â€” imposta Deploy Hook URL oppure API key + Service ID';
+                  base = 'Errore aggiornamento: RENDER_CONFIG — imposta Deploy Hook URL oppure API key + Service ID';
                   const haveObj = j && j.have && typeof j.have === 'object' ? j.have : null;
                   if (haveObj) {
                     const have = Object.entries(haveObj).filter(e => e && e[1]).map(e => String(e[0] || '')).filter(Boolean);
@@ -3218,7 +4409,7 @@
                   const missingObj = j && j.missing && typeof j.missing === 'object' ? j.missing : null;
                   if (missingObj) {
                     const missing = Object.entries(missingObj).filter(e => e && e[1]).map(e => String(e[0] || '')).filter(Boolean);
-                    if (missing.length) base += ' â€” manca: ' + missing.join(', ');
+                    if (missing.length) base += ' — manca: ' + missing.join(', ');
                   }
                 }
                 msg.textContent = base;
@@ -3303,7 +4494,7 @@
       updateShareSelectionUi();
       
       filtered.forEach(r => {
-        const categoryLabel = categoriesById[r.categoryId] || 'â€”';
+        const categoryLabel = categoriesById[r.categoryId] || '—';
         const tr = document.createElement('tr');
         const isChecked = selectedShareIds.has(String(r.id || '').trim());
         tr.innerHTML = `
@@ -3322,7 +4513,7 @@
           <td>${r.anno}</td>
           <td>${formatPrice(r.prezzo)}</td>
           <td><span class="${statusClass(r.stato)}">${r.stato}</span></td>
-          <td>${r.stato_annuncio || 'â€”'}</td>
+          <td>${r.stato_annuncio || '—'}</td>
           <td>
             <div style="display:flex;gap:6px">
               <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="view" data-id="${r.id}">Dettaglio</button>
@@ -3361,19 +4552,19 @@
       currentDetailId = id;
 
       const cats = db.categories || [];
-      const categoryName = cats.find(c => c.id === r.categoryId)?.name || 'â€”';
+      const categoryName = cats.find(c => c.id === r.categoryId)?.name || '—';
 
       detailTitle.textContent = `${r.marca || ''} ${r.modello || ''}`.trim() || 'Dettaglio';
-      detailMeta.textContent = `${r.id || ''}${r.anno ? ` â€¢ Anno ${r.anno}` : ''} â€¢ ${categoryName} â€¢ ${formatPrice(r.prezzo)}`;
+      detailMeta.textContent = `${r.id || ''}${r.anno ? ` • Anno ${r.anno}` : ''} • ${categoryName} • ${formatPrice(r.prezzo)}`;
       if (detailSoldBtn) {
         detailSoldBtn.disabled = r.stato === 'Venduto';
-        detailSoldBtn.textContent = r.stato === 'Venduto' ? 'GiÃ  venduto' : 'Segna venduto';
+        detailSoldBtn.textContent = r.stato === 'Venduto' ? 'Già venduto' : 'Segna venduto';
       }
 
       detailInfo.innerHTML = '';
-      setDetailInfoRow('Stato', r.stato || 'â€”');
-      setDetailInfoRow('Tipologia', r.tipologiaMezzo || 'â€”');
-      setDetailInfoRow('Versione', r.versione || 'â€”');
+      setDetailInfoRow('Stato', r.stato || '—');
+      setDetailInfoRow('Tipologia', r.tipologiaMezzo || '—');
+      setDetailInfoRow('Versione', r.versione || '—');
       setDetailInfoRow('Pronta consegna', boolLabel(r.disponibilitaProntaConsegna));
       setDetailInfoRow('Permuta', boolLabel(r.permuta));
 
@@ -3382,7 +4573,7 @@
       if (r.lunghezzaInterna) dims.push(`Lunghezza interna ${r.lunghezzaInterna} m`);
       if (r.larghezza) dims.push(`Larghezza ${r.larghezza} m`);
       if (r.altezza) dims.push(`Altezza ${r.altezza} m`);
-      if (dims.length) setDetailInfoRow('Dimensioni', dims.join(' â€¢ '));
+      if (dims.length) setDetailInfoRow('Dimensioni', dims.join(' • '));
 
       if (r.postiLetto || r.posti) setDetailInfoRow('Posti letto', String(r.postiLetto ?? r.posti));
       if (r.massa) setDetailInfoRow('Massa', `${r.massa} kg`);
@@ -3393,7 +4584,7 @@
       if (Array.isArray(r.disposizioneLetti) && r.disposizioneLetti.length) setDetailInfoRow('Disposizione letti', r.disposizioneLetti.join(', '));
       if (Array.isArray(r.idealePer) && r.idealePer.length) setDetailInfoRow('Ideale per', r.idealePer.join(', '));
 
-      if (r.localita) setDetailInfoRow('LocalitÃ ', r.localita);
+      if (r.localita) setDetailInfoRow('Località', r.localita);
       if (r.contattoTelefono) setDetailInfoRow('Telefono', r.contattoTelefono);
       if (r.contattoWhatsapp) setDetailInfoRow('WhatsApp', r.contattoWhatsapp);
       if (r.contattoEmail) setDetailInfoRow('Email', r.contattoEmail);
@@ -3452,6 +4643,7 @@
            formTitle.textContent = `Modifica ${r.id}`;
            editIdEl.value = r.id;
            clearFormBtn.textContent = 'Annulla Modifica';
+           setNewFormDirty(false);
          })
          .catch((e) => {
            alert('Errore durante la modifica: ' + (e && e.message ? e.message : String(e)));
@@ -3466,6 +4658,7 @@
       draftEditingUpdatedAt = '';
       formTitle.textContent = `Duplica ${srcId}`;
       clearFormBtn.textContent = 'Nuova Scheda';
+      setNewFormDirty(false);
     };
 
     window.deleteItem = async function(id) {
@@ -3611,7 +4804,7 @@
           return;
         }
         shareCreateBtn.disabled = true;
-        const toast = showToast('info', 'Condivisione', 'Creazione link in corsoâ€¦', { persist: true });
+        const toast = showToast('info', 'Condivisione', 'Creazione link in corso…', { persist: true });
         try {
           const r = await fetch(apiUrl('/api/share-links'), {
             method: 'POST',
@@ -3636,7 +4829,7 @@
         } catch (e) {
           const msg = String(e && e.message ? e.message : e);
           if (msg === 'UNAUTHORIZED') showToast('error', 'Non autorizzato', 'Sessione scaduta. Effettua di nuovo il login.');
-          else if (msg === 'DB_UNAVAILABLE') showToast('error', 'Database non disponibile', 'Riprova piÃ¹ tardi.');
+          else if (msg === 'DB_UNAVAILABLE') showToast('error', 'Database non disponibile', 'Riprova più tardi.');
           else showToast('error', 'Errore', 'Impossibile creare il link.');
         } finally {
           try { if (toast && toast.close) toast.close(); } catch {}
@@ -3686,7 +4879,7 @@
 
     if (syncNowBtn) syncNowBtn.addEventListener('click', async () => {
       try {
-        setSyncStatus('Sincronizzazione in corsoâ€¦', true);
+        setSyncStatus('Sincronizzazione in corso…', true);
         const res = await window.RoulotteStore.syncNow();
         if (res && res.ok) {
           refreshAll();
@@ -3701,7 +4894,7 @@
 
     if (pullServerBtn) pullServerBtn.addEventListener('click', async () => {
       try {
-        setSyncStatus('Scaricamento in corsoâ€¦', true);
+        setSyncStatus('Scaricamento in corso…', true);
         const res = await window.RoulotteStore.pullFromServer();
         if (res && res.ok) {
           refreshAll();
@@ -3716,7 +4909,7 @@
 
     if (pushServerBtn) pushServerBtn.addEventListener('click', async () => {
       try {
-        setSyncStatus('Caricamento in corsoâ€¦', true);
+        setSyncStatus('Caricamento in corso…', true);
         const res = await window.RoulotteStore.pushToServer();
         if (res && res.ok) setSyncStatus('Caricato sul server', true);
         else setSyncStatus('Caricamento fallito', false);

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="it" data-theme="light">
 <head>
   <script>
@@ -24,7 +24,7 @@
        box.style.fontFamily = 'monospace';
        box.style.whiteSpace = 'pre-wrap';
        box.style.boxShadow = '0 10px 30px rgba(0,0,0,0.5)';
-      box.innerHTML = '<strong>⚠️ ERRORE CRITICO RILEVATO:</strong><br>' + 
+       box.innerHTML = '<strong>ERRORE CRITICO RILEVATO:</strong><br>' + 
                        (msg || 'Errore sconosciuto') + '<br>' + 
                        'Riga: ' + (line || '?') + '<br>' + 
                        'Per favore, invia uno screenshot di questo messaggio.<br><br>' + 
@@ -82,7 +82,7 @@
           <button class="btn btn-primary" type="submit">Entra</button>
         </div>
         <div id="loginError" class="error" hidden>Credenziali non valide.</div>
-        <div id="loginDiag" style="margin-top:10px;font-size:0.85rem;color:var(--muted);display:grid;gap:4px">
+          <div id="loginDiag" style="margin-top:10px;font-size:0.85rem;color:var(--muted);display:grid;gap:4px">
           <div>API: <span id="loginApiBase">—</span></div>
           <div>WS: <span id="loginWsBase">—</span></div>
           <div>Stato: <span id="loginApiHealth">—</span></div>
@@ -189,6 +189,7 @@
           <a class="btn mobile-only" href="index.html">Sito</a>
           <button class="btn" type="button" id="refreshBtn">Aggiorna</button>
           <button class="btn" type="button" id="themeToggleBtn">Tema: Chiaro</button>
+          <button class="btn" type="button" id="voiceToggleBtn" aria-pressed="false">Voce: Off</button>
           <button class="btn btn-danger mobile-only" type="button" id="logoutBtnMobile">Esci</button>
         </div>
       </div>
@@ -222,7 +223,7 @@
             <div class="stat">
               <div>
                 <div class="label">Vendute (Valore)</div>
-                <div class="value" id="statSoldValue">â‚¬ 0</div>
+                <div class="value" id="statSoldValue">€ 0</div>
                 <div class="sub-value" id="statSold">0 veicoli</div>
               </div>
               <div class="status warn">Sold</div>
@@ -232,10 +233,10 @@
             <div class="stat">
               <div>
                 <div class="label">Valore Magazzino</div>
-                <div class="value" id="statValue">â‚¬ 0</div>
+                <div class="value" id="statValue">€ 0</div>
                 <div class="sub-value" style="font-size:0.9rem;color:var(--muted)">Disponibili</div>
               </div>
-              <div class="status ok">â‚¬</div>
+              <div class="status ok">€</div>
             </div>
           </div>
           <div class="card span-12">
@@ -253,9 +254,23 @@
               <a class="btn btn-primary" href="index.html">Apri sito pubblico</a>
             </div>
           </div>
+          <div class="card span-12" id="assistantCard">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap">
+              <div>
+                <div class="card-title">Assistente rapido</div>
+                <div class="hint" style="margin-top:6px">Esempi: “duplica ABC123”, “venduto ABC123”, “crea link”, “rigenera descrizione”, “vai elenco”.</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
+              <input id="assistantInput" name="assistantInput" type="search" autocomplete="off" placeholder="Scrivi un comando..." style="flex:1;min-width:220px" />
+              <button class="btn btn-primary" type="button" id="assistantRunBtn">Esegui</button>
+            </div>
+            <div id="assistantChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+            <div id="assistantResult" class="hint" style="margin-top:8px"></div>
+          </div>
           <div class="card span-12" style="opacity:0.8">
             <details>
-            <summary style="cursor:pointer;font-weight:700;color:var(--muted)">Mostra Log Attività Recenti</summary>
+              <summary style="cursor:pointer;font-weight:700;color:var(--muted)">Mostra Log Attività Recenti</summary>
               <div class="log-list" id="activityLog" style="margin-top:10px">
                 <!-- Logs popolati via JS -->
               </div>
@@ -277,7 +292,7 @@
                 <li>“Salva bozza” salva senza pubblicare; “Pubblica” rende visibile sul sito.</li>
               </ul>
               <div class="help-badges">
-                <span class="help-badge">Bozza ≠ Pubblicato</span>
+                <span class="help-badge">Bozza != Pubblicato</span>
                 <span class="help-badge">Esito azioni: notifiche in basso a destra</span>
               </div>
             </div>
@@ -299,6 +314,9 @@
                 <button class="btn" type="button" id="builderLoadBtn">Carica</button>
                 <button class="btn" type="button" id="builderSaveBtn">Salva bozza</button>
                 <button class="btn btn-primary" type="button" id="builderPublishBtn">Pubblica</button>
+                <button class="btn" type="button" id="builderPreviewBtn">Anteprima</button>
+                <button class="btn" type="button" id="builderUndoBtn">Annulla</button>
+                <button class="btn" type="button" id="builderRedoBtn">Ripeti</button>
               </div>
             </div>
             <div class="field">
@@ -308,8 +326,27 @@
           </div>
         </div>
         <div class="card">
-          <div id="gjs" style="height:70vh;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff"></div>
+          <div id="gjs" style="height:70vh;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--panel)"></div>
         </div>
+        <dialog id="builderPreviewDialog">
+          <div class="builder-preview-head">
+            <div style="font-weight:900">Anteprima bozza</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn" type="button" id="builderPreviewReloadBtn">Ricarica</button>
+              <button class="btn btn-danger" type="button" id="builderPreviewCloseBtn">Chiudi</button>
+            </div>
+          </div>
+          <iframe id="builderPreviewFrame" title="Anteprima bozza" loading="lazy"></iframe>
+        </dialog>
+        <dialog id="revisionsDialog">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+            <div style="font-weight:900;font-size:1.1rem">Cronologia modifiche</div>
+            <div style="display:flex;gap:8px">
+              <button class="btn" type="button" id="revisionsCloseBtn">Chiudi</button>
+            </div>
+          </div>
+          <div id="revisionsBody" style="margin-top:12px;max-height:70vh;overflow:auto"></div>
+        </dialog>
       </section>
       <section id="new" class="section" aria-label="Nuova roulotte">
         <div class="card">
@@ -335,9 +372,62 @@
             </div>
           </details>
 
-          <form id="newForm" style="margin-top:14px">
+          <details class="help-card" style="margin-top:12px" open>
+            <summary>Assistente AI (gratis)</summary>
+            <div class="help-grid">
+              <div>
+                <div class="hint">Incolla un testo (da WhatsApp, Subito, email). L’assistente prova a compilare e suggerire i campi.</div>
+                <div class="field" style="margin-top:10px">
+                  <label for="aiInput">Testo annuncio</label>
+                  <textarea id="aiInput" rows="5" placeholder="Esempio: Hobby 460 2016 - Ottimo stato - 12.900€ - Targata sì - Infiltrazioni no - Tel 3331234567"></textarea>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+                  <button class="btn" type="button" id="aiAnalyzeBtn">Analizza testo</button>
+                  <button class="btn btn-primary" type="button" id="aiApplyBtn" disabled>Applica suggerimenti</button>
+                  <button class="btn btn-danger" type="button" id="aiClearBtn">Pulisci</button>
+                  <button class="btn" type="button" id="copyLastBtn">Copia da ultima scheda</button>
+                </div>
+              </div>
+              <div>
+                <div style="font-weight:900">Suggerimenti</div>
+                <div id="aiSuggestions" class="hint" style="margin-top:8px">Nessuna analisi eseguita.</div>
+              </div>
+            </div>
+          </details>
+
+          <details class="help-card" style="margin-top:12px">
+            <summary>Preset & blocchi</summary>
+            <div class="help-grid">
+              <div>
+                <div class="hint">Salva valori di default e, se vuoi, blocca alcuni campi per non modificarli per errore.</div>
+                <div class="choice-box" style="margin-top:10px">
+                  <label class="choice-item" for="defaultsLockEnabled">
+                    <input id="defaultsLockEnabled" type="checkbox" />
+                    Blocca campi con default
+                  </label>
+                  <label class="choice-item" for="defaultsLockOnEdit">
+                    <input id="defaultsLockOnEdit" type="checkbox" />
+                    Blocca anche in modifica
+                  </label>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+                  <button class="btn btn-primary" type="button" id="defaultsSaveBtn">Salva valori attuali</button>
+                  <button class="btn" type="button" id="defaultsApplyBtn">Applica default</button>
+                  <button class="btn btn-danger" type="button" id="defaultsResetBtn">Reset default</button>
+                </div>
+              </div>
+              <div>
+                <div style="font-weight:900">Stato</div>
+                <div id="defaultsStatus" class="hint" style="margin-top:8px">Nessun default salvato.</div>
+              </div>
+            </div>
+          </details>
+
+          <form id="newForm" class="new-form" style="margin-top:14px">
             <input type="hidden" id="editId" name="editId" value="" />
-            <div class="form-grid">
+            <div class="new-form-layout">
+              <div class="new-form-main">
+                <div class="form-grid">
               <div class="field">
                 <label for="marca">Marca</label>
                 <input id="marca" name="marca" autocomplete="organization" required />
@@ -418,6 +508,7 @@
                 </div>
               </div>
             </div>
+              </div>
 
             <details style="margin-top:16px">
               <summary style="cursor:pointer;font-weight:900">Stato del mezzo</summary>
@@ -672,7 +763,7 @@
                   <label for="docciaSeparata">Doccia separata</label>
                   <select id="docciaSeparata" name="docciaSeparata">
                     <option value="">-- Seleziona --</option>
-                    <option value="SÃ¬">SÃ¬</option>
+                    <option value="Sì">Sì</option>
                     <option value="No">No</option>
                   </select>
                 </div>
@@ -680,7 +771,7 @@
                   <label for="armadi">Armadi</label>
                   <select id="armadi" name="armadi">
                     <option value="">-- Seleziona --</option>
-                    <option value="SÃ¬">SÃ¬</option>
+                    <option value="Sì">Sì</option>
                     <option value="No">No</option>
                   </select>
                 </div>
@@ -688,7 +779,7 @@
                   <label for="gavoniInterni">Gavoni interni</label>
                   <select id="gavoniInterni" name="gavoniInterni">
                     <option value="">-- Seleziona --</option>
-                    <option value="SÃ¬">SÃ¬</option>
+                    <option value="Sì">Sì</option>
                     <option value="No">No</option>
                   </select>
                 </div>
@@ -702,7 +793,7 @@
                   <label for="presa220Esterna">Presa 220V esterna</label>
                   <select id="presa220Esterna" name="presa220Esterna">
                     <option value="">-- Seleziona --</option>
-                    <option value="SÃ¬">SÃ¬</option>
+                    <option value="Sì">Sì</option>
                     <option value="No">No</option>
                   </select>
                 </div>
@@ -710,7 +801,7 @@
                   <label for="impianto12V">Impianto 12V</label>
                   <select id="impianto12V" name="impianto12V">
                     <option value="">-- Seleziona --</option>
-                    <option value="SÃ¬">SÃ¬</option>
+                    <option value="Sì">Sì</option>
                     <option value="No">No</option>
                   </select>
                 </div>
@@ -718,7 +809,7 @@
                   <label for="batteriaServizi">Batteria servizi</label>
                   <select id="batteriaServizi" name="batteriaServizi">
                     <option value="">-- Seleziona --</option>
-                    <option value="SÃ¬">SÃ¬</option>
+                    <option value="Sì">Sì</option>
                     <option value="No">No</option>
                   </select>
                 </div>
@@ -726,7 +817,7 @@
                   <label for="illuminazioneLed">Illuminazione LED</label>
                   <select id="illuminazioneLed" name="illuminazioneLed">
                     <option value="">-- Seleziona --</option>
-                    <option value="SÃ¬">SÃ¬</option>
+                    <option value="Sì">Sì</option>
                     <option value="No">No</option>
                   </select>
                 </div>
@@ -750,7 +841,7 @@
                   <label for="serbatoioAcquaPulita">Serbatoio acqua pulita</label>
                   <select id="serbatoioAcquaPulita" name="serbatoioAcquaPulita">
                     <option value="">-- Seleziona --</option>
-                    <option value="SÃ¬">SÃ¬</option>
+                    <option value="Sì">Sì</option>
                     <option value="No">No</option>
                   </select>
                 </div>
@@ -758,7 +849,7 @@
                   <label for="serbatoioAcqueGrigie">Serbatoio acque grigie</label>
                   <select id="serbatoioAcqueGrigie" name="serbatoioAcqueGrigie">
                     <option value="">-- Seleziona --</option>
-                    <option value="SÃ¬">SÃ¬</option>
+                    <option value="Sì">Sì</option>
                     <option value="No">No</option>
                   </select>
                 </div>
@@ -766,7 +857,7 @@
                   <label for="riscaldamento">Riscaldamento</label>
                   <select id="riscaldamento" name="riscaldamento">
                     <option value="">-- Seleziona --</option>
-                    <option value="SÃ¬">SÃ¬</option>
+                    <option value="Sì">Sì</option>
                     <option value="No">No</option>
                   </select>
                 </div>
@@ -783,7 +874,7 @@
                   <label for="climatizzatore">Climatizzatore</label>
                   <select id="climatizzatore" name="climatizzatore">
                     <option value="">-- Seleziona --</option>
-                    <option value="SÃ¬">SÃ¬</option>
+                    <option value="Sì">Sì</option>
                     <option value="No">No</option>
                   </select>
                 </div>
@@ -791,7 +882,7 @@
                   <label for="predisposizioneClima">Predisposizione clima</label>
                   <select id="predisposizioneClima" name="predisposizioneClima">
                     <option value="">-- Seleziona --</option>
-                    <option value="SÃ¬">SÃ¬</option>
+                    <option value="Sì">Sì</option>
                     <option value="No">No</option>
                   </select>
                 </div>
@@ -799,7 +890,7 @@
                   <label for="verandaTendalino">Veranda / tendalino</label>
                   <select id="verandaTendalino" name="verandaTendalino">
                     <option value="">-- Seleziona --</option>
-                    <option value="SÃ¬">SÃ¬</option>
+                    <option value="Sì">Sì</option>
                     <option value="No">No</option>
                   </select>
                 </div>
@@ -807,7 +898,7 @@
                   <label for="portabici">Portabici</label>
                   <select id="portabici" name="portabici">
                     <option value="">-- Seleziona --</option>
-                    <option value="SÃ¬">SÃ¬</option>
+                    <option value="Sì">Sì</option>
                     <option value="No">No</option>
                   </select>
                 </div>
@@ -830,7 +921,7 @@
                   <input id="contattoEmail" name="contattoEmail" type="email" autocomplete="email" />
                 </div>
                 <div class="field">
-                  <label for="localita">LocalitÃ </label>
+                  <label for="localita">Località</label>
                   <input id="localita" name="localita" autocomplete="address-level2" />
                 </div>
                 <div class="field">
@@ -849,59 +940,129 @@
               </div>
             </details>
 
+            <details style="margin-top:12px" open>
+              <summary style="cursor:pointer;font-weight:900">Caratteristiche</summary>
+              <div class="hint" style="margin-top:6px">Seleziona le caratteristiche. Puoi aggiungerne di nuove (salvate nel database).</div>
+              <div class="inline-row" style="margin-top:10px">
+                <input id="featureSearch" placeholder="Cerca…" autocomplete="off" />
+                <input id="newFeatureInput" placeholder="Nuova caratteristica…" autocomplete="off" />
+                <button class="btn btn-primary" type="button" id="addFeatureBtn">Aggiungi</button>
+                <button class="btn" type="button" id="resetAutoFeaturesBtn">Reset auto</button>
+              </div>
+              <div id="featuresGrid" class="choice-grid" style="margin-top:10px"></div>
+              <div id="featureMatches" class="hint" style="margin-top:10px"></div>
+            </details>
+
+            <details style="margin-top:10px">
+              <summary style="cursor:pointer;font-weight:900">Note riservate</summary>
+              <div class="hint" style="margin-top:6px">Visibili solo in admin (cifrate nel database).</div>
+              <div class="choice-box" style="margin-top:10px">
+                <label class="choice-item" for="adminNoteOnly">
+                  <input id="adminNoteOnly" type="checkbox" checked disabled />
+                  Solo admin
+                </label>
+              </div>
+              <div class="field" style="margin-top:10px">
+                <label for="adminNote">Testo</label>
+                <textarea id="adminNote" rows="4" placeholder="Note interne: difetti, trattativa, costi, info riservate…"></textarea>
+              </div>
+            </details>
+
             <div class="form-grid" style="margin-top:12px">
               <div class="field" style="grid-column:1/-1">
                 <label for="note">Note (Descrizione)</label>
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-                   <span class="hint">Generata automaticamente dai dati tecnici, ma modificabile.</span>
-                   <button type="button" class="btn" style="padding:4px 8px;font-size:0.8rem" onclick="generateDescription()">Rigenera Descrizione</button>
+                   <span class="hint">Generata automaticamente dai dati tecnici, ma modificabile. <span id="noteStats"></span></span>
+                   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                     <div class="choice-box" style="padding:6px 8px">
+                       <label class="choice-item" style="margin:0"><input type="radio" name="noteMode" value="wysiwyg" checked />Editor</label>
+                       <label class="choice-item" style="margin:0"><input type="radio" name="noteMode" value="text" />Testo</label>
+                     </div>
+                     <select id="descAiMode" class="btn" style="padding:4px 8px;font-size:0.8rem">
+                       <option value="improve">Migliora testo</option>
+                       <option value="rewrite">Rielabora (più bello)</option>
+                       <option value="shorten">Accorcia</option>
+                       <option value="bullets">Formato elenco</option>
+                     </select>
+                     <button type="button" class="btn btn-primary" style="padding:4px 8px;font-size:0.8rem" id="descAiBtn">AI: Applica</button>
+                     <button type="button" class="btn" style="padding:4px 8px;font-size:0.8rem" id="descUndoBtn" disabled>Annulla</button>
+                     <button type="button" class="btn" style="padding:4px 8px;font-size:0.8rem" id="dictationBtn">Detta</button>
+                     <button type="button" class="btn" style="padding:4px 8px;font-size:0.8rem" onclick="generateDescription()">Rigenera</button>
+                   </div>
                 </div>
+                <div id="dictationStatus" class="hint" style="margin-bottom:6px"></div>
                 <div style="display:grid">
                   <div class="editor-toolbar">
                     <button type="button" class="editor-btn" onclick="formatDoc('bold')" title="Grassetto">B</button>
                     <button type="button" class="editor-btn" onclick="formatDoc('italic')" title="Corsivo">I</button>
                     <button type="button" class="editor-btn" onclick="formatDoc('underline')" title="Sottolineato">U</button>
                     <div style="width:1px;background:var(--border);margin:0 4px"></div>
-                    <button type="button" class="editor-btn" onclick="formatDoc('insertUnorderedList')" title="Elenco puntato">â€¢ Lista</button>
+                    <button type="button" class="editor-btn" onclick="formatDoc('insertUnorderedList')" title="Elenco puntato">• Lista</button>
                     <button type="button" class="editor-btn" onclick="formatDoc('insertOrderedList')" title="Elenco numerato">1. Lista</button>
                   </div>
                   <!-- Semplice textarea, ma l'utente chiedeva WYSIWYG. 
-                       Per una vera WYSIWYG senza dipendenze, contenteditable Ã¨ meglio.
+                       Per una vera WYSIWYG senza dipendenze, contenteditable è meglio.
                        Uso un div contenteditable che sincronizzo con una textarea nascosta. -->
                   <div id="editor" contenteditable="true" style="min-height:120px;padding:12px;border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;background:rgba(255,255,255,.05);outline:none"></div>
+                  <textarea id="noteText" rows="8" style="display:none;min-height:120px;padding:12px;border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;background:rgba(255,255,255,.05);outline:none"></textarea>
                   <textarea id="note" name="note" hidden></textarea>
                 </div>
+                <div id="dictationLive" class="hint" style="margin-top:6px"></div>
               </div>
             </div>
 
-            <div style="margin-top:14px">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-                <div>
-                  <div style="font-weight:900">Foto</div>
-                  <div class="hint">Trascina qui le immagini o clicca per selezionare.</div>
-                </div>
-            </div>
-            <div class="inline-row" style="margin-top:8px">
-              <input id="photoUrlInput" type="url" placeholder="Incolla URL immagine https://..." />
-              <button class="btn" type="button" id="addPhotoUrlBtn">Aggiungi URL</button>
-              <button class="btn btn-danger" type="button" id="clearPhotosBtn">Svuota foto</button>
-            </div>
-            <div id="dropzone" class="dropzone" style="margin-top:10px; text-align:center; padding:20px; cursor:pointer">
-              <p style="color:var(--muted); pointer-events:none; margin-bottom:10px">Trascina le foto qui o clicca nell'area</p>
-              <button type="button" class="btn" style="pointer-events:none">📂 Seleziona File</button>
-              <input id="photosInput" name="photosInput" type="file" accept="image/*" multiple style="display:none" />
-            </div>
-            
-            <div id="photosPreview" class="photos" aria-label="Anteprima foto"></div>
-            <div id="photoHint" class="hint" style="margin-top:8px"></div>
-          </div>
+              </div>
+              <aside class="new-form-sidebar" aria-label="Riepilogo e azioni">
+                <div class="card new-sidebar-card">
+                  <div id="newFormChecklist" class="checklist">
+                    <div class="checklist-title">Requisiti minimi</div>
+                    <div class="checklist-grid">
+                      <div class="check-item" data-key="marca"><span class="check-dot" aria-hidden="true"></span><span>Marca</span></div>
+                      <div class="check-item" data-key="modello"><span class="check-dot" aria-hidden="true"></span><span>Modello</span></div>
+                      <div class="check-item" data-key="prezzo"><span class="check-dot" aria-hidden="true"></span><span>Prezzo</span></div>
+                      <div class="check-item" data-key="anno"><span class="check-dot" aria-hidden="true"></span><span>Anno</span></div>
+                      <div class="check-item" data-key="tipologiaMezzo"><span class="check-dot" aria-hidden="true"></span><span>Tipologia</span></div>
+                      <div class="check-item" data-key="foto"><span class="check-dot" aria-hidden="true"></span><span>Foto (per pubblicare)</span></div>
+                    </div>
+                    <div id="newFormChecklistHint" class="hint" style="margin-top:8px"></div>
+                  </div>
 
-            <div class="row-actions sticky">
-              <button class="btn" type="button" id="goListBtn">Vai all'elenco</button>
-              <button class="btn btn-primary" type="submit">Salva scheda</button>
+                  <div style="margin-top:14px">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+                      <div>
+                        <div style="font-weight:900">Foto</div>
+                        <div class="hint">Trascina le immagini o clicca per selezionare.</div>
+                        <div class="hint" id="photoCount" style="margin-top:6px"></div>
+                      </div>
+                    </div>
+
+                    <div class="inline-row" style="margin-top:10px">
+                      <input id="photoUrlInput" type="url" placeholder="Incolla URL immagine https://..." />
+                      <button class="btn" type="button" id="addPhotoUrlBtn">Aggiungi URL</button>
+                      <button class="btn" type="button" id="autoAltBtn">Auto ALT</button>
+                      <button class="btn btn-danger" type="button" id="clearPhotosBtn">Svuota</button>
+                    </div>
+
+                    <div id="dropzone" class="dropzone" style="margin-top:10px">
+                      <p style="color:var(--muted); pointer-events:none; margin-bottom:10px">Trascina le foto qui o clicca nell'area</p>
+                      <button type="button" class="btn" style="pointer-events:none">Seleziona file</button>
+                      <input id="photosInput" name="photosInput" type="file" accept="image/*" multiple style="display:none" />
+                    </div>
+
+                    <div id="photosPreview" class="photos" aria-label="Anteprima foto"></div>
+                    <div id="photoHint" class="hint" style="margin-top:10px"></div>
+                  </div>
+                </div>
+
+                <div class="row-actions sticky new-actions">
+                  <button class="btn" type="button" id="goListBtn">Vai all'elenco</button>
+                  <button class="btn" type="button" id="saveAndPublishBtn">Salva e pubblica</button>
+                  <button class="btn btn-primary" type="submit">Salva scheda</button>
+                </div>
+                <div id="formMsg" class="error" hidden></div>
+                <progress id="uploadProg" value="0" max="100" style="width:100%;display:none"></progress>
+              </aside>
             </div>
-            <div id="formMsg" class="error" hidden></div>
-            <progress id="uploadProg" value="0" max="100" style="width:100%;display:none"></progress>
           </form>
         </div>
       </section>
@@ -1005,6 +1166,7 @@
               <button class="btn" type="button" id="detailOpenPublicBtn">Apri sul sito</button>
               <button class="btn" type="button" id="detailDuplicateBtn">Duplica</button>
               <button class="btn" type="button" id="detailSoldBtn">Segna venduto</button>
+              <button class="btn" type="button" id="detailHistoryBtn">Cronologia</button>
               <button class="btn btn-primary" type="button" id="detailEditBtn">Modifica</button>
             </div>
           </div>
@@ -1144,6 +1306,24 @@
             </div>
           </div>
           <div class="card span-6">
+            <div style="font-weight:900;font-size:1.05rem">Statistiche Sito</div>
+            <div class="hint" style="margin-top:6px">Visibili solo in area Admin.</div>
+            <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:10px;margin-top:12px">
+              <div class="card" style="padding:12px">
+                <div class="label" style="font-size:0.8rem">Aggiornamento</div>
+                <div class="value" id="siteStatsUpdatedAt">—</div>
+              </div>
+              <div class="card" style="padding:12px">
+                <div class="label" style="font-size:0.8rem">Totale schede</div>
+                <div class="value" id="siteStatsTotal">0</div>
+              </div>
+              <div class="card" style="padding:12px">
+                <div class="label" style="font-size:0.8rem">Risultati</div>
+                <div class="value" id="siteStatsResults">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="card span-6">
             <div style="font-weight:900;font-size:1.05rem">Importa JSON</div>
             <div class="hint" style="margin-top:6px">Carica un backup per sostituire i dati.</div>
             <div class="row-actions" style="justify-content:flex-start;align-items:center">
@@ -1166,7 +1346,7 @@
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
               <div>
                 <div style="font-weight:900;font-size:1.05rem">Utenti Admin</div>
-                <div class="hint" style="margin-top:6px">Crea e gestisci gli accessi per piÃ¹ persone.</div>
+                <div class="hint" style="margin-top:6px">Crea e gestisci gli accessi per più persone.</div>
               </div>
               <div class="row-actions" style="justify-content:flex-start;align-items:center;flex-wrap:wrap">
                 <button class="btn" type="button" id="adminUsersRefreshBtn">Aggiorna</button>
