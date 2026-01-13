@@ -316,3 +316,135 @@ writeTest('Update roulotte: persistenza campi e conflitto 409', async () => {
     }
   }
 });
+
+writeTest('Share link: modalità filtro ritorna risultati coerenti', async () => {
+  const login = await fetch(`${API_BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin' })
+  });
+  assert.strictEqual(login.ok, true);
+  const { token } = await login.json();
+  assert.ok(token);
+
+  let id = '';
+  try {
+    const createFd = new FormData();
+    const createPayload = {
+      marca: 'TestMarcaShareFilter',
+      modello: 'TestModelloShareFilter',
+      prezzo: 1111,
+      anno: 2024,
+      stato_annuncio: 'pubblicato',
+      bagno: 'WC + doccia',
+      docciaSeparata: 'No',
+      lunghezzaTotale: 6.5,
+      postiLetto: 4,
+      visibile: true
+    };
+    createFd.append('payload', JSON.stringify(createPayload));
+    createFd.append('marca', createPayload.marca);
+    createFd.append('modello', createPayload.modello);
+    createFd.append('prezzo', String(createPayload.prezzo));
+    createFd.append('anno', String(createPayload.anno));
+    createFd.append('stato_annuncio', String(createPayload.stato_annuncio));
+    createFd.append('bagno', String(createPayload.bagno));
+    createFd.append('docciaSeparata', String(createPayload.docciaSeparata));
+    createFd.append('lunghezzaTotale', String(createPayload.lunghezzaTotale));
+    createFd.append('postiLetto', String(createPayload.postiLetto));
+    const created = await fetch(`${API_BASE}/api/roulottes`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: createFd });
+    if (created.status === 503) {
+      const j = await created.json().catch(() => ({}));
+      assert.strictEqual(String(j && j.error || ''), 'DB_UNAVAILABLE');
+      return;
+    }
+    assert.strictEqual(created.ok, true);
+    const createdBody = await created.json();
+    assert.ok(createdBody && createdBody.id);
+    id = String(createdBody.id || '');
+
+    const share = await fetch(`${API_BASE}/api/share-links`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({
+        mode: 'filter',
+        title: 'Test share filter',
+        expiresInDays: 7,
+        filters: { bagno: 'WC + doccia', lunghezzaMin: 6 }
+      })
+    });
+    if (share.status === 503) {
+      const j = await share.json().catch(() => ({}));
+      assert.strictEqual(String(j && j.error || ''), 'DB_UNAVAILABLE');
+      return;
+    }
+    assert.strictEqual(share.ok, true);
+    const shareBody = await share.json();
+    assert.ok(shareBody && shareBody.token);
+
+    const res = await fetch(`${API_BASE}/api/share-links/roulottes?token=${encodeURIComponent(String(shareBody.token || ''))}`, { headers: { 'Accept': 'application/json' } });
+    assert.strictEqual(res.ok, true);
+    const data = await res.json().catch(() => null);
+    assert.ok(data && typeof data === 'object');
+    assert.strictEqual(String(data.mode || ''), 'filter');
+    assert.ok(Array.isArray(data.roulottes));
+    assert.ok(data.roulottes.some(r => r && String(r.id || '') === id));
+  } finally {
+    if (id) {
+      try {
+        await fetch(`${API_BASE}/api/roulottes/${id}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+      } catch {}
+    }
+  }
+});
+
+writeTest('Condivisione: crea link e risolve selezione', async (t) => {
+  const login = await fetch(`${API_BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin' })
+  });
+  assert.strictEqual(login.ok, true);
+  const { token } = await login.json();
+  assert.ok(token);
+
+  const listRes = await fetch(`${API_BASE}/api/roulottes`, { headers: { 'Accept': 'application/json' } });
+  assert.strictEqual(listRes.ok, true);
+  const list = await listRes.json();
+  if (!Array.isArray(list) || list.length === 0) {
+    t.skip('Nessuna roulotte disponibile per testare la condivisione.');
+    return;
+  }
+
+  const id = String(list[0] && list[0].id || '').trim();
+  assert.ok(id);
+
+  const create = await fetch(`${API_BASE}/api/share-links`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ ids: [id], title: 'Test condivisione' })
+  });
+  assert.strictEqual(create.ok, true);
+  const created = await create.json();
+  assert.ok(created && created.ok);
+  assert.ok(created && created.token);
+  assert.ok(created && created.url);
+
+  const resolve = await fetch(`${API_BASE}/api/share-links/resolve?token=${encodeURIComponent(created.token)}`, { headers: { 'Accept': 'application/json' } });
+  assert.strictEqual(resolve.ok, true);
+  const resolved = await resolve.json();
+  assert.ok(resolved && resolved.ok);
+
+  const selection = await fetch(`${API_BASE}/api/share-links/roulottes?token=${encodeURIComponent(created.token)}`, { headers: { 'Accept': 'application/json' } });
+  assert.strictEqual(selection.ok, true);
+  const sel = await selection.json();
+  assert.ok(sel && sel.ok);
+  assert.ok(Array.isArray(sel.ids));
+  assert.ok(Array.isArray(sel.roulottes));
+  assert.ok(sel.ids.includes(id));
+
+  const page = await fetch(String(created.url), { headers: { 'Accept': 'text/html' } });
+  assert.ok([200, 410].includes(page.status));
+  const html = await page.text();
+  assert.ok(html.includes('index.html?share='));
+ });

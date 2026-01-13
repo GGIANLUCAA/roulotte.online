@@ -1,4 +1,4 @@
-﻿    :root{
+    :root{
       --primary:#2563eb;
       --primary-hover:#1d4ed8;
       --bg:#f5f7fb;
@@ -395,9 +395,9 @@
       display:flex;
       gap:10px;
       flex-wrap:wrap;
-      align-items:end;
+      align-items:flex-end;
     }
-    .filters .field{min-width:200px}
+    .filters .field{flex:1 1 200px;min-width:160px;max-width:100%}
 
     .photos{
       display:grid;
@@ -614,6 +614,7 @@
       .nav-label{display:none}
       .nav-btn{padding:10px 10px;justify-content:center}
       .nav-btn::before{display:none}
+      .filters .field{min-width:100%}
     }
 
     #settings .hint{font-size:.85rem}

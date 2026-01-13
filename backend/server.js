@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
@@ -119,6 +119,11 @@ app.get('/admin.html', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
   res.sendFile(resolveStaticFile('admin.html'));
+});
+
+app.get(/^\/trasporto-roulotte\/?$/, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(resolveStaticFile('index.html'));
 });
 
 app.get('/p/:id', async (req, res) => {
@@ -854,7 +859,10 @@ function getJwtSecret() {
 }
 
 function getJwtExpiresIn() {
-  return getSettingString('security.jwt_expires_in', String(process.env.JWT_EXPIRES_IN || ''));
+  const raw = String(getSettingString('security.jwt_expires_in', String(process.env.JWT_EXPIRES_IN || '')) || '').trim();
+  if (!raw) return '7d';
+  if (/^\d+$/.test(raw)) return Number(raw);
+  return raw;
 }
 
 function generateShareKey() {
@@ -1179,7 +1187,13 @@ function uploadArray(field, maxCount) {
       return res.status(500).json({ error: 'UPLOAD_NOT_CONFIGURED' });
     }
     const u = makeUpload();
-    const count = Math.max(0, Math.min(Number(maxCount || 0) || 0, cfg.maxFiles));
+    let requestedCount = Number(maxCount);
+    if (typeof maxCount === 'function') {
+      try { requestedCount = Number(maxCount()); } catch { requestedCount = Number.NaN; }
+    }
+    const count = Number.isFinite(requestedCount) && requestedCount > 0
+      ? Math.min(requestedCount, cfg.maxFiles)
+      : cfg.maxFiles;
     return u.array(field, count)(req, res, (err) => {
       if (!err) return next();
       const msg = String(err && err.message ? err.message : err);
@@ -2681,6 +2695,50 @@ function normalizeShareIds(ids) {
   return out;
 }
 
+function normalizeShareFilters(filters) {
+  const src = (filters && typeof filters === 'object' && !Array.isArray(filters)) ? filters : {};
+
+  function str(v, maxLen = 80) {
+    const s = String(v ?? '').trim();
+    if (!s) return null;
+    return s.slice(0, Math.max(1, Number(maxLen) || 80));
+  }
+
+  function num(v) {
+    if (v === undefined || v === null || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  const out = {};
+
+  const bagno = str(src.bagno, 50);
+  if (bagno) out.bagno = bagno;
+
+  const docciaSeparata = str(src.docciaSeparata, 10);
+  if (docciaSeparata) out.docciaSeparata = docciaSeparata;
+
+  const categoryId = str(src.categoryId, 64);
+  if (categoryId) out.categoryId = categoryId;
+
+  const tipologiaMezzo = str(src.tipologiaMezzo, 60);
+  if (tipologiaMezzo) out.tipologiaMezzo = tipologiaMezzo;
+
+  const stato = str(src.stato, 40);
+  if (stato) out.stato = stato;
+
+  const lunghezzaMin = num(src.lunghezzaMin ?? src.lunghezzaTotaleMin ?? src.lunghezzaTotale);
+  if (lunghezzaMin !== null) out.lunghezzaMin = lunghezzaMin;
+
+  const lunghezzaInternaMin = num(src.lunghezzaInternaMin ?? src.lunghezzaInterna);
+  if (lunghezzaInternaMin !== null) out.lunghezzaInternaMin = lunghezzaInternaMin;
+
+  const postiLettoMin = num(src.postiLettoMin ?? src.postiLetto);
+  if (postiLettoMin !== null) out.postiLettoMin = postiLettoMin;
+
+  return out;
+}
+
 function getReqOrigin(req) {
   const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim() || 'https';
   const host = String(req.headers.host || '').trim();
@@ -2761,11 +2819,113 @@ async function listRoulottesForShareSelection(ids) {
   return out;
 }
 
+function isPubliclyVisibleForShare(r, nowMs) {
+  if (!r || typeof r !== 'object') return false;
+  if (r.visibile === false) return false;
+  const allowed = new Set(['pubblicato', 'venduto']);
+  const sRaw = r.stato_annuncio !== undefined && r.stato_annuncio !== null ? String(r.stato_annuncio) : '';
+  const fallback = String(r.stato || '') === 'Venduto' ? 'venduto' : 'pubblicato';
+  const s = (sRaw || fallback).trim().toLowerCase();
+  if (!allowed.has(s)) return false;
+  if (s === 'pubblicato' && r.data_pubblicazione) {
+    const t = Date.parse(String(r.data_pubblicazione));
+    if (Number.isFinite(t) && t > (Number.isFinite(nowMs) ? nowMs : Date.now())) return false;
+  }
+  return true;
+}
+
+function matchesShareFilters(r, filters) {
+  const f = (filters && typeof filters === 'object') ? filters : {};
+  const bagno = f.bagno ? String(f.bagno) : '';
+  const docciaSeparata = f.docciaSeparata ? String(f.docciaSeparata) : '';
+  const categoryId = f.categoryId ? String(f.categoryId) : '';
+  const tipologiaMezzo = f.tipologiaMezzo ? String(f.tipologiaMezzo) : '';
+  const stato = f.stato ? String(f.stato) : '';
+
+  if (bagno && String(r.bagno || '').trim() !== bagno) return false;
+  if (docciaSeparata && String(r.docciaSeparata || '').trim() !== docciaSeparata) return false;
+  if (categoryId && String(r.categoryId || '').trim() !== categoryId) return false;
+  if (tipologiaMezzo && String(r.tipologiaMezzo || '').trim() !== tipologiaMezzo) return false;
+  if (stato && String(r.stato || '').trim() !== stato) return false;
+
+  const lunghezzaMin = f.lunghezzaMin !== undefined && f.lunghezzaMin !== null ? Number(f.lunghezzaMin) : null;
+  if (lunghezzaMin !== null && Number.isFinite(lunghezzaMin)) {
+    const v = parseNumberLike(r.lunghezzaTotale ?? r.length ?? r.lunghezza);
+    if (v === null || v < lunghezzaMin) return false;
+  }
+
+  const lunghezzaInternaMin = f.lunghezzaInternaMin !== undefined && f.lunghezzaInternaMin !== null ? Number(f.lunghezzaInternaMin) : null;
+  if (lunghezzaInternaMin !== null && Number.isFinite(lunghezzaInternaMin)) {
+    const v = parseNumberLike(r.lunghezzaInterna);
+    if (v === null || v < lunghezzaInternaMin) return false;
+  }
+
+  const postiLettoMin = f.postiLettoMin !== undefined && f.postiLettoMin !== null ? Number(f.postiLettoMin) : null;
+  if (postiLettoMin !== null && Number.isFinite(postiLettoMin)) {
+    const v = parseNumberLike(r.postiLetto ?? r.beds);
+    if (v === null || v < postiLettoMin) return false;
+  }
+
+  return true;
+}
+
+async function listRoulottesForShareFilter(filters) {
+  const f = normalizeShareFilters(filters);
+  const now = Date.now();
+
+  if (directusEnabled()) {
+    try {
+      const list = await fetchDirectusRoulottes();
+      const base = Array.isArray(list) ? list : [];
+      return base.filter(r => isPubliclyVisibleForShare(r, now) && matchesShareFilters(r, f));
+    } catch {
+      return [];
+    }
+  }
+
+  const query = `
+    SELECT 
+      r.public_id AS id,
+      r.data AS data,
+      r.visibile AS visibile,
+      r.created_at AS created_at,
+      r.updated_at AS updated_at,
+      COALESCE(
+        (
+          SELECT json_agg(p.url_full ORDER BY p.sort_order)
+          FROM photos p 
+          WHERE p.roulotte_id = r.id
+        ), '[]'::json
+      ) AS photos
+    FROM roulottes r
+    ORDER BY r.id DESC;
+  `;
+  const result = await pool.query(query);
+  const rows = Array.isArray(result.rows) ? result.rows : [];
+  const list = rows.map((row) => ({
+    ...(row.data || {}),
+    id: row.id,
+    photos: (row.photos || []).map(normalizePhotoUrlToCurrentPublicBase),
+    visibile: row.visibile !== undefined && row.visibile !== null ? row.visibile : true,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+
+  return list.filter(r => isPubliclyVisibleForShare(r, now) && matchesShareFilters(r, f));
+}
+
 app.post('/api/share-links', requireAdmin, async (req, res) => {
   const body = (req && req.body && typeof req.body === 'object') ? req.body : {};
-  const ids = normalizeShareIds(body.ids);
-  if (!ids.length) return res.status(400).json({ error: 'BAD_REQUEST' });
-  if (ids.length > 200) return res.status(400).json({ error: 'TOO_MANY_IDS' });
+  const requestedMode = String(body.mode || body.kind || '').trim().toLowerCase();
+  const isFilterMode = requestedMode === 'filter' || (body.filters && typeof body.filters === 'object');
+  const ids = isFilterMode ? [] : normalizeShareIds(body.ids);
+  const filters = isFilterMode ? normalizeShareFilters(body.filters) : {};
+  if (!isFilterMode) {
+    if (!ids.length) return res.status(400).json({ error: 'BAD_REQUEST' });
+    if (ids.length > 200) return res.status(400).json({ error: 'TOO_MANY_IDS' });
+  } else {
+    if (!Object.keys(filters).length) return res.status(400).json({ error: 'BAD_REQUEST' });
+  }
 
   const title = String(body.title || '').trim().slice(0, 140);
   const expiresAtRaw = String(body.expiresAt || '').trim();
@@ -2776,10 +2936,11 @@ app.post('/api/share-links', requireAdmin, async (req, res) => {
   let token = '';
   try {
     const shareKey = generateShareKey();
-    const payload = { mode: 'selection', ids };
+    const payload = isFilterMode ? { mode: 'filter', filters } : { mode: 'selection', ids };
+    const mode = isFilterMode ? 'filter' : 'selection';
     await pool.query(
       'INSERT INTO share_links (share_key, title, mode, payload, expires_at, created_by) VALUES ($1, $2, $3, $4::jsonb, $5, $6);',
-      [shareKey, title || null, 'selection', JSON.stringify(payload), expiresAtIso, String(req.adminUser || 'admin')]
+      [shareKey, title || null, mode, JSON.stringify(payload), expiresAtIso, String(req.adminUser || 'admin')]
     );
     token = signShareToken(shareKey, expiresAtIso);
   } catch (err) {
@@ -2830,8 +2991,8 @@ app.get('/api/share-links/roulottes', async (req, res) => {
   const row = resolved.row || {};
   const payload = row.payload && typeof row.payload === 'object' ? row.payload : {};
   const mode = String(payload.mode || row.mode || '').trim().toLowerCase();
-  if (mode !== 'selection') return res.json({ ok: true, title: String(row.title || '').trim(), mode, expiresAt: row.expires_at || null, ids: [], roulottes: [] });
-  const ids = Array.isArray(payload.ids) ? payload.ids : [];
+  const ids = mode === 'selection' && Array.isArray(payload.ids) ? payload.ids : [];
+  const filters = mode === 'filter' && payload.filters && typeof payload.filters === 'object' ? payload.filters : null;
 
   try {
     await pool.query('UPDATE share_links SET views_count = views_count + 1, last_view_at = CURRENT_TIMESTAMP WHERE share_key = $1;', [String(row.share_key || '')]);
@@ -2839,13 +3000,16 @@ app.get('/api/share-links/roulottes', async (req, res) => {
   } catch {}
 
   try {
-    const list = await listRoulottesForShareSelection(ids);
+    const list = mode === 'filter'
+      ? await listRoulottesForShareFilter(filters)
+      : (mode === 'selection' ? await listRoulottesForShareSelection(ids) : []);
     return res.json({
       ok: true,
       title: String(row.title || '').trim(),
       mode,
       expiresAt: row.expires_at || null,
       ids: normalizeShareIds(ids),
+      filters: mode === 'filter' ? normalizeShareFilters(filters) : undefined,
       roulottes: Array.isArray(list) ? list : []
     });
   } catch (err) {
@@ -2998,14 +3162,32 @@ app.post('/api/transport/route', async (req, res) => {
 });
 
 app.get('/api/health', async (req, res) => {
+  const timeoutMs = 900;
+  const timeout = new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), timeoutMs));
   try {
-    const dbPing = await pool.query('SELECT 1 AS ok;');
-    const tables = await pool.query(`
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_schema = 'public'
-      ORDER BY table_name;
-    `);
+    const pingRace = await Promise.race([
+      pool.query('SELECT 1 AS ok;').then((r) => ({ r })),
+      timeout
+    ]);
+    if (pingRace && pingRace.timeout) {
+      return res.json({ ok: true, db: false, tables: [], error: 'DB_TIMEOUT' });
+    }
+    const dbPing = pingRace.r;
+    let tables = { rows: [] };
+    try {
+      const tablesRace = await Promise.race([
+        pool.query(`
+          SELECT table_name
+          FROM information_schema.tables
+          WHERE table_schema = 'public'
+          ORDER BY table_name;
+        `).then((r) => ({ r })),
+        timeout
+      ]);
+      if (tablesRace && tablesRace.r) tables = tablesRace.r;
+    } catch (err) {
+      if (!isDbUnavailable(err)) throw err;
+    }
     res.json({
       ok: true,
       db: dbPing.rows && dbPing.rows[0] ? dbPing.rows[0].ok === 1 : false,

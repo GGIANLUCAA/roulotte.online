@@ -9,7 +9,7 @@ async function createTables() {
       price NUMERIC(10, 2),
       year INTEGER,
       weight INTEGER,
-      length INTEGER,
+      length NUMERIC(10, 2),
       beds INTEGER,
       public_id TEXT UNIQUE,
       data JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -39,7 +39,7 @@ async function createTables() {
   await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS price NUMERIC(10, 2);`);
   await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS year INTEGER;`);
   await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS weight INTEGER;`);
-  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS length INTEGER;`);
+  await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS length NUMERIC(10, 2);`);
   await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS beds INTEGER;`);
 
   await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS public_id TEXT;`);
@@ -47,6 +47,10 @@ async function createTables() {
   await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS visibile BOOLEAN DEFAULT TRUE;`);
   await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;`);
   await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;`);
+
+  try {
+    await db.query(`ALTER TABLE roulottes ALTER COLUMN length TYPE NUMERIC(10, 2) USING length::numeric;`);
+  } catch {}
 
   await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS nome TEXT;`);
   await db.query(`ALTER TABLE roulottes ADD COLUMN IF NOT EXISTS descrizione TEXT;`);
