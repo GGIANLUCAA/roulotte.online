@@ -172,11 +172,15 @@ async function createTables() {
       id SERIAL PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'admin',
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
   `;
   await db.query(createAdminUsers);
+
+  await db.query(`ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'admin';`);
+  await db.query(`UPDATE admin_users SET role = 'admin' WHERE role IS NULL OR BTRIM(role) = '';`);
 
   const createAppSettings = `
     CREATE TABLE IF NOT EXISTS app_settings (

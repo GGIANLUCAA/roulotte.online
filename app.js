@@ -182,6 +182,12 @@
     captureDefaults();
 
     const defaultTitle = 'Roulotte online';
+    let siteBrandName = defaultTitle;
+    let siteSeoDefaultTitle = defaultTitle;
+    let siteSeoDefaultDescription = '';
+    let siteSeoOgImageUrl = '';
+    let siteSeoTwitterCard = '';
+    let publicConfigCache = null;
     const imgLightbox = document.getElementById('imgLightbox');
     const lbImg = document.getElementById('lbImg');
     const lbClose = document.getElementById('lbClose');
@@ -211,6 +217,153 @@
     function trCount(key, count, defaultTemplate) {
       if (window.i18next && typeof window.i18next.t === 'function') return window.i18next.t(key, { count, defaultValue: defaultTemplate });
       return String(defaultTemplate || '').replace('{{count}}', String(count));
+    }
+
+    function setMetaPropertyIfPresent(propertyName, value) {
+      const el = document.querySelector(`meta[property="${String(propertyName || '')}"]`);
+      if (!el) return;
+      el.setAttribute('content', String(value ?? ''));
+    }
+
+    function setMetaNameIfPresent(name, value) {
+      const el = document.querySelector(`meta[name="${String(name || '')}"]`);
+      if (!el) return;
+      el.setAttribute('content', String(value ?? ''));
+    }
+
+    function applyPublicConfig(cfg) {
+      const c = (cfg && typeof cfg === 'object') ? cfg : {};
+      const brandName = String(c.site_name || '').trim();
+      if (brandName) siteBrandName = brandName;
+
+      const tagline = String(c.site_tagline || '').trim();
+      if (tagline) {
+        try {
+          const brandRoot = document.querySelector('.brand');
+          if (brandRoot) {
+            let p = brandRoot.querySelector('p');
+            if (!p) {
+              p = document.createElement('p');
+              brandRoot.appendChild(p);
+            }
+            p.textContent = tagline;
+          }
+        } catch {}
+      }
+
+      const seoTitle = String(c.seo_default_title || '').trim();
+      siteSeoDefaultTitle = seoTitle || siteBrandName || defaultTitle;
+
+      const seoDesc = String(c.seo_default_description || '').trim();
+      if (seoDesc) siteSeoDefaultDescription = seoDesc;
+
+      const ogImg = String(c.seo_og_image_url || '').trim();
+      if (ogImg) siteSeoOgImageUrl = ogImg;
+
+      const twCard = String(c.seo_twitter_card || '').trim();
+      if (twCard) siteSeoTwitterCard = twCard;
+
+      try {
+        const h1 = document.querySelector('.brand h1');
+        if (h1 && siteBrandName) h1.textContent = siteBrandName;
+        const brandLink = document.querySelector('.brand[aria-label]');
+        if (brandLink && siteBrandName) brandLink.setAttribute('aria-label', siteBrandName + ', home');
+      } catch {}
+
+      const desc = siteSeoDefaultDescription || String(document.querySelector('meta[name="description"]')?.getAttribute('content') || '').trim();
+      if (siteSeoDefaultTitle) document.title = siteSeoDefaultTitle;
+      if (desc) setMetaNameIfPresent('description', desc);
+      if (siteBrandName) setMetaPropertyIfPresent('og:site_name', siteBrandName);
+      if (siteSeoDefaultTitle) setMetaPropertyIfPresent('og:title', siteSeoDefaultTitle);
+      if (desc) setMetaPropertyIfPresent('og:description', desc);
+      if (siteSeoOgImageUrl) setMetaPropertyIfPresent('og:image', siteSeoOgImageUrl);
+      if (siteSeoTwitterCard) setMetaNameIfPresent('twitter:card', siteSeoTwitterCard);
+      if (siteSeoDefaultTitle) setMetaNameIfPresent('twitter:title', siteSeoDefaultTitle);
+      if (desc) setMetaNameIfPresent('twitter:description', desc);
+      if (siteSeoOgImageUrl) setMetaNameIfPresent('twitter:image', siteSeoOgImageUrl);
+    }
+
+    function normalizePhoneDigits(v) {
+      const s = String(v ?? '').trim();
+      if (!s) return '';
+      return s.replace(/[^\d]/g, '');
+    }
+
+    function ensureDefaultFooterFromConfig(cfg) {
+      const c = (cfg && typeof cfg === 'object') ? cfg : {};
+      const root = document.getElementById('editableFooter');
+      if (!root) return;
+      if (String(root.innerHTML || '').trim()) return;
+
+      const phone = String(c.contact_phone || '').trim();
+      const whatsapp = String(c.contact_whatsapp || '').trim();
+      const email = String(c.contact_email || '').trim();
+      const ig = String(c.social_instagram_url || '').trim();
+      const fb = String(c.social_facebook_url || '').trim();
+      const yt = String(c.social_youtube_url || '').trim();
+      const tt = String(c.social_tiktok_url || '').trim();
+
+      if (!phone && !whatsapp && !email && !ig && !fb && !yt && !tt) return;
+
+      const wrap = document.createElement('div');
+      wrap.style.display = 'flex';
+      wrap.style.flexWrap = 'wrap';
+      wrap.style.gap = '10px';
+      wrap.style.alignItems = 'center';
+
+      const title = document.createElement('strong');
+      title.textContent = siteBrandName || defaultTitle;
+      wrap.appendChild(title);
+
+      const sep = () => {
+        const s = document.createElement('span');
+        s.textContent = '•';
+        s.setAttribute('aria-hidden', 'true');
+        wrap.appendChild(s);
+      };
+
+      const addLink = (href, text) => {
+        const a = document.createElement('a');
+        a.href = href;
+        a.textContent = text;
+        a.rel = 'noopener noreferrer';
+        a.target = '_blank';
+        wrap.appendChild(a);
+      };
+
+      if (phone) {
+        sep();
+        addLink('tel:' + phone, phone);
+      }
+      if (whatsapp) {
+        const digits = normalizePhoneDigits(whatsapp);
+        if (digits) {
+          sep();
+          addLink('https://wa.me/' + digits, 'WhatsApp');
+        }
+      }
+      if (email) {
+        sep();
+        addLink('mailto:' + email, email);
+      }
+      if (ig) {
+        sep();
+        addLink(ig, 'Instagram');
+      }
+      if (fb) {
+        sep();
+        addLink(fb, 'Facebook');
+      }
+      if (yt) {
+        sep();
+        addLink(yt, 'YouTube');
+      }
+      if (tt) {
+        sep();
+        addLink(tt, 'TikTok');
+      }
+
+      root.appendChild(wrap);
     }
 
     function bindOnce(el, eventName, key, handler) {
@@ -1447,9 +1600,9 @@
         return u.toString();
       })();
 
-      const defaultTitle = 'Roulotte online';
+      const defaultTitle = siteSeoDefaultTitle || siteBrandName || 'Roulotte online';
       const descriptionEl = document.querySelector('meta[name="description"]');
-      const defaultDescription = String(descriptionEl && descriptionEl.getAttribute('content') || '').trim();
+      const defaultDescription = siteSeoDefaultDescription || String(descriptionEl && descriptionEl.getAttribute('content') || '').trim();
 
       setCanonical(canonicalUrl);
       setMetaProperty('og:url', shareUrl);
@@ -1517,11 +1670,11 @@
         setMetaProperty('og:type', 'website');
         setMetaProperty('og:title', defaultTitle);
         setMetaProperty('og:description', defaultDescription);
-        setMetaProperty('og:image', '');
-        setMetaName('twitter:card', 'summary');
+        setMetaProperty('og:image', siteSeoOgImageUrl || '');
+        setMetaName('twitter:card', siteSeoTwitterCard || 'summary');
         setMetaName('twitter:title', defaultTitle);
         setMetaName('twitter:description', defaultDescription);
-        setMetaName('twitter:image', '');
+        setMetaName('twitter:image', siteSeoOgImageUrl || '');
         removeJsonLd('jsonLdDetail');
       }
     }
@@ -1533,14 +1686,20 @@
         "@context": "https://schema.org",
         "@type": "WebSite",
         "url": base,
-        "name": "Roulotte online",
+        "name": siteBrandName || "Roulotte online",
         "potentialAction": {
           "@type": "SearchAction",
           "target": target,
           "query-input": "required name=search_term_string"
         }
       };
+      const existing = document.getElementById('jsonLdWebSite');
+      if (existing) {
+        existing.textContent = JSON.stringify(data);
+        return;
+      }
       const s = document.createElement('script');
+      s.id = 'jsonLdWebSite';
       s.type = 'application/ld+json';
       s.textContent = JSON.stringify(data);
       document.head.appendChild(s);
@@ -1550,6 +1709,40 @@
       if (typeof ph === 'string') return ph;
       if (variant === 'thumb') return String(ph.thumb || ph.src || '');
       return String(ph.src || ph.thumb || '');
+    }
+    function createResponsivePicture(thumbUrl, srcUrl, sizes, eager) {
+      const picture = document.createElement('picture');
+      const hasWebp = /\.webp(\?.*)?$/i.test(srcUrl);
+      const hasAvif = hasWebp ? srcUrl.replace(/\.webp(\?.*)?$/i, '.avif$1') : '';
+      if (hasWebp) {
+        const sWebp = document.createElement('source');
+        sWebp.type = 'image/webp';
+        sWebp.srcset = [
+          (thumbUrl || srcUrl) + ' 480w',
+          srcUrl + ' 1280w'
+        ].join(', ');
+        sWebp.sizes = sizes;
+        picture.appendChild(sWebp);
+      }
+      if (hasAvif) {
+        const sAvif = document.createElement('source');
+        sAvif.type = 'image/avif';
+        sAvif.srcset = [
+          (thumbUrl || hasAvif) + ' 480w',
+          hasAvif + ' 1280w'
+        ].join(', ');
+        sAvif.sizes = sizes;
+        picture.insertBefore(sAvif, picture.firstChild || null);
+      }
+      const img = document.createElement('img');
+      img.src = thumbUrl || srcUrl;
+      img.decoding = 'async';
+      img.loading = eager ? 'eager' : 'lazy';
+      img.style.width = '100%';
+      img.style.height = '100%';
+      img.style.objectFit = 'cover';
+      picture.appendChild(img);
+      return { picture, img };
     }
     function stripHtml(html) {
       const div = document.createElement('div');
@@ -1893,7 +2086,7 @@
     async function initPosthog() {
       if (posthogInitStarted) return;
       posthogInitStarted = true;
-      const cfg = await fetchJsonWithTimeout(getApiBaseUrl() + '/api/config', 2000);
+      const cfg = publicConfigCache || await fetchJsonWithTimeout(getApiBaseUrl() + '/api/config', 2000);
       const host = normalizePosthogHost(cfg && cfg.posthog_host);
       const key = String(cfg && cfg.posthog_key || '').trim();
       if (!host || !key) return;
@@ -2768,28 +2961,36 @@
             wrap.style.backgroundPosition = 'center';
             wrap.style.filter = 'blur(6px)';
           }
-          const img = document.createElement('img');
+          const sizes = '(max-width:640px) 100vw, 33vw';
+          const { picture, img } = createResponsivePicture(getPhotoUrl(item, 'thumb'), getPhotoUrl(item, 'src'), sizes, i === 0);
           const alt = (typeof item === 'object' && item.alt)
             ? item.alt
             : tr('detail.photoAlt', { defaultValue: `Foto di ${detailTitle.textContent}`, title: detailTitle.textContent });
           img.alt = alt;
-          img.src = getPhotoUrl(item, 'thumb');
-          img.srcset = [
-            getPhotoUrl(item, 'thumb') + ' 480w',
-            getPhotoUrl(item, 'src') + ' 1280w'
-          ].join(', ');
-          img.sizes = '(max-width:640px) 100vw, 33vw';
-          img.loading = i === 0 ? 'eager' : 'lazy';
-          img.decoding = 'async';
           if (i === 0) img.setAttribute('fetchpriority', 'high');
           img.style.width = '100%';
           img.style.height = '100%';
           img.style.objectFit = 'cover';
           img.addEventListener('load', () => { wrap.style.filter = 'none'; img.classList.add('loaded'); });
           img.addEventListener('click', () => openLightbox(i));
-          wrap.appendChild(img);
+          try {
+            img.setAttribute('data-pswp-src', getPhotoUrl(item, 'src'));
+            img.setAttribute('data-pswp-width', '1280');
+            img.setAttribute('data-pswp-height', '960');
+          } catch {}
+          wrap.appendChild(picture);
           detailGallery.appendChild(wrap);
         });
+        try {
+          if (window && typeof window.PhotoswipeLightbox !== 'undefined') {
+            const lightbox = new window.PhotoswipeLightbox({
+              gallery: '#detailGallery',
+              children: 'img',
+              pswpModule: () => import('https://unpkg.com/photoswipe@5/dist/photoswipe.esm.min.js')
+            });
+            lightbox.init();
+          }
+        } catch {}
       }
       if (r.planimetriaUrl && detailPlanimetria) {
         detailPlanimetria.style.display = '';
@@ -2899,6 +3100,10 @@
         requestAnimationFrame(() => {
           const y = window.scrollY || 0;
           document.documentElement.style.setProperty('--parallax-y', (y * 0.06) + 'px');
+          try {
+            if (y > 8) document.body.classList.add('scrolled');
+            else document.body.classList.remove('scrolled');
+          } catch {}
           ticking = false;
         });
       }, { passive: true });
@@ -2991,6 +3196,16 @@
     function buildDefaultCardElement(r, categoriesById) {
       const card = document.createElement('article');
       card.className = 'card';
+      try {
+        const stateLabel = getStatusLabel(r.stato);
+        if (stateLabel) {
+          const ribbon = document.createElement('div');
+          ribbon.className = 'card-ribbon';
+          ribbon.dataset.state = stateLabel;
+          ribbon.textContent = stateLabel;
+          card.appendChild(ribbon);
+        }
+      } catch {}
       const media = document.createElement('div');
       media.className = 'card-media';
       const firstPhoto = Array.isArray(r.photos) ? r.photos[0] : null;
@@ -3002,21 +3217,14 @@
           media.style.backgroundPosition = 'center';
           media.style.filter = 'blur(6px)';
         }
-        const img = document.createElement('img');
+        const sizes = '(max-width:640px) 100vw, (max-width:980px) 50vw, 33vw';
+        const { picture, img } = createResponsivePicture(getPhotoUrl(firstPhoto, 'thumb'), getPhotoUrl(firstPhoto, 'src'), sizes, false);
         const alt = (typeof firstPhoto === 'object' && firstPhoto.alt)
           ? firstPhoto.alt
           : (`${r.marca || ''} ${r.modello || ''}`.trim() || tr('common.caravan', { defaultValue: 'Roulotte' }));
         img.alt = alt;
-        img.src = getPhotoUrl(firstPhoto, 'thumb');
-        img.srcset = [
-          getPhotoUrl(firstPhoto, 'thumb') + ' 480w',
-          getPhotoUrl(firstPhoto, 'src') + ' 1280w'
-        ].join(', ');
-        img.sizes = '(max-width:640px) 100vw, (max-width:980px) 50vw, 33vw';
-        img.loading = 'lazy';
-        img.decoding = 'async';
         img.addEventListener('load', () => { media.style.filter = 'none'; img.classList.add('loaded'); });
-        media.appendChild(img);
+        media.appendChild(picture);
       } else {
         const no = document.createElement('div');
         no.style.fontWeight = '800';
@@ -3037,8 +3245,9 @@
       tagYear.className = 'tag';
       tagYear.textContent = `${tr('card.yearPrefix', { defaultValue: 'Anno' })} ${r.anno || '—'}`;
       const tagState = document.createElement('span');
-      tagState.className = 'tag';
+      tagState.className = 'tag state';
       tagState.textContent = getStatusLabel(r.stato);
+      try { tagState.dataset.state = getStatusLabel(r.stato); } catch {}
       const tagCategory = document.createElement('span');
       tagCategory.className = 'tag';
       tagCategory.textContent = categoriesById[r.categoryId] || '—';
@@ -3101,19 +3310,27 @@
         const root = tpl.content.firstElementChild;
         if (!root) return null;
         if (!root.classList.contains('card')) root.classList.add('card');
+        try {
+          const stateLabel = getStatusLabel(r.stato);
+          if (stateLabel) {
+            const ribbon = document.createElement('div');
+            ribbon.className = 'card-ribbon';
+            ribbon.dataset.state = stateLabel;
+            ribbon.textContent = stateLabel;
+            root.appendChild(ribbon);
+          }
+        } catch {}
 
-        const img = root.querySelector('img[data-slot="photo"]') || root.querySelector('img');
-        if (img) {
+        const imgSlot = root.querySelector('img[data-slot="photo"]') || root.querySelector('img');
+        if (imgSlot) {
           if (photoThumb) {
+            const sizes = '(max-width:640px) 100vw, (max-width:980px) 50vw, 33vw';
+            const { picture, img } = createResponsivePicture(photoThumb, photoSrc, sizes, false);
             const alt = (typeof firstPhoto === 'object' && firstPhoto.alt) ? firstPhoto.alt : title;
             img.alt = alt;
-            img.src = photoThumb;
-            img.srcset = [photoThumb + ' 480w', photoSrc + ' 1280w'].filter(Boolean).join(', ');
-            img.sizes = '(max-width:640px) 100vw, (max-width:980px) 50vw, 33vw';
-            img.loading = 'lazy';
-            img.decoding = 'async';
+            imgSlot.replaceWith(picture);
           } else {
-            try { img.remove(); } catch {}
+            try { imgSlot.remove(); } catch {}
           }
         }
 
@@ -3402,6 +3619,8 @@
 
     async function boot() {
       await initI18n();
+      publicConfigCache = await fetchJsonWithTimeout(getApiBaseUrl() + '/api/config', 2000);
+      applyPublicConfig(publicConfigCache);
       initPosthog();
       initTheme();
       ensureVoiceToggle();
@@ -3590,6 +3809,7 @@
             }
           }
         } catch {}
+        try { ensureDefaultFooterFromConfig(publicConfigCache); } catch {}
         // List Top/Bottom
         try {
           const rLT = await fetch(getApiBaseUrl() + '/api/content/page_list_top_fragment', { headers: getContentHeaders() });
@@ -3736,7 +3956,7 @@
             shareRoulottes = Array.isArray(resolved.roulottes) ? resolved.roulottes : [];
             shareTitle = String(resolved.title || '').trim();
             shareExpiresAt = resolved.expiresAt || null;
-            if (shareTitle) document.title = 'Roulotte online – ' + shareTitle;
+            if (shareTitle) document.title = (siteSeoDefaultTitle || siteBrandName || 'Roulotte online') + ' – ' + shareTitle;
           } else {
             shareRoulottes = [];
             shareTitle = '';

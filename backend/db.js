@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 const dns = require('node:dns').promises;
+let MemPg = null;
 
 async function normalizeDatabaseUrl(raw) {
   const input = String(raw || '').trim();
@@ -62,15 +63,20 @@ async function ensurePool() {
 
   poolInitPromise = (async () => {
     if (!process.env.DATABASE_URL) {
-      const err = new Error('DATABASE_URL mancante: configura la variabile su Render.');
-      err.code = 'DB_NOT_CONFIGURED';
-      throw err;
+      if (!MemPg) {
+        const { newDb } = require('pg-mem');
+        const db = newDb({ autoCreateForeignKeyIndices: true });
+        const adapter = db.adapters.createPg();
+        MemPg = { Pool: adapter.Pool };
+      }
+      pool = new MemPg.Pool();
+    } else {
+      const connectionString = await normalizeDatabaseUrl(process.env.DATABASE_URL);
+      pool = new Pool({
+        connectionString,
+        ssl: getSslConfig(connectionString),
+      });
     }
-    const connectionString = await normalizeDatabaseUrl(process.env.DATABASE_URL);
-    pool = new Pool({
-      connectionString,
-      ssl: getSslConfig(connectionString),
-    });
     return pool;
   })();
 

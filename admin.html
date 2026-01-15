@@ -2,40 +2,8 @@
 <html lang="it" data-theme="light">
 <head>
   <script>
-    // Global Error Handler per Debug Critico
     window.onerror = function(msg, url, line, col, error) {
-       // Ignora errori di estensioni browser o resize observer benigni
-       if (msg.includes('ResizeObserver') || msg.includes('extension')) return;
-
-       const box = document.createElement('div');
-       box.id = 'critical-error-box';
-       box.style.position = 'fixed';
-       box.style.top = '0';
-       box.style.left = '0';
-       box.style.width = '100%';
-       box.style.height = 'auto';
-       box.style.maxHeight = '50vh';
-       box.style.overflow = 'auto';
-       box.style.background = '#dc2626';
-       box.style.color = '#fff';
-       box.style.padding = '20px';
-       box.style.zIndex = '999999';
-       box.style.fontSize = '14px';
-       box.style.fontFamily = 'monospace';
-       box.style.whiteSpace = 'pre-wrap';
-       box.style.boxShadow = '0 10px 30px rgba(0,0,0,0.5)';
-       box.innerHTML = '<strong>ERRORE CRITICO RILEVATO:</strong><br>' + 
-                       (msg || 'Errore sconosciuto') + '<br>' + 
-                       'Riga: ' + (line || '?') + '<br>' + 
-                       'Per favore, invia uno screenshot di questo messaggio.<br><br>' + 
-                       (error && error.stack ? error.stack : '');
-       
-       if (!document.body) {
-         window.addEventListener('DOMContentLoaded', () => document.body.appendChild(box));
-       } else {
-         document.body.appendChild(box);
-       }
-       return false;
+      return true;
     };
   </script>
   <meta charset="UTF-8" />
@@ -45,6 +13,7 @@
   <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/grapesjs/dist/css/grapes.min.css">
   <link rel="stylesheet" href="admin.css">
+  <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers" crossorigin="anonymous" defer></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="roulotte-store.js"></script>
 </head>
@@ -123,8 +92,6 @@
         </div>
         <div>
           <div class="brand-title">Roulotte online</div>
-          <div class="brand-sub">Dashboard Admin</div>
-          <div style="font-size:0.7rem;color:var(--muted);margin-top:2px">v1.7 (Realtime + Conflitti)</div>
         </div>
       </a>
 
@@ -146,20 +113,24 @@
           <span class="nav-label">Categorie</span>
         </button>
         <button class="nav-btn" type="button" data-section="settings">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a7.9 7.9 0 0 0 .1-2l2-1.2-2-3.4-2.3.7a7.4 7.4 0 0 0-1.7-1l-.3-2.4H11l-.3 2.4a7.4 7.4 0 0 0-1.7 1L6.7 8.4l-2 3.4 2 1.2a7.9 7.9 0 0 0 .1 2l-2 1.2 2 3.4 2.3-.7a7.4 7.4 0 0 0 1.7 1l.3 2.4h4.2l.3-2.4a7.4 7.4 0 0 0 1.7-1l2.3.7 2-3.4-2-1.2Z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a7.9 7.9 0 0 0 .1-2l2-1.2-2-3.4-2.3.7a7.4 7.4 0 0 0-1.7-1l-.3-2.4H11l-.3 2.4a7.4 7.4 0 0 0-1.7 1L6.7 8.4l-2 3.4 2 1.2a7.9 7.9 0 0 0 .1 2l-2 1.2 2 3.4 2.3-.7a 7.4 7.4 0 0 0 1.7 1l.3 2.4h4.2l.3-2.4a7.4 7.4 0 0 0 1.7-1l2.3.7 2-3.4-2-1.2Z"/></svg>
           <span class="nav-label">Impostazioni</span>
         </button>
         <button class="nav-btn" type="button" data-section="content">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
           <span class="nav-label">Contenuti</span>
         </button>
-        <button class="nav-btn" type="button" data-section="builder">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z"/></svg>
-          <span class="nav-label">Editor visivo</span>
-        </button>
         <button class="nav-btn" type="button" data-section="media">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="m8 14 2-2 2 2 3-3 3 3"/><path d="M8.5 9.5h.01"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18v14H3z"/><path d="M10 14l-3 3"/><path d="M14 11l-7 7"/><circle cx="17" cy="8" r="2"/></svg>
           <span class="nav-label">Media</span>
+        </button>
+        <button class="nav-btn" type="button" data-section="live">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h18v12H3z"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>
+          <span class="nav-label">Editor Live</span>
+        </button>
+        <button class="nav-btn" type="button" data-section="help">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Z"/><path d="M9.1 9a3 3 0 0 1 5.8 1 3 3 0 0 1-1.8 2.6l-.7.3v1.2"/><path d="M12 17h.01"/></svg>
+          <span class="nav-label">Guida</span>
         </button>
       </nav>
 
@@ -190,6 +161,7 @@
           <button class="btn" type="button" id="refreshBtn">Aggiorna</button>
           <button class="btn" type="button" id="themeToggleBtn">Tema: Chiaro</button>
           <button class="btn" type="button" id="voiceToggleBtn" aria-pressed="false">Voce: Off</button>
+          <button class="btn" type="button" id="helpTopBtn">Guida</button>
           <button class="btn btn-danger mobile-only" type="button" id="logoutBtnMobile">Esci</button>
         </div>
       </div>
@@ -279,76 +251,136 @@
         </div>
       </section>
 
-      <section id="builder" class="section" aria-label="Editor visuale" hidden>
-        <div class="card">
-          <div style="font-weight:900;font-size:1.05rem">Editor visivo (GrapesJS)</div>
-          <div class="hint" style="margin-top:6px">Modifica sezioni principali con drag&drop, testi e stili. Salva e pubblica senza toccare il codice.</div>
-          <details class="help-card" style="margin-top:12px">
-            <summary>Guida rapida</summary>
-            <div class="help-grid">
-              <ul>
-                <li>Seleziona la pagina (Home, Header, Footer…).</li>
-                <li>Premi “Carica” per importare i contenuti attuali.</li>
-                <li>“Salva bozza” salva senza pubblicare; “Pubblica” rende visibile sul sito.</li>
-              </ul>
-              <div class="help-badges">
-                <span class="help-badge">Bozza != Pubblicato</span>
-                <span class="help-badge">Esito azioni: notifiche in basso a destra</span>
+      <section id="content" class="section" aria-label="Contenuti" hidden>
+        <div class="row-actions" style="justify-content:flex-end"><button class="btn" type="button" data-help-target="help-content">Guida</button></div>
+        <div class="grid">
+          <div class="card span-12">
+            <div style="font-weight:900;font-size:1.05rem">Contenuti</div>
+            <div class="hint" style="margin-top:6px">Modifica chiavi HTML/Markdown e pubblica senza toccare il codice.</div>
+            <div class="grid" style="margin-top:12px">
+              <div class="field span-6">
+                <label for="contentKey">Chiave</label>
+                <input id="contentKey" list="contentKeys" autocomplete="off" placeholder="Es. page_footer_fragment" />
+                <datalist id="contentKeys">
+                  <option value="page_footer_fragment"></option>
+                  <option value="page_footer_styles"></option>
+                </datalist>
               </div>
-            </div>
-          </details>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
-            <div class="field">
-              <label>Pagina</label>
-              <div style="display:flex;gap:8px;align-items:center">
-                <select id="builderPageKey">
-                  <option value="home">Home</option>
-                  <option value="header">Header</option>
-                  <option value="footer">Footer</option>
-                  <option value="list_top">Lista (top)</option>
-                  <option value="list_bottom">Lista (bottom)</option>
-                  <option value="filters">Filtri</option>
-                  <option value="detail_dialog">Dialog dettagli</option>
-                  <option value="card_template">Template card</option>
+              <div class="field span-3">
+                <label for="contentType">Tipo</label>
+                <select id="contentType">
+                  <option value="html">HTML</option>
+                  <option value="markdown">Markdown</option>
+                  <option value="text">Testo</option>
                 </select>
-                <button class="btn" type="button" id="builderLoadBtn">Carica</button>
-                <button class="btn" type="button" id="builderSaveBtn">Salva bozza</button>
-                <button class="btn btn-primary" type="button" id="builderPublishBtn">Pubblica</button>
-                <button class="btn" type="button" id="builderPreviewBtn">Anteprima</button>
-                <button class="btn" type="button" id="builderUndoBtn">Annulla</button>
-                <button class="btn" type="button" id="builderRedoBtn">Ripeti</button>
+              </div>
+              <div class="field span-3">
+                <label>Azioni</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn" type="button" id="loadContentBtn">Carica</button>
+                  <button class="btn btn-primary" type="button" id="publishContentBtn">Pubblica</button>
+                </div>
+              </div>
+              <div class="field span-12">
+                <label for="contentData">Contenuto</label>
+                <textarea id="contentData" rows="14" style="resize:vertical"></textarea>
+                <div id="contentStatus" class="hint" style="margin-top:8px">Inattivo</div>
+              </div>
+              <div class="field span-12">
+                <label>Anteprima</label>
+                <div id="contentPreview" class="card" style="padding:12px;min-height:60px"></div>
               </div>
             </div>
-            <div class="field">
-              <label>Stato</label>
-              <div id="builderStatus" class="hint">Inattivo</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="live" class="section" aria-label="Editor Live" hidden>
+        <div class="row-actions" style="justify-content:flex-end"><button class="btn" type="button" data-help-target="help-live">Guida</button></div>
+        <div class="card">
+          <div style="font-weight:900;font-size:1.05rem">Editor Live</div>
+          <div class="hint" style="margin-top:6px">Modifica direttamente il sito come lo vedi. Attiva modifica, cambia testi e salva/pubblichi.</div>
+          <div class="row-actions" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+            <button class="btn" type="button" id="liveEnableBtn">Attiva modifica</button>
+            <button class="btn" type="button" id="liveReloadBtn">Ricarica</button>
+            <button class="btn" type="button" id="liveSaveBtn" disabled>Salva bozza</button>
+            <button class="btn btn-primary" type="button" id="livePublishBtn" disabled>Pubblica</button>
+            <div id="liveStatus" class="hint" style="margin-left:auto">Inattivo</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="live-grid">
+            <div class="live-wrap">
+              <iframe id="liveFrame" title="Editor Live" loading="lazy"></iframe>
+            </div>
+            <aside class="live-panel" aria-label="Proprietà selezione">
+              <div class="card-title" style="margin-bottom:8px">Proprietà</div>
+              <div class="field">
+                <label>Chiave</label>
+                <input id="liveKeyLabel" readonly />
+              </div>
+              <div class="field">
+                <label>Testo</label>
+                <textarea id="livePropText" rows="4" placeholder="Modifica il testo selezionato"></textarea>
+              </div>
+              <div class="field">
+                <label>Link href</label>
+                <input id="livePropHref" placeholder="https://…" />
+              </div>
+              <div class="field">
+                <label>Immagine src</label>
+                <input id="livePropSrc" placeholder="/path/immagine.jpg" />
+              </div>
+              <div class="field">
+                <label>Immagine alt</label>
+                <input id="livePropAlt" placeholder="Testo alternativo" />
+              </div>
+              <div class="row-actions" style="justify-content:flex-start">
+                <button class="btn" type="button" id="liveApplyBtn" disabled>Applica</button>
+                <div id="livePanelStatus" class="hint" style="margin-left:auto">Nessuna selezione</div>
+              </div>
+              <div class="card-actions" style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <button class="btn" type="button" id="liveMoveUpBtn" disabled>Sposta su</button>
+                <button class="btn" type="button" id="liveMoveDownBtn" disabled>Sposta giù</button>
+                <button class="btn btn-danger" type="button" id="liveDeleteBtn" disabled>Elimina</button>
+                <div style="display:flex;gap:8px;align-items:end">
+                  <div class="field" style="flex:1 1 auto">
+                    <label>Aggiungi blocco</label>
+                    <select id="liveAddBlockSelect">
+                      <option value="paragraph">Paragrafo</option>
+                      <option value="cta">CTA</option>
+                      <option value="image">Immagine</option>
+                      <option value="divider">Divisore</option>
+                    </select>
+                  </div>
+                  <button class="btn btn-primary" type="button" id="liveAddBlockBtn">Aggiungi</button>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+      <section id="media" class="section" aria-label="Archivio media" hidden>
+        <div class="row-actions" style="justify-content:flex-end"><button class="btn" type="button" data-help-target="help-media">Guida</button></div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div>
+              <div class="card-title">Archivio media</div>
+              <div class="hint" style="margin-top:6px">Carica immagini generali e assegnale ai modelli. Evita duplicati: il sistema riusa gli upload esistenti.</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input id="mediaUploadInput" type="file" accept="image/*" multiple style="display:none" />
+              <button class="btn btn-primary" type="button" id="mediaUploadBtn">Carica immagini</button>
+              <input id="mediaSearch" placeholder="Cerca…" style="min-width:220px" />
             </div>
           </div>
         </div>
         <div class="card">
-          <div id="gjs" style="height:70vh;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--panel)"></div>
+          <div id="mediaGrid" class="media-grid"></div>
         </div>
-        <dialog id="builderPreviewDialog">
-          <div class="builder-preview-head">
-            <div style="font-weight:900">Anteprima bozza</div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <button class="btn" type="button" id="builderPreviewReloadBtn">Ricarica</button>
-              <button class="btn btn-danger" type="button" id="builderPreviewCloseBtn">Chiudi</button>
-            </div>
-          </div>
-          <iframe id="builderPreviewFrame" title="Anteprima bozza" loading="lazy"></iframe>
-        </dialog>
-        <dialog id="revisionsDialog">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-            <div style="font-weight:900;font-size:1.1rem">Cronologia modifiche</div>
-            <div style="display:flex;gap:8px">
-              <button class="btn" type="button" id="revisionsCloseBtn">Chiudi</button>
-            </div>
-          </div>
-          <div id="revisionsBody" style="margin-top:12px;max-height:70vh;overflow:auto"></div>
-        </dialog>
       </section>
       <section id="new" class="section" aria-label="Nuova roulotte">
+        <div class="row-actions" style="justify-content:flex-end"><button class="btn" type="button" data-help-target="help-new">Guida</button></div>
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
             <div>
@@ -978,13 +1010,17 @@
                        <label class="choice-item" style="margin:0"><input type="radio" name="noteMode" value="wysiwyg" checked />Editor</label>
                        <label class="choice-item" style="margin:0"><input type="radio" name="noteMode" value="text" />Testo</label>
                      </div>
-                     <select id="descAiMode" class="btn" style="padding:4px 8px;font-size:0.8rem">
-                       <option value="improve">Migliora testo</option>
-                       <option value="rewrite">Rielabora (più bello)</option>
+                     <select id="descMode" class="btn" style="padding:4px 8px;font-size:0.8rem">
+                       <option value="rewrite" selected>Rielabora (più bello)</option>
                        <option value="shorten">Accorcia</option>
                        <option value="bullets">Formato elenco</option>
                      </select>
+                     <select id="descAiMode" class="btn" style="padding:4px 8px;font-size:0.8rem">
+                       <option value="local" selected>AI Locale (senza API)</option>
+                       <option value="server">AI Server (API)</option>
+                     </select>
                      <button type="button" class="btn btn-primary" style="padding:4px 8px;font-size:0.8rem" id="descAiBtn">AI: Applica</button>
+                     <button type="button" class="btn" style="padding:4px 8px;font-size:0.8rem" id="descSuggestBtn">AI: Suggerisci campi</button>
                      <button type="button" class="btn" style="padding:4px 8px;font-size:0.8rem" id="descUndoBtn" disabled>Annulla</button>
                      <button type="button" class="btn" style="padding:4px 8px;font-size:0.8rem" id="dictationBtn">Detta</button>
                      <button type="button" class="btn" style="padding:4px 8px;font-size:0.8rem" onclick="generateDescription()">Rigenera</button>
@@ -1068,6 +1104,7 @@
       </section>
 
       <section id="list" class="section" aria-label="Elenco roulotte">
+        <div class="row-actions" style="justify-content:flex-end"><button class="btn" type="button" data-help-target="help-list">Guida</button></div>
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
             <div>
@@ -1113,7 +1150,7 @@
             </div>
           </div>
 
-          <div style="margin-top:10px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end">
+          <div style="margin-top:6px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end">
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
               <div class="field" style="min-width:220px">
                 <label for="shareTitle">Titolo condivisione</label>
@@ -1135,7 +1172,7 @@
             </div>
           </div>
 
-          <div style="margin-top:14px" class="table-wrap" aria-label="Tabella roulotte">
+          <div style="margin-top:8px" class="table-wrap" aria-label="Tabella roulotte">
             <table>
               <thead>
                 <tr>
@@ -1155,6 +1192,7 @@
       </section>
 
       <section id="detail" class="section" aria-label="Dettaglio mezzo">
+        <div class="row-actions" style="justify-content:flex-end"><button class="btn" type="button" data-help-target="help-detail">Guida</button></div>
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
             <div>
@@ -1167,9 +1205,58 @@
               <button class="btn" type="button" id="detailDuplicateBtn">Duplica</button>
               <button class="btn" type="button" id="detailSoldBtn">Segna venduto</button>
               <button class="btn" type="button" id="detailHistoryBtn">Cronologia</button>
+              <button class="btn" type="button" id="detailExportSubitoBtn">Esporta Subito.it</button>
+              <button class="btn" type="button" id="detailExportFbBtn">Esporta Marketplace</button>
+              <button class="btn" type="button" id="detailBmSubitoBtn">Bookmarklet Subito</button>
+              <button class="btn" type="button" id="detailBmFbBtn">Bookmarklet Marketplace</button>
               <button class="btn btn-primary" type="button" id="detailEditBtn">Modifica</button>
             </div>
           </div>
+
+          <details class="help-card" style="margin-top:10px">
+            <summary>Guida automatizzazione pubblicazione</summary>
+            <div class="help-grid" style="display:grid;gap:10px">
+              <div class="card" style="padding:12px">
+                <div class="card-title" style="margin-bottom:6px">Bookmarklet Subito.it</div>
+                <ol style="display:grid;gap:6px;padding-left:18px">
+                  <li>Apri il dettaglio del mezzo in Admin.</li>
+                  <li>Clicca “Bookmarklet Subito”: viene creato un link e copiato negli appunti.</li>
+                  <li>Trascina il link nella barra dei Preferiti del browser.</li>
+                  <li>Vai su Subito.it nella pagina “Nuova inserzione”.</li>
+                  <li>Clicca il Preferito “Bookmarklet Subito”: i campi si precompilano.</li>
+                  <li>Controlla i campi, carica le immagini e pubblica.</li>
+                </ol>
+              </div>
+              <div class="card" style="padding:12px">
+                <div class="card-title" style="margin-bottom:6px">Bookmarklet Marketplace</div>
+                <ol style="display:grid;gap:6px;padding-left:18px">
+                  <li>Apri il dettaglio del mezzo in Admin.</li>
+                  <li>Clicca “Bookmarklet Marketplace”: viene creato un link e copiato negli appunti.</li>
+                  <li>Trascina il link nella barra dei Preferiti del browser.</li>
+                  <li>Vai su Facebook Marketplace nella pagina “Nuova inserzione”.</li>
+                  <li>Clicca il Preferito “Bookmarklet Marketplace”: i campi si precompilano.</li>
+                  <li>Controlla i campi, carica le immagini e pubblica.</li>
+                </ol>
+              </div>
+              <div class="card" style="padding:12px">
+                <div class="card-title" style="margin-bottom:6px">Feed automatici</div>
+                <div class="hint" style="margin-bottom:8px">Collega i portali ai feed per pubblicazione 100% automatica.</div>
+                <ul style="display:grid;gap:6px;padding-left:18px">
+                  <li>Subito CSV: <a id="autoFeedSubitoUrl" href="#" target="_blank" rel="noopener">—</a></li>
+                  <li>Marketplace JSON: <a id="autoFeedMarketplaceUrl" href="#" target="_blank" rel="noopener">—</a></li>
+                </ul>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+                  <button class="btn" type="button" id="autoFeedStatusBtn">Aggiorna stato</button>
+                  <div class="hint" id="autoFeedStatus">Stato: —</div>
+                </div>
+                <ol style="display:grid;gap:6px;padding-left:18px;margin-top:10px">
+                  <li>Nel portale, configura “Recurring fetch” o ingest del feed con l’URL sopra.</li>
+                  <li>Imposta frequenza di aggiornamento secondo preferenza.</li>
+                  <li>Verifica qui lo stato e correggi eventuali errori segnalati.</li>
+                </ol>
+              </div>
+            </div>
+          </details>
 
           <div class="grid" style="margin-top:14px">
             <div class="card span-7">
@@ -1189,6 +1276,7 @@
       </section>
 
       <section id="categories" class="section" aria-label="Gestione Categorie">
+        <div class="row-actions" style="justify-content:flex-end"><button class="btn" type="button" data-help-target="help-categories">Guida</button></div>
         <div class="grid">
           <div class="card span-5">
             <div class="card-title" style="margin-bottom:10px">Gestione</div>
@@ -1211,73 +1299,8 @@
         </div>
       </section>
 
-      <section id="content" class="section" aria-label="Gestione contenuti" hidden>
-        <div class="card">
-          <div style="display:grid;gap:12px">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-              <div class="field">
-                <label for="contentKey">Chiave contenuto</label>
-                <div style="display:flex;gap:8px;align-items:center">
-                  <input id="contentKey" placeholder="es. home_hero" />
-                  <button class="btn" type="button" id="loadContentBtn">Carica</button>
-                </div>
-              </div>
-              <div class="field">
-                <label for="contentType">Tipo</label>
-                <select id="contentType"><option value="html">HTML</option><option value="markdown">Markdown</option></select>
-              </div>
-            </div>
-            <div class="field">
-              <label for="contentData">Contenuto</label>
-              <textarea id="contentData" rows="8" placeholder="Testo o HTML"></textarea>
-              <div id="quillWrap" style="margin-top:8px;display:none">
-                <div id="quillToolbar">
-                  <span class="ql-formats">
-                    <button class="ql-bold"></button>
-                    <button class="ql-italic"></button>
-                    <button class="ql-underline"></button>
-                  </span>
-                  <span class="ql-formats">
-                    <button class="ql-list" value="ordered"></button>
-                    <button class="ql-list" value="bullet"></button>
-                  </span>
-                  <span class="ql-formats">
-                    <button class="ql-link"></button>
-                    <button class="ql-clean"></button>
-                  </span>
-                </div>
-                <div id="quillEditor" style="min-height:160px"></div>
-              </div>
-            </div>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-              <button class="btn btn-primary" type="button" id="publishContentBtn">Pubblica</button>
-              <span id="contentStatus" class="hint">Bozza</span>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div style="font-weight:900">Anteprima</div>
-          <div id="contentPreview" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;padding:12px;min-height:120px;background:rgba(255,255,255,.55)"></div>
-        </div>
-      </section>
-
-      <section id="media" class="section" aria-label="Media" hidden>
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-            <div>
-              <div style="font-weight:900;font-size:1.05rem">Libreria Media</div>
-              <div class="hint">Carica nuove immagini e gestisci gli asset.</div>
-            </div>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-              <input id="mediaInput" type="file" accept="image/*" multiple />
-              <button class="btn" type="button" id="mediaRefreshBtn">Aggiorna</button>
-            </div>
-          </div>
-          <progress id="mediaProg" value="0" max="100" style="width:100%;display:none;margin-top:10px"></progress>
-        </div>
-        <div class="grid" id="mediaGrid"></div>
-      </section>
       <section id="settings" class="section" aria-label="Amministrazione">
+        <div class="row-actions" style="justify-content:flex-end"><button class="btn" type="button" data-help-target="help-settings">Guida</button></div>
         <div class="grid">
           <div class="card span-6">
             <div style="font-weight:900;font-size:1.05rem">Sicurezza Admin</div>
@@ -1342,17 +1365,44 @@
             </div>
             <div id="syncMsg" class="error ok" hidden style="background:rgba(16,185,129,.16);border-color:rgba(16,185,129,.35);color:#a7f3d0"></div>
           </div>
-          <div class="card span-12" id="adminUsersCard" hidden>
+          <div class="card span-12" id="adminUsersCard">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
               <div>
                 <div style="font-weight:900;font-size:1.05rem">Utenti Admin</div>
                 <div class="hint" style="margin-top:6px">Crea e gestisci gli accessi per più persone.</div>
+                <div class="hint" id="adminUsersRole" style="margin-top:6px">Accesso: —</div>
               </div>
               <div class="row-actions" style="justify-content:flex-start;align-items:center;flex-wrap:wrap">
                 <button class="btn" type="button" id="adminUsersRefreshBtn">Aggiorna</button>
               </div>
             </div>
             <div id="adminUsersMsg" class="error" hidden style="margin-top:10px"></div>
+            <div id="adminUsersLocked" class="hint" hidden style="margin-top:10px">
+              Non hai i permessi per gestire l’elenco utenti (ruolo Superuser richiesto).
+            </div>
+
+            <details id="adminResetDetails" style="margin-top:12px">
+              <summary style="cursor:pointer;font-weight:900;color:var(--text)">Aggiungi / resetta utente con codice reset</summary>
+              <div class="hint" style="margin-top:6px">Se hai il codice reset, puoi creare o reimpostare la password di un utente admin.</div>
+              <form id="adminResetUserForm" style="margin-top:10px">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end">
+                  <div class="field">
+                    <label for="adminResetCode">Codice reset</label>
+                    <input id="adminResetCode" autocomplete="off" />
+                  </div>
+                  <div class="field">
+                    <label for="adminResetUsername">Username</label>
+                    <input id="adminResetUsername" autocomplete="off" />
+                  </div>
+                  <div class="field">
+                    <label for="adminResetPassword">Password</label>
+                    <input id="adminResetPassword" type="password" autocomplete="new-password" />
+                  </div>
+                  <button class="btn btn-primary" type="submit">Esegui</button>
+                </div>
+                <div id="adminResetUserMsg" class="error ok" hidden style="margin-top:10px;background:rgba(16,185,129,.16);border-color:rgba(16,185,129,.35);color:#a7f3d0"></div>
+              </form>
+            </details>
 
             <form id="adminUsersCreateForm" style="margin-top:12px">
               <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">
@@ -1378,6 +1428,98 @@
               </div>
               <button class="btn btn-danger" type="button" id="wipeBtn">Elimina dati locali</button>
             </div>
+          </div>
+        </div>
+      </section>
+      <section id="help" class="section" aria-label="Guida" hidden>
+        <div class="grid">
+          <div class="card span-12" id="help-overview">
+            <div style="font-weight:900;font-size:1.1rem">Guida semplice all’area Amministrazione</div>
+            <div class="hint" style="margin-top:6px">Spiegazione pratica di ogni sezione e dei pulsanti principali.</div>
+          </div>
+          <div class="card span-12" id="help-dashboard">
+            <div class="card-title" style="margin-bottom:8px">Dashboard</div>
+            <ul style="display:grid;gap:6px;padding-left:18px">
+              <li>Aggiorna: ricarica dati e statistiche.</li>
+              <li>Sito: apre il sito pubblico.</li>
+              <li>Assistente rapido: esegue comandi utili (es. “duplica ABC123”).</li>
+            </ul>
+          </div>
+          <div class="card span-12" id="help-new">
+            <div class="card-title" style="margin-bottom:8px">Nuova Roulotte</div>
+            <ul style="display:grid;gap:6px;padding-left:18px">
+              <li>Compila Marca, Modello, Prezzo, Anno, Tipologia.</li>
+              <li>Foto: trascina immagini; la prima è la copertina.</li>
+              <li>Salva scheda: memorizza nel database; “Salva e pubblica” imposta Pubblicazione.</li>
+              <li>Editor descrizione: puoi scrivere o usare AI per rielaborare.</li>
+            </ul>
+          </div>
+          <div class="card span-12" id="help-list">
+            <div class="card-title" style="margin-bottom:8px">Elenco</div>
+            <ul style="display:grid;gap:6px;padding-left:18px">
+              <li>Filtri: cerca per testo, categoria, stato, pubblicazione.</li>
+              <li>Selezione: crea link condivisibile con scadenza.</li>
+              <li>Azioni riga: apri dettaglio, duplica, venduto, esporta.</li>
+            </ul>
+          </div>
+          <div class="card span-12" id="help-detail">
+            <div class="card-title" style="margin-bottom:8px">Dettaglio</div>
+            <ul style="display:grid;gap:6px;padding-left:18px">
+              <li>Foto e Dettagli: verifica le informazioni.</li>
+              <li>Duplica: crea una nuova scheda partendo da questa.</li>
+              <li>Segna venduto: aggiorna stato e nasconde dal pubblico.</li>
+              <li>Esporta: genera dati per Subito.it e Marketplace.</li>
+            </ul>
+          </div>
+          <div class="card span-12" id="help-categories">
+            <div class="card-title" style="margin-bottom:8px">Categorie</div>
+            <ul style="display:grid;gap:6px;padding-left:18px">
+              <li>Aggiungi: crea una nuova categoria.</li>
+              <li>Panoramica: clicca per vedere l’elenco filtrato.</li>
+            </ul>
+          </div>
+          <div class="card span-12" id="help-settings">
+            <div class="card-title" style="margin-bottom:8px">Impostazioni</div>
+            <ul style="display:grid;gap:6px;padding-left:18px">
+              <li>Sicurezza Admin: cambia username e password.</li>
+              <li>Esporta/Importa: backup e ripristino del database.</li>
+              <li>Sync Server: sincronizza con il server di sviluppo.</li>
+              <li>Utenti Admin: gestisci accessi multipli.</li>
+              <li>Pulizia: elimina dati salvati nel browser.</li>
+            </ul>
+          </div>
+          <div class="card span-12" id="help-content">
+            <div class="card-title" style="margin-bottom:8px">Contenuti</div>
+            <ul style="display:grid;gap:6px;padding-left:18px">
+              <li>Chiave: seleziona cosa modificare (es. footer).</li>
+              <li>Tipo: HTML, Markdown o Testo semplice.</li>
+              <li>Anteprima: verifica il risultato prima di pubblicare.</li>
+            </ul>
+          </div>
+          <div class="card span-12" id="help-media">
+            <div class="card-title" style="margin-bottom:8px">Media</div>
+            <ul style="display:grid;gap:6px;padding-left:18px">
+              <li>Carica immagini: supporto multiplo; riuso automatico dove possibile.</li>
+              <li>Copia URL: usa l’immagine nelle schede o nei contenuti.</li>
+              <li>Elimina: rimuove l’elemento dall’archivio.</li>
+            </ul>
+          </div>
+          <div class="card span-12" id="help-live">
+            <div class="card-title" style="margin-bottom:8px">Editor Live</div>
+            <ul style="display:grid;gap:6px;padding-left:18px">
+              <li>Attiva modifica: abilita la selezione degli elementi nel sito.</li>
+              <li>Proprietà: aggiorna testo, link, immagini e alt.</li>
+              <li>Blocchi: aggiungi o sposta paragrafi, CTA, immagini.</li>
+              <li>Salva/Publlica: applica le modifiche al contenuto collegato.</li>
+            </ul>
+          </div>
+          <div class="card span-12" id="help-tips">
+            <div class="card-title" style="margin-bottom:8px">Suggerimenti generali</div>
+            <ul style="display:grid;gap:6px;padding-left:18px">
+              <li>Usa immagini leggere per velocità e spazio.</li>
+              <li>Compila i campi obbligatori per poter pubblicare.</li>
+              <li>Controlla sempre l’anteprima prima di pubblicare.</li>
+            </ul>
           </div>
         </div>
       </section>

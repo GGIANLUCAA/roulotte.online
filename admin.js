@@ -73,6 +73,46 @@
       return { close: cleanup };
     }
 
+    const _errorSeen = new Map();
+    function _shouldReport(key, ms = 180000) {
+      const now = Date.now();
+      const last = _errorSeen.get(key) || 0;
+      if (now - last < ms) return false;
+      _errorSeen.set(key, now);
+      return true;
+    }
+    window.addEventListener('error', (e) => {
+      try {
+        const msg = String(e && e.message ? e.message : '');
+        const file = String(e && e.filename ? e.filename : '');
+        const line = (e && e.lineno) ? e.lineno : '';
+        const col = (e && e.colno) ? e.colno : '';
+        const isGeneric = (!msg || msg === 'Script error') && !file && !line && !col;
+        const key = [msg || 'script_error', file, line, col].join('|');
+        if (!isGeneric && _shouldReport(key)) {
+          const detail = [msg, file, line ? ('L' + line) : '', col ? ('C' + col) : ''].filter(Boolean).join(' • ');
+          showToast('error', 'Errore script', detail || 'Errore');
+        }
+        const token = window.RoulotteStore.getAuthToken();
+        fetch(apiUrl('/api/admin/log'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' },
+          body: JSON.stringify({ action: 'SCRIPT_ERROR', details: { message: msg || 'Script error', filename: file, lineno: line, colno: col } })
+        }).catch(()=>{});
+      } catch {}
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      try {
+        const msg = String(e && e.reason ? (e.reason.message || e.reason) : 'Promise rejection');
+        if (_shouldReport('rej|' + msg)) showToast('error', 'Errore script', msg);
+        const token = window.RoulotteStore.getAuthToken();
+        fetch(apiUrl('/api/admin/log'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' },
+          body: JSON.stringify({ action: 'SCRIPT_REJECTION', details: { message: msg } })
+        }).catch(()=>{});
+      } catch {}
+    });
     // Elementi UI Principali
     const loginOverlay = document.getElementById('loginOverlay');
     const loginForm = document.getElementById('loginForm');
@@ -228,10 +268,17 @@
     const adminUsersCard = document.getElementById('adminUsersCard');
     const adminUsersRefreshBtn = document.getElementById('adminUsersRefreshBtn');
     const adminUsersMsg = document.getElementById('adminUsersMsg');
+    const adminUsersRole = document.getElementById('adminUsersRole');
+    const adminUsersLocked = document.getElementById('adminUsersLocked');
     const adminUsersCreateForm = document.getElementById('adminUsersCreateForm');
     const adminNewUsername = document.getElementById('adminNewUsername');
     const adminNewPassword = document.getElementById('adminNewPassword');
     const adminUsersList = document.getElementById('adminUsersList');
+    const adminResetUserForm = document.getElementById('adminResetUserForm');
+    const adminResetCode = document.getElementById('adminResetCode');
+    const adminResetUsername = document.getElementById('adminResetUsername');
+    const adminResetPassword = document.getElementById('adminResetPassword');
+    const adminResetUserMsg = document.getElementById('adminResetUserMsg');
     const exportBtn = document.getElementById('exportBtn');
     const importInput = document.getElementById('importInput');
     const importBtn = document.getElementById('importBtn');
@@ -256,6 +303,12 @@
     const builderPreviewCloseBtn = document.getElementById('builderPreviewCloseBtn');
     const builderPreviewReloadBtn = document.getElementById('builderPreviewReloadBtn');
     const builderStatus = document.getElementById('builderStatus');
+    const liveFrame = document.getElementById('liveFrame');
+    const liveEnableBtn = document.getElementById('liveEnableBtn');
+    const liveReloadBtn = document.getElementById('liveReloadBtn');
+    const liveSaveBtn = document.getElementById('liveSaveBtn');
+    const livePublishBtn = document.getElementById('livePublishBtn');
+    const liveStatusEl = document.getElementById('liveStatus');
     let gjsEditor = null;
     let builderAutoLoaded = false;
     let builderLoading = false;
@@ -283,6 +336,10 @@
     const detailOpenPublicBtn = document.getElementById('detailOpenPublicBtn');
     const detailDuplicateBtn = document.getElementById('detailDuplicateBtn');
     const detailSoldBtn = document.getElementById('detailSoldBtn');
+    const detailExportSubitoBtn = document.getElementById('detailExportSubitoBtn');
+    const detailExportFbBtn = document.getElementById('detailExportFbBtn');
+    const detailBmSubitoBtn = document.getElementById('detailBmSubitoBtn');
+    const detailBmFbBtn = document.getElementById('detailBmFbBtn');
     const detailEditBtn = document.getElementById('detailEditBtn');
     const detailPhotos = document.getElementById('detailPhotos');
     const detailInfo = document.getElementById('detailInfo');
@@ -1023,10 +1080,14 @@
     initAdminVoice();
 
     // --- Auth ---
-    function isAuthed() { return sessionStorage.getItem(AUTH_KEY) === '1'; }
+    function isAuthed() {
+      try { return sessionStorage.getItem(AUTH_KEY) === '1'; } catch { return false; }
+    }
     function setAuthed(v) {
-      if (v) sessionStorage.setItem(AUTH_KEY, '1');
-      else sessionStorage.removeItem(AUTH_KEY);
+      try {
+        if (v) sessionStorage.setItem(AUTH_KEY, '1');
+        else sessionStorage.removeItem(AUTH_KEY);
+      } catch {}
     }
     
     function showLogin() {
@@ -1105,8 +1166,10 @@
         if (devServerPorts.has(port)) return `${location.protocol}//${location.hostname}:3001`;
         return '';
       }
-      if (location && location.protocol === 'file:') return getApiBaseUrlOverride() || DEFAULT_REMOTE_API_BASE_URL;
-      return getApiBaseUrlOverride() || DEFAULT_REMOTE_API_BASE_URL;
+      const override = getApiBaseUrlOverride();
+      if (override) return override;
+      if (location && location.protocol === 'file:') return DEFAULT_REMOTE_API_BASE_URL;
+      return '';
     }
 
     function apiUrl(path) {
@@ -1195,10 +1258,10 @@
         section = String(p.get('section') || '').trim();
         page = String(p.get('page') || '').trim();
       } catch {}
-      const okSections = new Set(['dashboard', 'new', 'list', 'detail', 'categories', 'settings', 'content', 'builder']);
+      const okSections = new Set(['dashboard', 'new', 'list', 'detail', 'categories', 'settings', 'content', 'live']);
       const okPages = new Set(['home', 'header', 'footer', 'list_top', 'list_bottom', 'filters', 'detail_dialog', 'card_template']);
       return {
-        section: okSections.has(section) ? section : '',
+        section: okSections.has(section) ? (section === 'builder' ? 'live' : section) : '',
         page: okPages.has(page) ? page : ''
       };
     }
@@ -1207,10 +1270,8 @@
       const r = getInitialRoute();
       if (!r.section) return;
       switchSection(r.section);
-      if (r.section === 'builder') {
-        if (r.page && builderPageKey) builderPageKey.value = r.page;
-        try { await builderLoad(); } catch {}
-      }
+      // Se era richiesto 'builder', reindirizza a 'live'
+      if (r.section === 'live' && r.page && builderPageKey) builderPageKey.value = r.page;
     }
 
     loginForm.addEventListener('submit', async (e) => {
@@ -1427,10 +1488,24 @@
 
     // --- Navigazione ---
     function switchSection(sectionId) {
-      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      const sections = Array.from(document.querySelectorAll('.section'));
+      for (const s of sections) {
+        s.classList.remove('active');
+        s.hidden = true;
+        s.style.display = 'none';
+      }
+
       const el = document.getElementById(sectionId);
-      if(el) { el.classList.add('active'); el.hidden = false; }
-      document.querySelectorAll('.section').forEach(s => { if (s.id !== sectionId) s.hidden = true; });
+      if (el) {
+        el.classList.add('active');
+        el.hidden = false;
+        el.style.display = 'block';
+      }
+
+      try {
+        const main = document.querySelector('.main');
+        if (main) main.scrollTop = 0;
+      } catch {}
       
       navButtons.forEach(b => b.removeAttribute('aria-current'));
       const activeBtn = navButtons.find(b => b.dataset.section === sectionId);
@@ -1444,53 +1519,41 @@
         categories: 'Gestione Categorie',
         settings: 'Impostazioni',
         content: 'Gestione Contenuti',
-        builder: 'Editor visivo'
+        live: 'Editor Live',
+        help: 'Guida'
       };
       pageTitle.textContent = titleMap[sectionId] || 'Admin';
       
       if (sectionId === 'new') marcaEl.focus();
       if (sectionId === 'list') listQ.focus();
-      if (sectionId === 'builder' && !gjsEditor) {
-        try {
-          gjsEditor = window.grapesjs.init({
-            container: '#gjs',
-            height: '70vh',
-            storageManager: false,
-            fromElement: false,
-            canvas: {
-              styles: [
-                'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
-                'style.css'
-              ]
-            }
-          });
-          try {
-            gjsEditor.on('update', () => {
-              if (builderLoading) return;
-              setBuilderDirty(true);
-            });
-          } catch {}
-          syncBuilderThemeToCanvas();
-          setBuilderStatusBase('Editor pronto');
-          setBuilderDirty(false);
-          if (!builderAutoLoaded) {
-            builderAutoLoaded = true;
-            setTimeout(() => { try { builderLoad(); } catch {} }, 0);
-          }
-        } catch {}
-      }
-      if (sectionId === 'builder' && gjsEditor && !builderAutoLoaded) {
-        builderAutoLoaded = true;
-        setTimeout(() => { try { builderLoad(); } catch {} }, 0);
-      }
+      // Editor visivo disattivato: manteniamo solo Editor Live
       if (sectionId === 'settings') {
         try { ensureCentralSettingsPanel(); } catch {}
+      }
+      if (sectionId === 'live') {
+        try { ensureLiveEditor(); } catch {}
+      }
+      if (sectionId === 'media') {
+        try { loadMedia(); } catch {}
       }
     }
     navButtons.forEach(btn => btn.addEventListener('click', () => switchSection(btn.dataset.section)));
     refreshBtn.addEventListener('click', () => refreshAll());
     logoutBtn.addEventListener('click', logout);
     logoutBtnMobile.addEventListener('click', logout);
+    const helpTopBtn = document.getElementById('helpTopBtn');
+    if (helpTopBtn) helpTopBtn.addEventListener('click', () => switchSection('help'));
+    Array.from(document.querySelectorAll('[data-help-target]')).forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const t = String(el.dataset.helpTarget || '');
+        switchSection('help');
+        setTimeout(() => {
+          const target = document.getElementById(t);
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 0);
+      });
+    });
 
     let contentSaveTimer = null;
 
@@ -1504,6 +1567,11 @@
     const loadContentBtn = document.getElementById('loadContentBtn');
     const quillWrap = document.getElementById('quillWrap');
     let quill = null;
+    const mediaUploadBtn = document.getElementById('mediaUploadBtn');
+    const mediaUploadInput = document.getElementById('mediaUploadInput');
+    const mediaGrid = document.getElementById('mediaGrid');
+    const mediaSearch = document.getElementById('mediaSearch');
+    let mediaItems = [];
 
     function escapeHtmlText(s) {
       return String(s ?? '')
@@ -1570,6 +1638,141 @@
       }
     }
 
+    async function loadMedia() {
+      try {
+        const token = window.RoulotteStore.getAuthToken();
+        if (mediaGrid) mediaGrid.innerHTML = '<div class="hint">Caricamento…</div>';
+        const r = await fetch(apiUrl('/api/media'), { headers: { 'Authorization': 'Bearer ' + token } });
+        if (r.status === 401) { mediaItems = []; if (mediaGrid) mediaGrid.innerHTML = '<div class="hint">Sessione scaduta. Accedi di nuovo.</div>'; logout(); return; }
+        const j = await r.json().catch(()=>[]);
+        mediaItems = Array.isArray(j) ? j : [];
+        renderMediaGrid();
+      } catch {
+        mediaItems = [];
+        if (mediaGrid) mediaGrid.innerHTML = '<div class="hint">Errore durante il caricamento.</div>';
+      }
+    }
+    function renderMediaGrid() {
+      if (!mediaGrid) return;
+      const q = String(mediaSearch?.value || '').trim().toLowerCase();
+      const db = window.RoulotteStore.getDB();
+      const cats = db.categories || [];
+      const byId = new Map(cats.map(c => [c.id, c.name]));
+      mediaGrid.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      const visible = mediaItems.filter(it => {
+        if (!q) return true;
+        const t = (it.title || '') + ' ' + (it.alt || '');
+        return t.toLowerCase().includes(q);
+      });
+      if (!visible.length) {
+        mediaGrid.innerHTML = '<div class="hint">Nessun media trovato.</div>';
+        return;
+      }
+      visible.forEach((it) => {
+        const card = document.createElement('div');
+        card.className = 'media-item';
+        const img = document.createElement('img');
+        img.className = 'media-thumb';
+        img.loading = 'lazy';
+        img.src = String(it.url_thumb || it.url_full || '');
+        img.alt = String(it.title || 'Media');
+        img.onerror = () => {
+          const altSrc = String(it.url_full || '');
+          if (altSrc && img.src !== altSrc) { img.src = altSrc; return; }
+          try { img.removeAttribute('src'); } catch {}
+          img.alt = 'Immagine non disponibile';
+          img.style.background = 'linear-gradient(45deg, #eee, #ddd)';
+          img.style.display = 'block';
+          img.style.height = '160px';
+        };
+        const body = document.createElement('div');
+        body.className = 'media-body';
+        const row = document.createElement('div');
+        row.className = 'media-row';
+        const title = document.createElement('div');
+        title.className = 'media-title';
+        title.textContent = String(it.title || 'Senza titolo');
+        const actions = document.createElement('div');
+        actions.className = 'media-actions';
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn';
+        copyBtn.textContent = 'Copia URL';
+        copyBtn.addEventListener('click', () => {
+          try { navigator.clipboard.writeText(String(it.url_full || '')); showToast('success','Copia','URL copiato'); } catch {}
+        });
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn btn-danger';
+        delBtn.textContent = 'Elimina';
+        delBtn.addEventListener('click', async () => {
+          if (!confirm('Eliminare elemento?')) return;
+          const token = window.RoulotteStore.getAuthToken();
+          const r = await fetch(apiUrl('/api/media/' + encodeURIComponent(it.id)), { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+          if (r.ok) { showToast('success','Media','Eliminato'); mediaItems = mediaItems.filter(x => x.id !== it.id); renderMediaGrid(); }
+          else { showToast('error','Media','Eliminazione fallita'); }
+        });
+        actions.appendChild(copyBtn);
+        actions.appendChild(delBtn);
+        row.appendChild(title);
+        row.appendChild(actions);
+        body.appendChild(row);
+        const hint = document.createElement('div');
+        hint.className = 'media-hint';
+        hint.textContent = String(it.alt || '');
+        body.appendChild(hint);
+        const editRow = document.createElement('div');
+        editRow.className = 'media-row';
+        const input = document.createElement('input');
+        input.placeholder = 'Modello/Etichetta';
+        input.value = String(it.title || '');
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'btn';
+        saveBtn.textContent = 'Salva';
+        saveBtn.addEventListener('click', async () => {
+          const token = window.RoulotteStore.getAuthToken();
+          const r = await fetch(apiUrl('/api/media/' + encodeURIComponent(it.id)), {
+            method: 'PATCH',
+            headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + token },
+            body: JSON.stringify({ title: String(input.value || '') })
+          });
+          if (r.ok) { showToast('success','Media','Aggiornato'); it.title = String(input.value || ''); renderMediaGrid(); }
+          else { showToast('error','Media','Salvataggio fallito'); }
+        });
+        editRow.appendChild(input);
+        editRow.appendChild(saveBtn);
+        body.appendChild(editRow);
+        card.appendChild(img);
+        card.appendChild(body);
+        frag.appendChild(card);
+      });
+      mediaGrid.appendChild(frag);
+    }
+    if (mediaSearch) mediaSearch.addEventListener('input', () => { renderMediaGrid(); });
+    if (mediaUploadBtn && mediaUploadInput) {
+      mediaUploadBtn.addEventListener('click', () => mediaUploadInput.click());
+      mediaUploadInput.addEventListener('change', async () => {
+        try {
+          const files = Array.from(mediaUploadInput.files || []);
+          if (!files.length) return;
+          const fd = new FormData();
+          files.forEach((f) => fd.append('files', f, f.name));
+          const token = window.RoulotteStore.getAuthToken();
+          const r = await fetch(apiUrl('/api/media'), { method:'POST', headers:{ 'Authorization':'Bearer ' + token }, body: fd });
+          const j = await r.json().catch(()=>null);
+          if (!r.ok) { showToast('error','Media','Upload fallito'); return; }
+          const added = Array.isArray(j) ? j : [];
+          added.forEach((x) => {
+            const exists = mediaItems.find(m => m.id === x.id);
+            if (!exists) mediaItems.unshift(x);
+          });
+          renderMediaGrid();
+          showToast('success','Media','Immagini caricate');
+          mediaUploadInput.value = '';
+        } catch (e) {
+          showToast('error','Media', String(e && e.message ? e.message : e));
+        }
+      });
+    }
     let adminWhoami = { user: '', role: '' };
 
     function setAdminUsersMsg(text, ok) {
@@ -1579,6 +1782,29 @@
       adminUsersMsg.hidden = false;
       adminUsersMsg.className = ok ? 'error ok' : 'error';
       adminUsersMsg.textContent = t;
+    }
+
+    function setAdminUsersLockedState(locked, text) {
+      if (adminUsersLocked) {
+        adminUsersLocked.hidden = !locked;
+        if (typeof text === 'string' && text.trim()) adminUsersLocked.textContent = text;
+      }
+      const disabled = !!locked;
+      try {
+        if (adminNewUsername) adminNewUsername.disabled = disabled;
+        if (adminNewPassword) adminNewPassword.disabled = disabled;
+        const submitBtn = adminUsersCreateForm ? adminUsersCreateForm.querySelector('button[type="submit"]') : null;
+        if (submitBtn) submitBtn.disabled = disabled;
+      } catch {}
+    }
+
+    function setAdminResetUserMsg(text, ok) {
+      if (!adminResetUserMsg) return;
+      const t = String(text || '').trim();
+      if (!t) { adminResetUserMsg.hidden = true; adminResetUserMsg.textContent = ''; return; }
+      adminResetUserMsg.hidden = false;
+      adminResetUserMsg.className = ok ? 'error ok' : 'error';
+      adminResetUserMsg.textContent = t;
     }
 
     async function fetchWhoami() {
@@ -1628,7 +1854,11 @@
       try {
         const r = await fetch(apiUrl('/api/admin/users'), { headers: { 'Authorization': 'Bearer ' + token } });
         if (r.status === 401) { logout(); return; }
-        if (r.status === 403) { adminUsersCard.hidden = true; return; }
+        if (r.status === 403) {
+          setAdminUsersLockedState(true, 'Non hai i permessi per gestire l’elenco utenti (ruolo Superuser richiesto).');
+          if (adminUsersList) adminUsersList.innerHTML = '';
+          return;
+        }
         if (!r.ok) { setAdminUsersMsg('Impossibile caricare gli utenti.', false); return; }
         const arr = await r.json().catch(() => []);
         renderAdminUsersList(arr);
@@ -1639,14 +1869,30 @@
 
     async function ensureAdminUsersPanel() {
       if (!adminUsersCard) return;
+      const token = window.RoulotteStore.getAuthToken();
+      if (!token) { adminUsersCard.hidden = true; return; }
+      adminUsersCard.hidden = false;
+      try { setAdminUsersMsg('', true); } catch {}
+
       try {
         adminWhoami = await fetchWhoami();
       } catch {
         adminWhoami = { user: '', role: '' };
       }
-      const isSuper = String(adminWhoami && adminWhoami.role || '') === 'superuser';
-      adminUsersCard.hidden = !isSuper;
-      if (isSuper) await loadAdminUsers();
+
+      const role = String(adminWhoami && adminWhoami.role || '').trim();
+      const user = String(adminWhoami && adminWhoami.user || '').trim();
+      const labelRole = role || 'admin';
+      if (adminUsersRole) adminUsersRole.textContent = `Accesso: ${user || '—'} · Ruolo: ${labelRole}`;
+
+      const isSuper = labelRole === 'superuser';
+      if (!isSuper) {
+        setAdminUsersLockedState(true, 'Non hai i permessi per gestire l’elenco utenti (ruolo Superuser richiesto).');
+        if (adminUsersList) adminUsersList.innerHTML = '';
+        return;
+      }
+      setAdminUsersLockedState(false, '');
+      await loadAdminUsers();
     }
     async function saveContentDraft() {
       const key = String(contentKeyEl?.value || '').trim();
@@ -1930,9 +2176,215 @@
     if (builderPreviewReloadBtn) builderPreviewReloadBtn.addEventListener('click', reloadBuilderPreview);
     if (builderPreviewDialog) builderPreviewDialog.addEventListener('close', () => { try { if (builderPreviewFrame) builderPreviewFrame.src = 'about:blank'; } catch {} });
 
+    let liveEditing = false;
+    let liveDirtyKeys = new Set();
+
+    function setLiveStatus(text) { if (liveStatusEl) liveStatusEl.textContent = String(text || ''); }
+    function setLiveDirty(isDirty) {
+      const d = !!isDirty || (liveDirtyKeys.size > 0);
+      if (liveSaveBtn) liveSaveBtn.disabled = !d;
+      if (livePublishBtn) livePublishBtn.disabled = !d;
+      setLiveStatus(d ? 'Modifiche non salvate' : (liveEditing ? 'Modifica attiva' : 'Inattivo'));
+    }
+    function ensureLiveEditor() {
+      if (!liveFrame) return;
+      if (!liveFrame.src) {
+        liveFrame.src = 'index.html?preview=1&ts=' + Date.now();
+        liveFrame.addEventListener('load', () => {
+          try {
+            if (liveEditing) toggleLiveEditing(true);
+            wireLiveIframe();
+          } catch {}
+        }, { once: true });
+      } else {
+        try { wireLiveIframe(); } catch {}
+      }
+    }
+    function getEditableNodes(doc) {
+      if (!doc) return [];
+      const sel = '[data-i18n]';
+      return Array.from(doc.querySelectorAll(sel));
+    }
+    function toggleLiveEditing(enable) {
+      liveEditing = !!enable;
+      if (!liveFrame || !liveFrame.contentDocument) return;
+      const doc = liveFrame.contentDocument;
+      const root = doc.documentElement;
+      injectLiveStyles(doc);
+      if (root) {
+        if (liveEditing) root.classList.add('live-editing');
+        else root.classList.remove('live-editing');
+      }
+      const nodes = getEditableNodes(doc);
+      nodes.forEach(el => {
+        el.contentEditable = liveEditing ? 'true' : 'false';
+        el.spellcheck = true;
+        el.setAttribute('tabindex','0');
+        if (liveEditing && el.tagName === 'A') { el.addEventListener('click', preventNavOnce, { once: true }); }
+        if (liveEditing) {
+          el.addEventListener('input', onLiveInput);
+          el.addEventListener('blur', onLiveInput);
+        }
+      });
+      setLiveDirty(false);
+    }
+    function preventNavOnce(e) { try { e.preventDefault(); } catch {} }
+    function onLiveInput(e) {
+      try {
+        const el = e.target;
+        const key = String(el.getAttribute('data-i18n') || '').trim();
+        if (key) liveDirtyKeys.add(key);
+        setLiveDirty(true);
+      } catch {}
+    }
+    function injectLiveStyles(doc) {
+      try {
+        const head = doc.head || doc.documentElement;
+        if (!head) return;
+        if (doc.getElementById('liveEditorStyles')) return;
+        const st = doc.createElement('style');
+        st.id = 'liveEditorStyles';
+        st.textContent = `
+          .live-editing [data-i18n],
+          .live-editing h1,.live-editing h2,.live-editing p,.live-editing .hint,.live-editing label,.live-editing a.btn{
+            outline:2px dashed rgba(37,99,235,.45);
+            outline-offset:2px;
+            cursor:text;
+          }
+          .live-editing a[href]{pointer-events:none}
+          .live-editing [data-i18n]{position:relative}
+          .live-editing [data-i18n]::after{
+            content: attr(data-i18n);
+            position:absolute;
+            right:4px; top:-8px;
+            background:rgba(37,99,235,.12);
+            border:1px solid rgba(37,99,235,.35);
+            color:#2563eb;
+            font-size:.68rem;
+            padding:2px 6px;
+            border-radius:999px;
+          }
+        `;
+        head.appendChild(st);
+      } catch {}
+    }
+    function wireLiveIframe() {
+      if (!liveFrame || !liveFrame.contentDocument) return;
+      const doc = liveFrame.contentDocument;
+      doc.addEventListener('click', onLiveClick);
+    }
+    function onLiveClick(e) {
+      if (!liveEditing) return;
+      const el = e && e.target ? e.target.closest('[data-i18n]') : null;
+      const keyEl = document.getElementById('liveKeyLabel');
+      const txtEl = document.getElementById('livePropText');
+      const applyBtn = document.getElementById('liveApplyBtn');
+      const panelStatus = document.getElementById('livePanelStatus');
+      if (!el) {
+        if (keyEl) keyEl.value = '';
+        if (txtEl) { txtEl.value = ''; txtEl.disabled = true; }
+        if (applyBtn) applyBtn.disabled = true;
+        if (panelStatus) panelStatus.textContent = 'Nessuna selezione';
+        return;
+      }
+      const key = String(el.getAttribute('data-i18n') || '').trim();
+      const txt = String(el.textContent || '').trim();
+      if (keyEl) keyEl.value = key || '';
+      if (txtEl) { txtEl.value = txt || ''; txtEl.disabled = false; }
+      if (applyBtn) applyBtn.disabled = false;
+      if (panelStatus) panelStatus.textContent = 'Elemento selezionato';
+    }
+    const livePropTextEl = document.getElementById('livePropText');
+    const liveApplyBtn = document.getElementById('liveApplyBtn');
+    if (livePropTextEl) livePropTextEl.addEventListener('input', () => {
+      try {
+        if (!liveFrame || !liveFrame.contentDocument) return;
+        const doc = liveFrame.contentDocument;
+        const key = String((document.getElementById('liveKeyLabel')?.value) || '').trim();
+        if (!key) return;
+        const el = doc.querySelector('[data-i18n="'+CSS.escape(key)+'"]');
+        if (!el) return;
+        const v = String(livePropTextEl.value || '');
+        el.textContent = v;
+        liveDirtyKeys.add(key);
+        setLiveDirty(true);
+      } catch {}
+    });
+    if (liveApplyBtn) liveApplyBtn.addEventListener('click', () => {
+      try { setLiveStatus('Modifiche applicate'); } catch {}
+    });
+    async function liveSave() {
+      const token = window.RoulotteStore.getAuthToken();
+      if (!token) { logout(); return; }
+      if (!liveFrame || !liveFrame.contentDocument) return;
+      const doc = liveFrame.contentDocument;
+      const nodes = getEditableNodes(doc);
+      const changed = new Map();
+      nodes.forEach(el => {
+        const key = String(el.getAttribute('data-i18n') || '').trim();
+        if (!key) return;
+        if (!liveDirtyKeys.has(key)) return;
+        changed.set(key, String(el.innerHTML || '').trim());
+      });
+      if (!changed.size) { setLiveDirty(false); try { showToast('info','Editor Live','Nessuna modifica.',{timeoutMs:1600}); } catch {} return; }
+      try {
+        for (const [key,data] of changed.entries()) {
+          const r = await fetch(apiUrl('/api/content'), {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json','Authorization':'Bearer '+token },
+            body: JSON.stringify({ content_key: key, content_type: 'html', data })
+          });
+          if (r.status === 401) { logout(); return; }
+          if (!r.ok) { try { showToast('error','Editor Live','Errore salvataggio '+key,{timeoutMs:2200}); } catch {} }
+        }
+        try { showToast('success','Editor Live','Bozza salvata',{timeoutMs:1600}); } catch {}
+        setLiveDirty(false);
+      } catch {
+        try { showToast('error','Editor Live','Errore di rete',{timeoutMs:2200}); } catch {}
+      }
+    }
+    async function livePublish() {
+      const token = window.RoulotteStore.getAuthToken();
+      if (!token) { logout(); return; }
+      const keys = Array.from(liveDirtyKeys);
+      if (!keys.length) { try { showToast('info','Editor Live','Nessuna modifica da pubblicare',{timeoutMs:1600}); } catch {} return; }
+      try {
+        for (const key of keys) {
+          const r = await fetch(apiUrl('/api/content/'+encodeURIComponent(key)+'/publish'), {
+            method: 'POST',
+            headers: { 'Authorization':'Bearer '+token }
+          });
+          if (r.status === 401) { logout(); return; }
+          if (!r.ok) { try { showToast('error','Editor Live','Errore pubblicazione '+key,{timeoutMs:2200}); } catch {} }
+        }
+        try { showToast('success','Editor Live','Pubblicato',{timeoutMs:1600}); } catch {}
+        liveDirtyKeys.clear();
+        setLiveDirty(false);
+        ensureLiveEditor();
+      } catch {
+        try { showToast('error','Editor Live','Errore di rete',{timeoutMs:2200}); } catch {}
+      }
+    }
+    if (liveEnableBtn) liveEnableBtn.addEventListener('click', async () => {
+      if (!liveFrame) return;
+      if (!liveFrame.src) ensureLiveEditor();
+      if (!liveFrame.contentDocument) {
+        liveFrame.addEventListener('load', () => toggleLiveEditing(true), { once: true });
+        setLiveStatus('Caricamento…');
+        return;
+      }
+      toggleLiveEditing(!liveEditing);
+      try { showToast(liveEditing ? 'success':'info','Editor Live', liveEditing ? 'Modifica attiva' : 'Modifica disattivata', { timeoutMs: 1400 }); } catch {}
+    });
+    if (liveReloadBtn) liveReloadBtn.addEventListener('click', () => {
+      ensureLiveEditor();
+      if (liveEditing) setLiveStatus('Modifica attiva');
+    });
+    if (liveSaveBtn) liveSaveBtn.addEventListener('click', liveSave);
+    if (livePublishBtn) livePublishBtn.addEventListener('click', livePublish);
+
     const mediaInput = document.getElementById('mediaInput');
     const mediaRefreshBtn = document.getElementById('mediaRefreshBtn');
-    const mediaGrid = document.getElementById('mediaGrid');
     const mediaProg = document.getElementById('mediaProg');
     try {
       if (mediaInput) { mediaInput.setAttribute('accept','image/jpeg,image/png,image/webp'); mediaInput.setAttribute('multiple',''); }
@@ -2506,6 +2958,139 @@
       saveDraft();
       updateNoteStats();
     });
+    const descAiBtn = document.getElementById('descAiBtn');
+    const descModeEl = document.getElementById('descMode');
+    const descAiModeEl = document.getElementById('descAiMode');
+    const descUndoBtn = document.getElementById('descUndoBtn');
+    const descSuggestBtn = document.getElementById('descSuggestBtn');
+    let descUndoStack = [];
+    let localSummarizer = null;
+    async function ensureLocalSummarizer() {
+      if (localSummarizer) return localSummarizer;
+      const t = window.transformers;
+      if (!t || !t.pipeline) return null;
+      localSummarizer = await t.pipeline('summarization', 'Xenova/distilbart-cnn-6-6');
+      return localSummarizer;
+    }
+    if (descAiBtn) {
+      descAiBtn.addEventListener('click', async () => {
+        try {
+          const token = window.RoulotteStore.getAuthToken();
+          if (!token) { logout(); return; }
+          const mode = String(descModeEl && descModeEl.value || 'rewrite');
+          const plain = String(editor.innerText || '').trim();
+          if (!plain) { showToast('warning', 'AI', 'Aggiungi testo prima di applicare.'); return; }
+          descAiBtn.disabled = true;
+          const facts = {
+            marca: marcaEl?.value || '',
+            modello: modelloEl?.value || '',
+            versione: versioneEl?.value || '',
+            anno: annoEl?.value || '',
+            prezzo: prezzoEl?.value || '',
+            tipologiaMezzo: tipologiaMezzoEl?.value || '',
+            stato: statoEl?.value || '',
+            categoryId: categoryIdEl?.value || '',
+            lunghezza: lunghezzaEl?.value || '',
+            lunghezzaInterna: lunghezzaInternaEl?.value || '',
+            larghezza: larghezzaEl?.value || '',
+            altezza: altezzaEl?.value || '',
+            posti: postiEl?.value || '',
+            massa: massaEl?.value || '',
+            documenti: documentiEl?.value || '',
+            tipologia: tipologiaEl?.value || '',
+            lettoFisso: lettoFissoEl?.value || '',
+            climatizzatore: climatizzatoreEl?.value || '',
+            verandaTendalino: verandaTendalinoEl?.value || '',
+            portabici: portabiciEl?.value || '',
+            localita: localitaEl?.value || '',
+          };
+          let out = '';
+          const useLocal = String(descAiModeEl && descAiModeEl.value || 'local') === 'local';
+          if (useLocal) {
+            const pipe = await ensureLocalSummarizer();
+            if (!pipe) { showToast('error', 'AI', 'AI locale non disponibile.'); return; }
+            const prefix = Object.entries(facts).filter(([k,v]) => String(v||'').trim()).map(([k,v]) => `${k}: ${v}`).join('; ');
+            const input = prefix ? (prefix + '. ' + plain) : plain;
+            const res = await pipe(input, { max_length: 180, min_length: 80, do_sample: false });
+            const text = Array.isArray(res) ? String(res[0]?.summary_text || '') : String(res?.summary_text || '');
+            if (mode === 'bullets') {
+              const lines = text.split(/[.;]\s+/).map(s => s.trim()).filter(Boolean);
+              out = '<ul class="spec-list">' + lines.map(s => '<li>' + s + '</li>').join('') + '</ul>';
+            } else {
+              out = text.split(/\n+/).map(s => s.trim()).filter(Boolean).join('<br>');
+            }
+          } else {
+            const r = await fetch(apiUrl('/api/ai/text/rewrite'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+              body: JSON.stringify({ text: plain, mode, facts, lang: 'it', html: true })
+            });
+            if (!r.ok) {
+              const t = await r.text().catch(() => '');
+              showToast('error', 'AI', t || ('HTTP ' + r.status));
+              return;
+            }
+            const j = await r.json().catch(() => null);
+            out = String(j && j.text || '').trim();
+          }
+          if (!out) { showToast('warning', 'AI', 'Risposta vuota.'); return; }
+          descUndoStack.push(editor.innerHTML);
+          if (descUndoBtn) descUndoBtn.disabled = false;
+          editor.innerHTML = out;
+          noteEl.value = editor.innerHTML;
+          saveDraft();
+          showToast('success', 'AI', 'Testo aggiornato.');
+        } catch (e) {
+          const msg = String(e && e.message ? e.message : e);
+          showToast('error', 'AI', msg);
+        } finally {
+          descAiBtn.disabled = false;
+        }
+      });
+    }
+    if (descUndoBtn) {
+      descUndoBtn.addEventListener('click', () => {
+        const last = descUndoStack.pop();
+        if (!last) return;
+        editor.innerHTML = last;
+        noteEl.value = editor.innerHTML;
+        saveDraft();
+        if (descUndoStack.length === 0) descUndoBtn.disabled = true;
+      });
+    }
+    if (descSuggestBtn) {
+      descSuggestBtn.addEventListener('click', async () => {
+        try {
+          const token = window.RoulotteStore.getAuthToken();
+          if (!token) { logout(); return; }
+          const plain = String(editor.innerText || '').trim();
+          if (!plain) { showToast('warning', 'AI', 'Aggiungi testo prima di suggerire.'); return; }
+          descSuggestBtn.disabled = true;
+          const r = await fetch(apiUrl('/api/ai/text/extract'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ text: plain })
+          });
+          if (!r.ok) {
+            const t = await r.text().catch(() => '');
+            showToast('error', 'AI', t || ('HTTP ' + r.status));
+            return;
+          }
+          const j = await r.json().catch(() => null);
+          const arr = (j && Array.isArray(j.suggestions)) ? j.suggestions : [];
+          if (!arr.length) { showToast('warning', 'AI', 'Nessun suggerimento trovato.'); return; }
+          const applied = applyAiSuggestions(arr);
+          renderAiSuggestions(arr);
+          updateNewFormChecklistUi();
+          showToast(applied ? 'success' : 'info', 'AI', applied ? 'Campi aggiornati.' : 'Suggerimenti mostrati.');
+        } catch (e) {
+          const msg = String(e && e.message ? e.message : e);
+          showToast('error', 'AI', msg);
+        } finally {
+          descSuggestBtn.disabled = false;
+        }
+      });
+    }
 
     // --- Autosave Form (LocalStorage temporaneo) ---
     function saveDraft() {
@@ -3362,12 +3947,45 @@
         setTimeout(() => secMsg.hidden = true, 3000);
         newAuthUser.value = '';
         newAuthPass.value = '';
+        try { showToast('success', 'Sicurezza', 'Credenziali aggiornate.', { timeoutMs: 1800 }); } catch {}
       }
     });
 
     if (adminUsersRefreshBtn) {
       adminUsersRefreshBtn.addEventListener('click', async () => {
         try { await ensureAdminUsersPanel(); } catch {}
+      });
+    }
+    if (adminResetUserForm) {
+      adminResetUserForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        setAdminResetUserMsg('', true);
+        const code = String(adminResetCode && adminResetCode.value || '').trim();
+        const username = String(adminResetUsername && adminResetUsername.value || '').trim();
+        const password = String(adminResetPassword && adminResetPassword.value || '');
+        if (!code || !username || !password) {
+          setAdminResetUserMsg('Compila codice reset, username e password.', false);
+          return;
+        }
+        const submitBtn = adminResetUserForm.querySelector('button[type="submit"]');
+        try {
+          if (submitBtn) submitBtn.disabled = true;
+          const r = await fetch(apiUrl('/api/auth/reset'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Admin-Reset': code },
+            body: JSON.stringify({ username, password })
+          });
+          if (r.status === 401) { setAdminResetUserMsg('Codice reset non valido.', false); return; }
+          if (!r.ok) { setAdminResetUserMsg('Errore durante l’operazione.', false); return; }
+          if (adminResetUsername) adminResetUsername.value = '';
+          if (adminResetPassword) adminResetPassword.value = '';
+          setAdminResetUserMsg('Operazione completata.', true);
+          try { await ensureAdminUsersPanel(); } catch {}
+        } catch {
+          setAdminResetUserMsg('Errore di rete durante l’operazione.', false);
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
+        }
       });
     }
     if (adminUsersCreateForm) {
@@ -3385,15 +4003,17 @@
             body: JSON.stringify({ username, password })
           });
           if (r.status === 401) { logout(); return; }
-          if (r.status === 403) { setAdminUsersMsg('Non autorizzato.', false); return; }
-          if (r.status === 409) { setAdminUsersMsg('Username già esistente.', false); return; }
-          if (!r.ok) { setAdminUsersMsg('Errore durante la creazione utente.', false); return; }
+          if (r.status === 403) { setAdminUsersMsg('Non autorizzato.', false); try { showToast('error', 'Utenti', 'Non autorizzato.', { timeoutMs: 2200 }); } catch {} return; }
+          if (r.status === 409) { setAdminUsersMsg('Username già esistente.', false); try { showToast('warning', 'Utenti', 'Username già esistente.', { timeoutMs: 2200 }); } catch {} return; }
+          if (!r.ok) { setAdminUsersMsg('Errore durante la creazione utente.', false); try { showToast('error', 'Utenti', 'Errore creazione.', { timeoutMs: 2200 }); } catch {} return; }
           if (adminNewUsername) adminNewUsername.value = '';
           if (adminNewPassword) adminNewPassword.value = '';
           setAdminUsersMsg('Utente creato con successo.', true);
+          try { showToast('success', 'Utenti', 'Utente creato.', { timeoutMs: 1600 }); } catch {}
           await loadAdminUsers();
         } catch {
           setAdminUsersMsg('Errore di rete durante la creazione utente.', false);
+          try { showToast('error', 'Utenti', 'Errore di rete.', { timeoutMs: 2200 }); } catch {}
         }
       });
     }
@@ -3417,13 +4037,15 @@
               headers: { 'Authorization': 'Bearer ' + token }
             });
             if (r.status === 401) { logout(); return; }
-            if (r.status === 403) { setAdminUsersMsg('Non autorizzato.', false); return; }
-            if (r.status === 404) { setAdminUsersMsg('Utente non trovato.', false); return; }
-            if (!r.ok) { setAdminUsersMsg('Errore durante eliminazione utente.', false); return; }
+            if (r.status === 403) { setAdminUsersMsg('Non autorizzato.', false); try { showToast('error', 'Utenti', 'Non autorizzato.', { timeoutMs: 2200 }); } catch {} return; }
+            if (r.status === 404) { setAdminUsersMsg('Utente non trovato.', false); try { showToast('warning', 'Utenti', 'Utente non trovato.', { timeoutMs: 2200 }); } catch {} return; }
+            if (!r.ok) { setAdminUsersMsg('Errore durante eliminazione utente.', false); try { showToast('error', 'Utenti', 'Errore eliminazione.', { timeoutMs: 2200 }); } catch {} return; }
             setAdminUsersMsg('Utente eliminato.', true);
+            try { showToast('success', 'Utenti', 'Utente eliminato.', { timeoutMs: 1600 }); } catch {}
             await loadAdminUsers();
           } catch {
             setAdminUsersMsg('Errore di rete durante eliminazione utente.', false);
+            try { showToast('error', 'Utenti', 'Errore di rete.', { timeoutMs: 2200 }); } catch {}
           }
           return;
         }
@@ -3439,14 +4061,16 @@
               body: JSON.stringify({ password })
             });
             if (r.status === 401) { logout(); return; }
-            if (r.status === 403) { setAdminUsersMsg('Non autorizzato.', false); return; }
-            if (r.status === 404) { setAdminUsersMsg('Utente non trovato.', false); return; }
-            if (!r.ok) { setAdminUsersMsg('Errore durante cambio password.', false); return; }
+            if (r.status === 403) { setAdminUsersMsg('Non autorizzato.', false); try { showToast('error', 'Utenti', 'Non autorizzato.', { timeoutMs: 2200 }); } catch {} return; }
+            if (r.status === 404) { setAdminUsersMsg('Utente non trovato.', false); try { showToast('warning', 'Utenti', 'Utente non trovato.', { timeoutMs: 2200 }); } catch {} return; }
+            if (!r.ok) { setAdminUsersMsg('Errore durante cambio password.', false); try { showToast('error', 'Utenti', 'Errore cambio password.', { timeoutMs: 2200 }); } catch {} return; }
             if (input) input.value = '';
             setAdminUsersMsg('Password aggiornata.', true);
+            try { showToast('success', 'Utenti', 'Password aggiornata.', { timeoutMs: 1600 }); } catch {}
             await loadAdminUsers();
           } catch {
             setAdminUsersMsg('Errore di rete durante cambio password.', false);
+            try { showToast('error', 'Utenti', 'Errore di rete.', { timeoutMs: 2200 }); } catch {}
           }
           return;
         }
@@ -3460,6 +4084,21 @@
     const CS_MODE_ADVANCED = 'advanced';
 
     const CS_BASIC_KEYS = new Set([
+      'sito.brand.name',
+      'sito.brand.tagline',
+      'sito.brand.logo_url',
+      'sito.brand.favicon_url',
+      'sito.seo.default_title',
+      'sito.seo.default_description',
+      'sito.seo.og_image_url',
+      'sito.seo.twitter_card',
+      'sito.social.instagram_url',
+      'sito.social.facebook_url',
+      'sito.social.youtube_url',
+      'sito.social.tiktok_url',
+      'sito.legal.company_name',
+      'sito.legal.vat_number',
+      'sito.legal.address',
       'annunci.pubblicazione.enabled',
       'annunci.pubblicazione.default_visibility',
       'annunci.pubblicazione.require_photos_for_publish',
@@ -3470,6 +4109,7 @@
       'annunci.homepage.max_items',
       'annunci.labels.badge_text',
       'annunci.labels.contact_phone',
+      'annunci.labels.contact_whatsapp',
       'annunci.labels.contact_email',
       'regole_tecniche.integrazioni.ai.enabled',
       'regole_tecniche.integrazioni.ai.provider',
@@ -3570,6 +4210,114 @@
         placeholder: 'Es. info@tuodominio.it',
         format: 'email',
         group_basic: 'Contatti'
+      }],
+      ['annunci.labels.contact_whatsapp', {
+        label: 'WhatsApp contatto',
+        help: 'Numero WhatsApp visibile nel sito (formato internazionale consigliato).',
+        placeholder: 'Es. +39 333 123 4567',
+        format: 'tel',
+        group_basic: 'Contatti'
+      }],
+      ['sito.brand.name', {
+        label: 'Nome sito',
+        help: 'Nome mostrato come titolo e usato come fallback nei meta.',
+        placeholder: 'Es. Roulotte online',
+        group_basic: 'Brand'
+      }],
+      ['sito.brand.tagline', {
+        label: 'Tagline sito',
+        help: 'Testo breve opzionale per descrivere il sito.',
+        placeholder: 'Es. Vendita e trasporto roulotte',
+        group_basic: 'Brand'
+      }],
+      ['sito.brand.logo_url', {
+        label: 'Logo (URL)',
+        help: 'URL immagine logo (se vuoi sostituire l’icona di default).',
+        placeholder: 'https://…/logo.png',
+        format: 'url',
+        group_basic: 'Brand'
+      }],
+      ['sito.brand.favicon_url', {
+        label: 'Favicon (URL)',
+        help: 'URL immagine favicon (opzionale).',
+        placeholder: 'https://…/favicon.ico',
+        format: 'url',
+        group_basic: 'Brand'
+      }],
+      ['sito.seo.default_title', {
+        label: 'SEO: titolo predefinito',
+        help: 'Titolo usato come base per le pagine (se impostato).',
+        placeholder: 'Es. Roulotte online',
+        group_basic: 'SEO'
+      }],
+      ['sito.seo.default_description', {
+        label: 'SEO: descrizione predefinita',
+        help: 'Descrizione usata come fallback nei meta.',
+        placeholder: 'Descrizione breve del sito…',
+        group_basic: 'SEO'
+      }],
+      ['sito.seo.og_image_url', {
+        label: 'SEO: immagine Open Graph (URL)',
+        help: 'Immagine predefinita per anteprime social (opzionale).',
+        placeholder: 'https://…/og-image.jpg',
+        format: 'url',
+        group_basic: 'SEO'
+      }],
+      ['sito.seo.twitter_card', {
+        label: 'SEO: Twitter card',
+        help: 'Formato anteprima Twitter/X (se vuoi forzarlo).',
+        group_basic: 'SEO',
+        options: [
+          { value: '', label: 'Auto' },
+          { value: 'summary', label: 'Summary' },
+          { value: 'summary_large_image', label: 'Summary large image' },
+        ]
+      }],
+      ['sito.social.instagram_url', {
+        label: 'Instagram (URL)',
+        help: 'Link al profilo Instagram (opzionale).',
+        placeholder: 'https://instagram.com/…',
+        format: 'url',
+        group_basic: 'Social'
+      }],
+      ['sito.social.facebook_url', {
+        label: 'Facebook (URL)',
+        help: 'Link alla pagina Facebook (opzionale).',
+        placeholder: 'https://facebook.com/…',
+        format: 'url',
+        group_basic: 'Social'
+      }],
+      ['sito.social.youtube_url', {
+        label: 'YouTube (URL)',
+        help: 'Link al canale YouTube (opzionale).',
+        placeholder: 'https://youtube.com/…',
+        format: 'url',
+        group_basic: 'Social'
+      }],
+      ['sito.social.tiktok_url', {
+        label: 'TikTok (URL)',
+        help: 'Link al profilo TikTok (opzionale).',
+        placeholder: 'https://tiktok.com/@…',
+        format: 'url',
+        group_basic: 'Social'
+      }],
+      ['sito.legal.company_name', {
+        label: 'Ragione sociale',
+        help: 'Nome azienda (opzionale, per footer o pagine legali).',
+        placeholder: 'Es. Azienda S.r.l.',
+        group_basic: 'Dati aziendali'
+      }],
+      ['sito.legal.vat_number', {
+        label: 'Partita IVA',
+        help: 'Partita IVA (opzionale).',
+        placeholder: 'Es. IT12345678901',
+        group_basic: 'Dati aziendali'
+      }],
+      ['sito.legal.address', {
+        label: 'Indirizzo',
+        help: 'Indirizzo aziendale (opzionale).',
+        placeholder: 'Es. Via Roma 1, 00100 Roma (RM)',
+        group_basic: 'Dati aziendali'
       }],
       ['regole_tecniche.integrazioni.ai.enabled', {
         label: 'AI: attiva',
@@ -3695,6 +4443,7 @@
 
     function csGroupLabel(groupKey) {
       const k = String(groupKey || '').trim();
+      if (k === 'sito') return 'Sito';
       if (k === 'trasporto') return 'Trasporto';
       if (k === 'annunci') return 'Annunci';
       if (k === 'regole_tecniche') return 'Regole tecniche';
@@ -3709,6 +4458,10 @@
 
     function csSectionLabel(sectionKey) {
       const k = String(sectionKey || '').trim();
+      if (k === 'sito.brand') return 'Brand';
+      if (k === 'sito.seo') return 'SEO e social preview';
+      if (k === 'sito.social') return 'Social';
+      if (k === 'sito.legal') return 'Dati aziendali';
       if (k === 'regole_tecniche.upload') return 'Foto e caricamenti';
       if (k === 'regole_tecniche.cache') return 'Cache';
       if (k === 'regole_tecniche.public') return 'Dati pubblici e tracking';
@@ -3770,7 +4523,7 @@
       const meta = csGetKeyMeta(key);
       const bits = [];
       if (meta && meta.help) bits.push(String(meta.help));
-      const suffix = (isSecret ? 'Segreto' : 'Pubblico') + ' Â· ' + String(type || 'string');
+      const suffix = (isSecret ? 'Segreto' : 'Pubblico') + ' · ' + String(type || 'string');
       bits.push(suffix);
       return bits.join(' ');
     }
@@ -3841,8 +4594,10 @@
 
       const card = document.createElement('div');
       card.className = 'card span-12';
+      card.classList.add('cs-panel');
 
       const header = document.createElement('div');
+      header.classList.add('cs-panel-head');
       header.style.display = 'flex';
       header.style.justifyContent = 'space-between';
       header.style.alignItems = 'flex-start';
@@ -3851,6 +4606,7 @@
 
       const left = document.createElement('div');
       const title = document.createElement('div');
+      title.classList.add('cs-title');
       title.style.fontWeight = '900';
       title.style.fontSize = '1.05rem';
       title.textContent = 'Configurazione centrale';
@@ -3858,8 +4614,12 @@
       hint.className = 'hint';
       hint.style.marginTop = '6px';
       hint.textContent = 'Gestisci i parametri del sito (trasporto, annunci, regole tecniche).';
+      const modeBadge = document.createElement('span');
+      modeBadge.className = 'cs-mode-badge';
+      modeBadge.style.marginTop = '6px';
       left.appendChild(title);
       left.appendChild(hint);
+      left.appendChild(modeBadge);
 
       const actions = document.createElement('div');
       actions.className = 'row-actions';
@@ -3895,9 +4655,20 @@
       saveBtn.className = 'btn btn-primary';
       saveBtn.type = 'button';
       saveBtn.textContent = 'Salva';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'btn';
+      cancelBtn.type = 'button';
+      cancelBtn.textContent = 'Annulla modifiche';
+      
+      const changesEl = document.createElement('div');
+      changesEl.className = 'hint cs-changes';
+      changesEl.style.marginTop = '6px';
+      changesEl.textContent = 'Nessuna modifica';
 
       actions.appendChild(modeWrap);
+      actions.appendChild(changesEl);
       actions.appendChild(reloadBtn);
+      actions.appendChild(cancelBtn);
       actions.appendChild(saveBtn);
 
       header.appendChild(left);
@@ -3913,6 +4684,7 @@
       msg.style.marginTop = '10px';
 
       const groups = document.createElement('div');
+      groups.classList.add('cs-groups');
       groups.style.marginTop = '12px';
       groups.style.display = 'grid';
       groups.style.gap = '10px';
@@ -3922,7 +4694,7 @@
       card.appendChild(msg);
       card.appendChild(groups);
 
-      grid.appendChild(card);
+      grid.insertBefore(card, grid.firstChild);
 
       centralSettingsPanel = {
         card,
@@ -3933,6 +4705,10 @@
         mode: modeSel.value === CS_MODE_ADVANCED ? CS_MODE_ADVANCED : CS_MODE_BASIC,
         reloadBtn,
         saveBtn,
+        changesEl,
+        modeBadgeEl: modeBadge,
+        titleEl: title,
+        cancelBtn,
         loaded: false,
         role: '',
         defs: [],
@@ -3948,10 +4724,85 @@
         p.mode = v;
         try { localStorage.setItem(CS_MODE_STORAGE_KEY, v); } catch {}
         try { csRenderPanel(); } catch {}
+        try { csSetModeBadge(); } catch {}
       });
       return centralSettingsPanel;
     }
 
+    function csSetModeBadge() {
+      const p = centralSettingsPanel;
+      if (!p || !p.modeBadgeEl) return;
+      const adv = String(p.mode || CS_MODE_BASIC) === CS_MODE_ADVANCED;
+      p.modeBadgeEl.textContent = adv ? 'Modalità: Avanzata' : 'Modalità: Base';
+      p.modeBadgeEl.classList.toggle('is-adv', adv);
+      if (p.card) p.card.classList.toggle('is-adv', adv);
+      if (p.titleEl) p.titleEl.classList.toggle('is-adv', adv);
+    }
+
+    function csUpdateChangesCount() {
+      const p = centralSettingsPanel;
+      if (!p || !p.changesEl || !p.card) return;
+      const inputs = Array.from(p.card.querySelectorAll('[data-cs-key]'));
+      let changed = 0;
+      for (const el of inputs) {
+        if (!el || el.disabled) continue;
+        const key = String(el.getAttribute('data-cs-key') || '').trim();
+        const type = String(el.getAttribute('data-cs-type') || 'string').trim();
+        const isSecret = String(el.getAttribute('data-cs-secret') || '') === '1';
+        if (!key) continue;
+        if (isSecret) {
+          const raw = String(el.value || '').trim();
+          const isDirty = !!raw;
+          if (isDirty) changed++;
+          el.classList.toggle('is-dirty', isDirty);
+          continue;
+        }
+        const val = csParseInputValue(type, el);
+        if (val === undefined) continue;
+        const snap = p.snapshot.get(key) || '__undefined__';
+        const can = csCanonical(type, val);
+        const isDirty = can !== snap;
+        if (isDirty) changed++;
+        el.classList.toggle('is-dirty', isDirty);
+      }
+      p.changesEl.textContent = changed ? ('Modifiche: ' + changed) : 'Nessuna modifica';
+      p.changesEl.classList.toggle('is-dirty', changed > 0);
+      if (p.saveBtn) p.saveBtn.disabled = changed === 0;
+      if (p.saveBtn) p.saveBtn.classList.toggle('pulse', changed > 0);
+      const groups = Array.from(p.card.querySelectorAll('.cs-group'));
+      groups.forEach(g => {
+        const has = !!g.querySelector('[data-cs-key].is-dirty');
+        g.classList.toggle('has-dirty', has);
+      });
+      const subs = Array.from(p.card.querySelectorAll('.cs-subgroup'));
+      subs.forEach(g => {
+        const has = !!g.querySelector('[data-cs-key].is-dirty');
+        g.classList.toggle('has-dirty', has);
+      });
+    }
+
+    function csCancelChanges() {
+      const p = centralSettingsPanel;
+      if (!p || !p.card) return;
+      const inputs = Array.from(p.card.querySelectorAll('[data-cs-key]'));
+      for (const el of inputs) {
+        const key = String(el.getAttribute('data-cs-key') || '').trim();
+        const type = String(el.getAttribute('data-cs-type') || 'string').trim();
+        const isSecret = String(el.getAttribute('data-cs-secret') || '') === '1';
+        if (!key) continue;
+        if (isSecret) {
+          el.value = '';
+          el.classList.remove('is-dirty');
+          continue;
+        }
+        const v = csGetDeep(p.settings, key);
+        el.value = csValueToInputString(type, v);
+        el.classList.remove('is-dirty');
+      }
+      csUpdateChangesCount();
+      csSetMsg('Modifiche annullate.', true);
+      try { showToast('info', 'Impostazioni', 'Modifiche annullate.', { timeoutMs: 1600 }); } catch {}
+    }
     function csBuildInput(def, p, isSuperuser) {
       const key = String(def && def.key || '').trim();
       const type = String(def && def.type || 'string').trim();
@@ -3995,12 +4846,14 @@
         input = inp;
       }
 
+      input.classList.add('cs-input');
       input.setAttribute('data-cs-key', key);
       input.setAttribute('data-cs-type', type);
       input.setAttribute('data-cs-secret', isSecret ? '1' : '0');
 
       const right = document.createElement('div');
       right.className = 'field';
+      right.classList.add('cs-input-wrap');
       right.style.display = 'grid';
       right.style.gap = '4px';
       right.appendChild(input);
@@ -4028,6 +4881,8 @@
 
       input.addEventListener('input', setExtra);
       input.addEventListener('change', setExtra);
+      input.addEventListener('input', () => { try { csUpdateChangesCount(); } catch {} });
+      input.addEventListener('change', () => { try { csUpdateChangesCount(); } catch {} });
 
       if (isSecret && !isSuperuser) {
         input.disabled = true;
@@ -4050,7 +4905,7 @@
       if (!p) return;
 
       const defs = Array.isArray(p.defs) ? p.defs : [];
-      const allowedPrefixes = ['trasporto.', 'annunci.', 'regole_tecniche.'];
+      const allowedPrefixes = ['sito.', 'trasporto.', 'annunci.', 'regole_tecniche.'];
       const allVisible = defs
         .filter(d => d && typeof d === 'object' && allowedPrefixes.some(pref => String(d.key || '').startsWith(pref)))
         .sort((a, b) => String(a.key || '').localeCompare(String(b.key || '')));
@@ -4078,6 +4933,7 @@
 
         for (const [g, defsInGroup] of Array.from(byBasicGroup.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0])))) {
           const details = document.createElement('details');
+          details.classList.add('cs-group');
           details.open = true;
           details.style.border = '1px solid var(--border)';
           details.style.borderRadius = '14px';
@@ -4085,12 +4941,14 @@
           details.style.background = 'rgba(255,255,255,.35)';
 
           const summary = document.createElement('summary');
+          summary.classList.add('cs-group-summary');
           summary.style.cursor = 'pointer';
           summary.style.fontWeight = '900';
           summary.textContent = g;
           details.appendChild(summary);
 
           const body = document.createElement('div');
+          body.classList.add('cs-group-body');
           body.style.marginTop = '10px';
           body.style.display = 'grid';
           body.style.gap = '10px';
@@ -4101,6 +4959,7 @@
             const isSecret = def.is_secret === true;
 
             const row = document.createElement('div');
+            row.classList.add('cs-row');
             row.style.display = 'grid';
             row.style.gridTemplateColumns = 'minmax(260px, 2fr) minmax(240px, 1fr)';
             row.style.gap = '10px';
@@ -4108,6 +4967,7 @@
 
             const left = document.createElement('div');
             left.className = 'field';
+            left.classList.add('cs-row-left');
 
             const label = document.createElement('label');
             label.textContent = csKeyLabel(key);
@@ -4115,17 +4975,20 @@
 
             const help = document.createElement('div');
             help.className = 'hint';
+            help.classList.add('cs-help');
             help.style.marginTop = '4px';
             help.textContent = csKeyHelp(key, type, isSecret);
             left.appendChild(help);
 
             const keyHint = document.createElement('div');
             keyHint.className = 'hint';
+            keyHint.classList.add('cs-key');
             keyHint.style.marginTop = '2px';
             keyHint.textContent = `Chiave: ${key}`;
             left.appendChild(keyHint);
 
             const built = csBuildInput(def, p, isSuperuser);
+            built.right.classList.add('cs-row-right');
 
             const currentValueForSnap = built.isSecret ? '' : csGetDeep(p.settings, key);
             p.snapshot.set(key, csCanonical(type, currentValueForSnap));
@@ -4151,6 +5014,7 @@
 
       for (const [groupKey, defsInGroup] of Array.from(byGroup.entries()).sort((a, b) => String(a[0] || '').localeCompare(String(b[0] || '')))) {
         const details = document.createElement('details');
+        details.classList.add('cs-group');
         details.open = true;
         details.style.border = '1px solid var(--border)';
         details.style.borderRadius = '14px';
@@ -4158,6 +5022,7 @@
         details.style.background = 'rgba(255,255,255,.35)';
 
         const summary = document.createElement('summary');
+        summary.classList.add('cs-group-summary');
         summary.style.cursor = 'pointer';
         summary.style.fontWeight = '900';
         summary.textContent = csGroupLabel(groupKey);
@@ -4172,12 +5037,14 @@
         }
 
         const body = document.createElement('div');
+        body.classList.add('cs-group-body');
         body.style.marginTop = '10px';
         body.style.display = 'grid';
         body.style.gap = '10px';
 
         for (const [secKey, defsInSection] of Array.from(sections.entries()).sort((a, b) => String(a[0] || '').localeCompare(String(b[0] || '')))) {
           const secDetails = document.createElement('details');
+          secDetails.classList.add('cs-subgroup');
           secDetails.open = !csIsHiddenSection(secKey);
           secDetails.style.border = '1px solid var(--border)';
           secDetails.style.borderRadius = '12px';
@@ -4185,12 +5052,14 @@
           secDetails.style.background = 'rgba(255,255,255,.25)';
 
           const secSummary = document.createElement('summary');
+          secSummary.classList.add('cs-subgroup-summary');
           secSummary.style.cursor = 'pointer';
           secSummary.style.fontWeight = '900';
           secSummary.textContent = csSectionLabel(secKey);
           secDetails.appendChild(secSummary);
 
           const secBody = document.createElement('div');
+          secBody.classList.add('cs-subgroup-body');
           secBody.style.marginTop = '10px';
           secBody.style.display = 'grid';
           secBody.style.gap = '10px';
@@ -4201,6 +5070,7 @@
             const isSecret = def.is_secret === true;
 
             const row = document.createElement('div');
+            row.classList.add('cs-row');
             row.style.display = 'grid';
             row.style.gridTemplateColumns = 'minmax(260px, 2fr) minmax(240px, 1fr)';
             row.style.gap = '10px';
@@ -4208,6 +5078,7 @@
 
             const left = document.createElement('div');
             left.className = 'field';
+            left.classList.add('cs-row-left');
 
             const label = document.createElement('label');
             label.textContent = csKeyLabel(key);
@@ -4215,17 +5086,20 @@
 
             const help = document.createElement('div');
             help.className = 'hint';
+            help.classList.add('cs-help');
             help.style.marginTop = '4px';
             help.textContent = csKeyHelp(key, type, isSecret);
             left.appendChild(help);
 
             const keyHint = document.createElement('div');
             keyHint.className = 'hint';
+            keyHint.classList.add('cs-key');
             keyHint.style.marginTop = '2px';
             keyHint.textContent = `Chiave: ${key}`;
             left.appendChild(keyHint);
 
             const built = csBuildInput(def, p, isSuperuser);
+            built.right.classList.add('cs-row-right');
 
             const currentValueForSnap = built.isSecret ? '' : csGetDeep(p.settings, key);
             p.snapshot.set(key, csCanonical(type, currentValueForSnap));
@@ -4242,6 +5116,8 @@
         details.appendChild(body);
         p.groupsEl.appendChild(details);
       }
+      try { csUpdateChangesCount(); } catch {}
+      try { csSetModeBadge(); } catch {}
     }
 
     async function csLoadSettings() {
@@ -4275,6 +5151,8 @@
         p.metaEl.textContent = `${roleLabel} · ${updatedLabel}`;
         csRenderPanel();
         p.loaded = true;
+        try { csSetModeBadge(); } catch {}
+        try { csUpdateChangesCount(); } catch {}
       } catch {
         csSetMsg('Errore di rete durante il caricamento delle impostazioni.', false);
         if (p.metaEl) p.metaEl.textContent = '';
@@ -4346,9 +5224,11 @@
           return;
         }
         csSetMsg('Impostazioni salvate.', true);
+        try { showToast('success', 'Impostazioni', 'Impostazioni salvate.', { timeoutMs: 1800 }); } catch {}
         await csLoadSettings();
       } catch {
         csSetMsg('Errore di rete durante il salvataggio.', false);
+        try { showToast('error', 'Impostazioni', 'Errore di rete durante il salvataggio.', { timeoutMs: 2600 }); } catch {}
       } finally {
         p.saveBtn.disabled = false;
       }
@@ -4364,6 +5244,10 @@
       if (!p.saveBtn._csBound) {
         p.saveBtn._csBound = true;
         p.saveBtn.addEventListener('click', () => { csSaveSettings(); });
+      }
+      if (p.cancelBtn && !p.cancelBtn._csBound) {
+        p.cancelBtn._csBound = true;
+        p.cancelBtn.addEventListener('click', () => { csCancelChanges(); });
       }
       if (!p.loaded) await csLoadSettings();
     }
@@ -4502,12 +5386,12 @@
             <input class="share-select" type="checkbox" data-id="${r.id}" ${isChecked ? 'checked' : ''} aria-label="Seleziona ${r.id}" />
           </td>
           <td>
-            <div style="display:grid;gap:2px;cursor:pointer" class="action-btn" data-action="view" data-id="${r.id}" title="Apri scheda">
-              <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
-                <div style="font-weight:900">${r.marca} ${r.modello}</div>
-                <div style="font-size:0.85rem;color:var(--muted)">${r.id}</div>
+            <div class="action-btn list-cell" data-action="view" data-id="${r.id}" title="Apri scheda" style="cursor:pointer;display:grid;gap:2px">
+              <div class="list-row">
+                <div class="list-title">${r.marca} ${r.modello}</div>
+                <div class="list-id">${r.id}</div>
               </div>
-              <div class="sub-value">${categoryLabel}</div>
+              <div class="list-meta">${categoryLabel}</div>
             </div>
           </td>
           <td>${r.anno}</td>
@@ -4737,6 +5621,167 @@
         if (currentDetailId) openPublic(currentDetailId);
       });
     }
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); try{a.remove();}catch{} }, 100);
+    }
+    if (detailExportSubitoBtn) {
+      detailExportSubitoBtn.addEventListener('click', async () => {
+        try {
+          const token = window.RoulotteStore.getAuthToken();
+          if (!token || !currentDetailId) return;
+          const r = await fetch(apiUrl('/api/export/subito/' + encodeURIComponent(currentDetailId)), {
+            headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'text/csv' }
+          });
+          const t = await r.text();
+          const blob = new Blob([t], { type: 'text/csv;charset=utf-8' });
+          downloadBlob(blob, 'subito_' + currentDetailId + '.csv');
+          showToast('success', 'Esporta', 'Pacchetto Subito.csv scaricato.');
+        } catch (e) {
+          showToast('error', 'Esporta', String(e && e.message ? e.message : e));
+        }
+      });
+    }
+    if (detailExportFbBtn) {
+      detailExportFbBtn.addEventListener('click', async () => {
+        try {
+          const token = window.RoulotteStore.getAuthToken();
+          if (!token || !currentDetailId) return;
+          const r = await fetch(apiUrl('/api/export/marketplace/' + encodeURIComponent(currentDetailId)), {
+            headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }
+          });
+          const j = await r.json();
+          const blob = new Blob([JSON.stringify(j, null, 2)], { type: 'application/json' });
+          downloadBlob(blob, 'marketplace_' + currentDetailId + '.json');
+          showToast('success', 'Esporta', 'Pacchetto Marketplace.json scaricato.');
+        } catch (e) {
+          showToast('error', 'Esporta', String(e && e.message ? e.message : e));
+        }
+      });
+    }
+    function buildBookmarkletPayload(r) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = String(r.note || r.descrizione || '');
+      const plain = tmp.textContent || tmp.innerText || '';
+      const cats = window.RoulotteStore.getDB().categories || [];
+      const categoryName = (cats.find(c => c.id === r.categoryId)?.name) || (r.tipologiaMezzo || r.tipologia || '');
+      return {
+        title: String((r.marca || '') + ' ' + (r.modello || '')).trim(),
+        description: String(plain || '').trim(),
+        price: Number.isFinite(Number(r.prezzo)) ? Number(r.prezzo) : '',
+        condition: String(r.stato || '').trim(),
+        category: String(categoryName || '').trim(),
+        location: String(r.localita || '').trim(),
+        email: String(r.contattoEmail || '').trim(),
+        phone: String(r.contattoTelefono || r.contattoWhatsapp || '').trim()
+      };
+    }
+    function makeBookmarkletScript(payload) {
+      const dataStr = JSON.stringify(payload);
+      const src =
+`(function(){
+  try{
+    var data=${dataStr};
+    function txt(s){return String(s||'').trim();}
+    function inputs(){return Array.from(document.querySelectorAll('input,textarea,select')); }
+    function match(el, keys){
+      var t=(el.placeholder||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.name||'')+' '+(el.id||'');
+      var label=''; if(el.id){ var lab=document.querySelector('label[for=\"'+el.id+'\"]'); if(lab) label=lab.textContent||''; }
+      t=(t+' '+label).toLowerCase();
+      return keys.some(function(k){ return t.includes(k); });
+    }
+    function setVal(el,v){
+      if(!el) return;
+      if(el.tagName==='SELECT'){
+        var opt=Array.from(el.options).find(function(o){ return (o.textContent||'').toLowerCase().includes(String(v).toLowerCase()); });
+        if(opt){ el.value=opt.value; el.dispatchEvent(new Event('change',{bubbles:true})); }
+      } else {
+        el.value=String(v==null?'':v);
+        el.dispatchEvent(new Event('input',{bubbles:true}));
+        el.dispatchEvent(new Event('change',{bubbles:true}));
+      }
+    }
+    var all=inputs();
+    setVal(all.find(function(e){return match(e,['titolo','title','annuncio']);}), txt(data.title));
+    setVal(all.find(function(e){return match(e,['descrizione','description','testo']);}), txt(data.description));
+    setVal(all.find(function(e){return match(e,['prezzo','price','€']);}), String(data.price||''));
+    setVal(all.find(function(e){return match(e,['categoria','category']);}), txt(data.category||'')); 
+    setVal(all.find(function(e){return match(e,['condizione','stato','condition']);}), txt(data.condition||'')); 
+    setVal(all.find(function(e){return match(e,['comune','città','località','city']);}), txt(data.location||'')); 
+    setVal(all.find(function(e){return match(e,['email']);}), txt(data.email||'')); 
+    setVal(all.find(function(e){return match(e,['telefono','phone','whatsapp']);}), txt(data.phone||'')); 
+    alert('Precompilazione completata. Controlla i campi e carica le immagini.');
+  }catch(e){ alert('Errore bookmarklet: '+(e&&e.message?e.message:e)); }
+})();`;
+      const href = 'javascript:' + encodeURIComponent(src);
+      return href;
+    }
+    function presentBookmarklet(href, label) {
+      const link = document.createElement('a');
+      link.href = href;
+      link.textContent = label;
+      link.className = 'btn';
+      link.style.marginLeft = '6px';
+      link.title = 'Trascina nei Preferiti oppure clicca qui su Subito/Marketplace';
+      document.querySelector('.top-actions')?.appendChild(link);
+      try {
+        navigator.clipboard.writeText(href).then(()=> {
+          showToast('success','Bookmarklet','Copiato negli appunti. Trascina nei Preferiti.');
+        }).catch(()=> {
+          showToast('info','Bookmarklet','Aggiunto un link nella barra in alto. Trascinalo nei Preferiti.');
+        });
+      } catch {
+        showToast('info','Bookmarklet','Aggiunto un link nella barra in alto. Trascinalo nei Preferiti.');
+      }
+    }
+    if (detailBmSubitoBtn) {
+      detailBmSubitoBtn.addEventListener('click', () => {
+        const db = window.RoulotteStore.getDB();
+        const r = (db.roulottes || []).find(x => String(x.id||'') === String(currentDetailId||''));
+        if (!r) { showToast('error','Bookmarklet','Nessuna scheda trovata.'); return; }
+        const payload = buildBookmarkletPayload(r);
+        const href = makeBookmarkletScript(payload);
+        presentBookmarklet(href,'Bookmarklet Subito');
+      });
+    }
+    if (detailBmFbBtn) {
+      detailBmFbBtn.addEventListener('click', () => {
+        const db = window.RoulotteStore.getDB();
+        const r = (db.roulottes || []).find(x => String(x.id||'') === String(currentDetailId||''));
+        if (!r) { showToast('error','Bookmarklet','Nessuna scheda trovata.'); return; }
+        const payload = buildBookmarkletPayload(r);
+        const href = makeBookmarkletScript(payload);
+        presentBookmarklet(href,'Bookmarklet Marketplace');
+      });
+    }
+    async function refreshAutoFeedStatus() {
+      try {
+        const token = window.RoulotteStore.getAuthToken();
+        const r = await fetch(apiUrl('/api/export/status'), {
+          headers: { 'Accept': 'application/json', 'Authorization': token ? ('Bearer ' + token) : '' }
+        });
+        const j = await r.json().catch(()=>null);
+        const ok = j && j.ok;
+        const at = j && j.at ? j.at : '';
+        const files = j && j.files ? j.files : {};
+        const elStatus = document.getElementById('autoFeedStatus');
+        const elSub = document.getElementById('autoFeedSubitoUrl');
+        const elMk = document.getElementById('autoFeedMarketplaceUrl');
+        if (elStatus) elStatus.textContent = (ok ? 'OK' : 'Errore') + (at ? (' • ' + at) : '');
+        if (elSub && files && files.subito_csv_url) { elSub.href = files.subito_csv_url; elSub.textContent = files.subito_csv_url; }
+        if (elMk && files && files.marketplace_json_url) { elMk.href = files.marketplace_json_url; elMk.textContent = files.marketplace_json_url; }
+      } catch {}
+    }
+    const autoFeedStatusBtn = document.getElementById('autoFeedStatusBtn');
+    if (autoFeedStatusBtn) {
+      autoFeedStatusBtn.addEventListener('click', refreshAutoFeedStatus);
+      refreshAutoFeedStatus();
+    }
     if (detailDuplicateBtn) {
       detailDuplicateBtn.addEventListener('click', () => {
         if (currentDetailId) {
@@ -4847,6 +5892,7 @@
       a.href = url;
       a.download = `backup-${new Date().toISOString().slice(0,10)}.json`;
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      try { showToast('success', 'Export', 'Backup JSON scaricato.', { timeoutMs: 1600 }); } catch {}
     });
 
     importBtn.addEventListener('click', async () => {
@@ -4858,8 +5904,8 @@
         window.RoulotteStore.replaceAll(obj);
         importInput.value = '';
         refreshAll();
-        alert('Import completato');
-      } catch { alert('File non valido'); }
+        try { showToast('success', 'Import', 'Import completato.', { timeoutMs: 1800 }); } catch {}
+      } catch { try { showToast('error', 'Import', 'File non valido.', { timeoutMs: 2200 }); } catch {} }
     });
 
     function setSyncStatus(text, ok) {
@@ -4884,11 +5930,14 @@
         if (res && res.ok) {
           refreshAll();
           setSyncStatus(`Sync OK (${res.mode})`, true);
+          try { showToast('success', 'Sync', `Sync OK (${res.mode})`, { timeoutMs: 1600 }); } catch {}
         } else {
           setSyncStatus('Server non disponibile', false);
+          try { showToast('error', 'Sync', 'Server non disponibile.', { timeoutMs: 2200 }); } catch {}
         }
       } catch {
         setSyncStatus('Sync fallita', false);
+        try { showToast('error', 'Sync', 'Sync fallita.', { timeoutMs: 2200 }); } catch {}
       }
     });
 
@@ -4899,11 +5948,14 @@
         if (res && res.ok) {
           refreshAll();
           setSyncStatus('Scaricato dal server', true);
+          try { showToast('success', 'Sync', 'Scaricato dal server.', { timeoutMs: 1600 }); } catch {}
         } else {
           setSyncStatus('Nessun database sul server', false);
+          try { showToast('warning', 'Sync', 'Nessun database sul server.', { timeoutMs: 2200 }); } catch {}
         }
       } catch {
         setSyncStatus('Scaricamento fallito', false);
+        try { showToast('error', 'Sync', 'Scaricamento fallito.', { timeoutMs: 2200 }); } catch {}
       }
     });
 
@@ -4911,10 +5963,11 @@
       try {
         setSyncStatus('Caricamento in corso…', true);
         const res = await window.RoulotteStore.pushToServer();
-        if (res && res.ok) setSyncStatus('Caricato sul server', true);
-        else setSyncStatus('Caricamento fallito', false);
+        if (res && res.ok) { setSyncStatus('Caricato sul server', true); try { showToast('success', 'Sync', 'Caricato sul server.', { timeoutMs: 1600 }); } catch {} }
+        else { setSyncStatus('Caricamento fallito', false); try { showToast('error', 'Sync', 'Caricamento fallito.', { timeoutMs: 2200 }); } catch {} }
       } catch {
         setSyncStatus('Caricamento fallito', false);
+        try { showToast('error', 'Sync', 'Caricamento fallito.', { timeoutMs: 2200 }); } catch {}
       }
     });
 
