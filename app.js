@@ -2963,10 +2963,10 @@
           }
           const sizes = '(max-width:640px) 100vw, 33vw';
           const { picture, img } = createResponsivePicture(getPhotoUrl(item, 'thumb'), getPhotoUrl(item, 'src'), sizes, i === 0);
-          const alt = (typeof item === 'object' && item.alt)
+          const altText = (typeof item === 'object' && item.alt)
             ? item.alt
             : tr('detail.photoAlt', { defaultValue: `Foto di ${detailTitle.textContent}`, title: detailTitle.textContent });
-          img.alt = alt;
+          img.alt = altText;
           if (i === 0) img.setAttribute('fetchpriority', 'high');
           img.style.width = '100%';
           img.style.height = '100%';
@@ -3219,10 +3219,10 @@
         }
         const sizes = '(max-width:640px) 100vw, (max-width:980px) 50vw, 33vw';
         const { picture, img } = createResponsivePicture(getPhotoUrl(firstPhoto, 'thumb'), getPhotoUrl(firstPhoto, 'src'), sizes, false);
-        const alt = (typeof firstPhoto === 'object' && firstPhoto.alt)
+        const altText = (typeof firstPhoto === 'object' && firstPhoto.alt)
           ? firstPhoto.alt
           : (`${r.marca || ''} ${r.modello || ''}`.trim() || tr('common.caravan', { defaultValue: 'Roulotte' }));
-        img.alt = alt;
+        img.alt = altText;
         img.addEventListener('load', () => { media.style.filter = 'none'; img.classList.add('loaded'); });
         media.appendChild(picture);
       } else {
@@ -3326,8 +3326,8 @@
           if (photoThumb) {
             const sizes = '(max-width:640px) 100vw, (max-width:980px) 50vw, 33vw';
             const { picture, img } = createResponsivePicture(photoThumb, photoSrc, sizes, false);
-            const alt = (typeof firstPhoto === 'object' && firstPhoto.alt) ? firstPhoto.alt : title;
-            img.alt = alt;
+            const altText = (typeof firstPhoto === 'object' && firstPhoto.alt) ? firstPhoto.alt : title;
+            img.alt = altText;
             imgSlot.replaceWith(picture);
           } else {
             try { imgSlot.remove(); } catch {}
