@@ -4,6 +4,8 @@ const helmet = require('helmet');
 const compression = require('compression');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
+const pinoHttp = require('pino-http');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -24,6 +26,21 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use(express.json({ limit: '50mb' })); // Permette al server di ricevere dati JSON (es. info roulotte)
 app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Permette di ricevere dati da form HTML
+app.use(pinoHttp({ genReqId: () => require('crypto').randomBytes(8).toString('hex') }));
+app.use((req, res, next) => { try { if (req.id) res.setHeader('x-request-id', String(req.id)); } catch {} next(); });
+const apiLimiter = rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
+app.use('/api/', apiLimiter);
+const photoLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
+const loginLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
+global.__metrics = global.__metrics || new Map();
+app.use((req, res, next) => {
+  if (req.path && req.path.startsWith('/api/')) {
+    const key = `${req.method}|${req.path}`;
+    const v = global.__metrics.get(key) || 0;
+    global.__metrics.set(key, v + 1);
+  }
+  next();
+});
 app.use((req, res, next) => {
   if (String(process.env.FORCE_HTTPS || '') === '1') {
     const proto = String(req.headers['x-forwarded-proto'] || '').toLowerCase();
@@ -115,6 +132,57 @@ function resolveStaticFile(filename) {
   return path.join(repoStaticRoot, f);
 }
 
+async function generateSitemapXml() {
+  try {
+    const baseUrl = String(process.env.PUBLIC_BASE_URL || '').trim() || '';
+    const mkLoc = (p) => {
+      if (!baseUrl) return p;
+      return new URL(p.replace(/^[\\/]+/, ''), baseUrl).toString();
+    };
+    const urls = [];
+    urls.push({ loc: mkLoc('/index.html'), changefreq: 'daily', priority: 0.8 });
+    try {
+      const { rows } = await pool.query(`
+        SELECT public_id, updated_at
+        FROM roulottes
+        WHERE visibile = TRUE
+        ORDER BY updated_at DESC NULLS LAST
+        LIMIT 1000;
+      `);
+      for (const r of rows || []) {
+        const id = String(r.public_id || '').trim();
+        if (!id) continue;
+        const lastmod = r.updated_at ? new Date(r.updated_at).toISOString().slice(0, 10) : null;
+        urls.push({ loc: mkLoc('/annuncio/' + id), changefreq: 'weekly', priority: 0.6, lastmod });
+      }
+    } catch {}
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+    ];
+    for (const u of urls) {
+      xml.push('  <url>');
+      xml.push(`    <loc>${u.loc}</loc>`);
+      if (u.changefreq) xml.push(`    <changefreq>${u.changefreq}</changefreq>`);
+      if (u.priority !== undefined) xml.push(`    <priority>${u.priority}</priority>`);
+      if (u.lastmod) xml.push(`    <lastmod>${u.lastmod}</lastmod>`);
+      xml.push('  </url>');
+    }
+    xml.push('</urlset>');
+    try {
+      fs.writeFileSync(path.join(publicStaticRoot, 'sitemap.xml'), xml.join('\n'));
+    } catch {}
+  } catch {}
+}
+
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    await generateSitemapXml();
+  } catch {}
+  res.setHeader('Content-Type', 'application/xml');
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(resolveStaticFile('sitemap.xml'));
+});
 app.get('/admin.html', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
@@ -155,8 +223,9 @@ app.get('/p/:id', async (req, res) => {
   const canonicalUrl = (origin || '') + '/index.html?id=' + encodeURIComponent(publicId);
   const shareUrl = (origin || '') + '/p/' + encodeURIComponent(publicId);
 
-  const fallbackTitle = 'Roulotte online';
-  const fallbackDescription = 'Cerca e filtra roulotte per marca, modello, anno e stato. Schede con foto e dettagli, con tema chiaro/scuro e accessibilitÃ  curata.';
+  const fallbackTitle = String(getSettingStringFirst(['sito.brand.name'], 'Roulotte online') || '').trim() || 'Roulotte online';
+  const fallbackDescription = String(getSettingStringFirst(['sito.seo.default_description'], 'Cerca e filtra roulotte per marca, modello, anno e stato. Schede con foto e dettagli, con tema chiaro/scuro e accessibilità curata.') || '').trim()
+    || 'Cerca e filtra roulotte per marca, modello, anno e stato. Schede con foto e dettagli, con tema chiaro/scuro e accessibilità curata.';
 
   let title = fallbackTitle;
   let description = fallbackDescription;
@@ -274,8 +343,9 @@ app.get('/s/:token', async (req, res) => {
   const canonicalUrl = (origin || '') + '/index.html?share=' + encodeURIComponent(token);
   const shareUrl = (origin || '') + '/s/' + encodeURIComponent(token);
 
-  const fallbackTitle = 'Roulotte online';
-  const fallbackDescription = 'Selezione di annunci condivisi.';
+  const fallbackTitle = String(getSettingStringFirst(['sito.brand.name'], 'Roulotte online') || '').trim() || 'Roulotte online';
+  const fallbackDescription = String(getSettingStringFirst(['sito.seo.share_selection_description'], 'Selezione di annunci condivisi.') || '').trim()
+    || 'Selezione di annunci condivisi.';
 
   let title = 'Selezione roulotte';
   let description = fallbackDescription;
@@ -363,9 +433,19 @@ app.get('/api/config', (req, res) => {
     ors_enabled: orsEnabled(),
     posthog_host: getPosthogHost(),
     posthog_key: getPosthogKey(),
+    site_name: String(getSettingStringFirst(['sito.brand.name'], 'Roulotte online') || '').trim(),
+    site_tagline: String(getSettingStringFirst(['sito.brand.tagline'], '') || '').trim(),
+    seo_default_title: String(getSettingStringFirst(['sito.seo.default_title'], '') || '').trim(),
+    seo_default_description: String(getSettingStringFirst(['sito.seo.default_description'], '') || '').trim(),
+    seo_og_image_url: String(getSettingStringFirst(['sito.seo.og_image_url'], '') || '').trim(),
+    seo_twitter_card: String(getSettingStringFirst(['sito.seo.twitter_card'], '') || '').trim(),
     contact_phone: String(getSettingStringFirst(['annunci.labels.contact_phone'], '') || '').trim(),
     contact_whatsapp: String(getSettingStringFirst(['annunci.labels.contact_whatsapp'], '') || '').trim(),
     contact_email: String(getSettingStringFirst(['annunci.labels.contact_email'], '') || '').trim(),
+    social_instagram_url: String(getSettingStringFirst(['sito.social.instagram_url'], '') || '').trim(),
+    social_facebook_url: String(getSettingStringFirst(['sito.social.facebook_url'], '') || '').trim(),
+    social_youtube_url: String(getSettingStringFirst(['sito.social.youtube_url'], '') || '').trim(),
+    social_tiktok_url: String(getSettingStringFirst(['sito.social.tiktok_url'], '') || '').trim(),
   });
 });
 
@@ -428,6 +508,7 @@ const s3Client = require('./s3-client'); // Importiamo il client S3 per R2
 const { PutObjectCommand } = require('@aws-sdk/client-s3');
 const multer = require('multer');
 const crypto = require('crypto');
+const sharp = require('sharp');
 const { createTables } = require('./init-db');
 
 const ENV_ADMIN_USER = String(process.env.ADMIN_USER || '').trim();
@@ -720,6 +801,26 @@ const SETTINGS_DEFS = [
   { key: 'regole_tecniche.public.google_client_id', type: 'string', is_secret: false, aliases: ['public.google_client_id'] },
   { key: 'regole_tecniche.public.posthog_host', type: 'string', is_secret: false, aliases: ['public.posthog_host'] },
   { key: 'regole_tecniche.public.posthog_key', type: 'string', is_secret: false, aliases: ['public.posthog_key'] },
+
+  { key: 'sito.brand.name', type: 'string', is_secret: false, aliases: [] },
+  { key: 'sito.brand.tagline', type: 'string', is_secret: false, aliases: [] },
+  { key: 'sito.brand.logo_url', type: 'string', is_secret: false, aliases: [] },
+  { key: 'sito.brand.favicon_url', type: 'string', is_secret: false, aliases: [] },
+
+  { key: 'sito.seo.default_title', type: 'string', is_secret: false, aliases: [] },
+  { key: 'sito.seo.default_description', type: 'string', is_secret: false, aliases: [] },
+  { key: 'sito.seo.og_image_url', type: 'string', is_secret: false, aliases: [] },
+  { key: 'sito.seo.twitter_card', type: 'string', is_secret: false, aliases: [] },
+  { key: 'sito.seo.share_selection_description', type: 'string', is_secret: false, aliases: [] },
+
+  { key: 'sito.social.instagram_url', type: 'string', is_secret: false, aliases: [] },
+  { key: 'sito.social.facebook_url', type: 'string', is_secret: false, aliases: [] },
+  { key: 'sito.social.youtube_url', type: 'string', is_secret: false, aliases: [] },
+  { key: 'sito.social.tiktok_url', type: 'string', is_secret: false, aliases: [] },
+
+  { key: 'sito.legal.company_name', type: 'string', is_secret: false, aliases: [] },
+  { key: 'sito.legal.vat_number', type: 'string', is_secret: false, aliases: [] },
+  { key: 'sito.legal.address', type: 'string', is_secret: false, aliases: [] },
 ];
 
 const SETTINGS_DEF_BY_KEY = new Map(SETTINGS_DEFS.map(d => [d.key, d]));
@@ -854,6 +955,35 @@ async function bootstrapCentralSettings() {
   }
 }
 
+async function ensureContentKeyExists(key, contentType = 'html') {
+  const k = String(key || '').trim();
+  const t = String(contentType || 'html').trim() || 'html';
+  if (!k) return false;
+  try {
+    await pool.query(
+      `
+        INSERT INTO contents (content_key, content_type, published_data, updated_at)
+        VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+        ON CONFLICT (content_key) DO NOTHING;
+      `,
+      [k, t, '']
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function bootstrapDefaultContents() {
+  const keys = [
+    { key: 'page_footer_fragment', type: 'html' },
+    { key: 'page_footer_styles', type: 'html' },
+  ];
+  for (const k of keys) {
+    await ensureContentKeyExists(k.key, k.type);
+  }
+}
+
 function getJwtSecret() {
   return getSettingString('security.jwt_secret', String(process.env.JWT_SECRET || ''));
 }
@@ -928,6 +1058,40 @@ function getRenderDeployHookUrl() {
     ['regole_tecniche.integrazioni.render.deploy_hook_url', 'deploy.render_deploy_hook_url'],
     String(process.env.RENDER_DEPLOY_HOOK_URL || process.env.RENDER_DEPLOY_HOOK || '')
   ).trim();
+}
+function getPhotoAiBaseUrl() {
+  return String(process.env.PHOTO_AI_URL || 'http://127.0.0.1:7861').trim();
+}
+
+function getAiEnabled() {
+  const raw = String(getSettingStringFirst(['regole_tecniche.integrazioni.ai.enabled'], String(process.env.AI_ENABLED || '')) || '').trim().toLowerCase();
+  if (raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on') return true;
+  if (raw === '0' || raw === 'false' || raw === 'no' || raw === 'off') return false;
+  return !!process.env.AI_API_KEY;
+}
+function getAiProvider() {
+  return String(getSettingStringFirst(['regole_tecniche.integrazioni.ai.provider'], String(process.env.AI_PROVIDER || '')) || '').trim().toLowerCase();
+}
+function getAiBaseUrl() {
+  const p = getAiProvider();
+  const fromSettings = String(getSettingStringFirst(['regole_tecniche.integrazioni.ai.base_url'], String(process.env.AI_BASE_URL || '')) || '').trim();
+  if (fromSettings) return fromSettings;
+  if (p === 'openrouter') return 'https://openrouter.ai/api/v1';
+  return 'https://api.openai.com/v1';
+}
+function getAiApiKey() {
+  return String(getSettingStringFirst(['regole_tecniche.integrazioni.ai.api_key'], String(process.env.AI_API_KEY || '')) || '').trim();
+}
+function getAiModel() {
+  const m = String(getSettingStringFirst(['regole_tecniche.integrazioni.ai.model'], String(process.env.AI_MODEL || '')) || '').trim();
+  if (m) return m;
+  const p = getAiProvider();
+  if (p === 'openrouter') return 'openrouter/auto';
+  return 'gpt-3.5-turbo';
+}
+function getAiTemperature() {
+  const n = Number(getSettingNumberFirst(['regole_tecniche.integrazioni.ai.temperature'], Number(process.env.AI_TEMPERATURE || 0.2)));
+  return Math.max(0, Math.min(2, isNaN(n) ? 0.2 : n));
 }
 
 const ANNUNCIO_STATUS_ALLOWED = new Set(['bozza', 'verifica', 'pubblicato', 'venduto']);
@@ -1097,7 +1261,7 @@ serverWss.on('connection', (ws, req) => {
     } else {
     try {
       const payload = jwt.verify(token, jwtSecret);
-      role = 'admin';
+      role = normalizeAdminRole(payload && payload.role ? String(payload.role) : 'admin');
       user = payload && payload.user ? String(payload.user) : 'admin';
     } catch {}
     }
@@ -1106,12 +1270,12 @@ serverWss.on('connection', (ws, req) => {
   ws._meta = { role, user };
 
   try { ws.send(JSON.stringify({ type: 'hello', role, user, ts: Date.now() })); } catch {}
-  if (role === 'admin') {
+  if (role !== 'public' && isRoleAtLeast(role, 'editor')) {
     try { ws.send(JSON.stringify({ type: 'locks', locks: wsNormalizeLocks(), ts: Date.now() })); } catch {}
   }
 
   ws.on('message', (data) => {
-    if (!ws || !ws._meta || ws._meta.role !== 'admin') return;
+    if (!ws || !ws._meta || !isRoleAtLeast(ws._meta.role, 'editor')) return;
     const msg = safeJsonParse(data);
     if (!msg || typeof msg !== 'object') return;
 
@@ -1122,15 +1286,15 @@ serverWss.on('connection', (ws, req) => {
     if (t === 'lock_acquire') {
       const r = wsTrySetLock(publicId, username);
       try { ws.send(JSON.stringify({ type: 'lock_result', request: 'acquire', ...r, ts: Date.now() })); } catch {}
-      if (r.ok) wsBroadcast({ type: 'locks', locks: wsNormalizeLocks(), ts: Date.now() }, (c) => c && c._meta && c._meta.role === 'admin');
+      if (r.ok) wsBroadcast({ type: 'locks', locks: wsNormalizeLocks(), ts: Date.now() }, (c) => c && c._meta && isRoleAtLeast(c._meta.role, 'editor'));
     } else if (t === 'lock_heartbeat') {
       const r = wsRefreshLock(publicId, username);
       try { ws.send(JSON.stringify({ type: 'lock_result', request: 'heartbeat', ...r, ts: Date.now() })); } catch {}
-      if (r.ok) wsBroadcast({ type: 'locks', locks: wsNormalizeLocks(), ts: Date.now() }, (c) => c && c._meta && c._meta.role === 'admin');
+      if (r.ok) wsBroadcast({ type: 'locks', locks: wsNormalizeLocks(), ts: Date.now() }, (c) => c && c._meta && isRoleAtLeast(c._meta.role, 'editor'));
     } else if (t === 'lock_release') {
       const r = wsReleaseLock(publicId, username);
       try { ws.send(JSON.stringify({ type: 'lock_result', request: 'release', ...r, ts: Date.now() })); } catch {}
-      wsBroadcast({ type: 'locks', locks: wsNormalizeLocks(), ts: Date.now() }, (c) => c && c._meta && c._meta.role === 'admin');
+      wsBroadcast({ type: 'locks', locks: wsNormalizeLocks(), ts: Date.now() }, (c) => c && c._meta && isRoleAtLeast(c._meta.role, 'editor'));
     }
   });
 
@@ -1208,6 +1372,21 @@ function uploadArray(field, maxCount) {
   };
 }
 
+function uploadSingleMemory(field) {
+  const u = multer({ storage });
+  return (req, res, next) => {
+    return u.single(field)(req, res, (err) => {
+      if (!err) return next();
+      const msg = String(err && err.message ? err.message : err);
+      const code = String(err && err.code ? err.code : '');
+      if (msg === 'UNSUPPORTED_FORMAT') return res.status(415).json({ error: 'UNSUPPORTED_FORMAT' });
+      if (code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'FILE_TOO_LARGE' });
+      if (code === 'LIMIT_UNEXPECTED_FILE') return res.status(400).json({ error: 'UNEXPECTED_FILE' });
+      const st = Number(err && err.status !== undefined ? err.status : 400);
+      return res.status(Number.isFinite(st) ? st : 400).json({ error: 'UPLOAD_ERROR', detail: msg });
+    });
+  };
+}
 // Funzione per generare un nome file univoco
 const generateFileName = (bytes = 32) => crypto.randomBytes(bytes).toString('hex');
 
@@ -1235,15 +1414,13 @@ function normalizePhotoUrlToCurrentPublicBase(url) {
 
   try {
     const u = new URL(s);
-    const parts = (u.pathname || '').split('/').filter(Boolean);
-    const key = parts.length ? parts[parts.length - 1] : '';
-    if (!key) return url;
-    return joinUrl(publicBase, key);
+    const path = String(u.pathname || '').replace(/^\/+/, '');
+    if (!path) return url;
+    return joinUrl(publicBase, path);
   } catch {
-    const parts = s.split('/').filter(Boolean);
-    const key = parts.length ? parts[parts.length - 1] : '';
-    if (!key) return url;
-    return joinUrl(publicBase, key);
+    const path = s.replace(/^https?:\/\/[^/]+\/?/, '').replace(/^\/+/, '');
+    if (!path) return url;
+    return joinUrl(publicBase, path);
   }
 }
 
@@ -1863,11 +2040,30 @@ function requireAdmin(req, res, next) {
   try {
     const payload = jwt.verify(token, jwtSecret);
     req.adminUser = payload && payload.user ? String(payload.user) : 'admin';
-    req.adminRole = payload && payload.role ? String(payload.role) : '';
+    req.adminRole = payload && payload.role ? String(payload.role) : 'admin';
     next();
   } catch (err) {
     return res.status(401).json({ error: 'UNAUTHORIZED' });
   }
+}
+
+const ADMIN_ROLE_RANK = Object.freeze({ viewer: 1, editor: 2, admin: 3, superuser: 4 });
+function normalizeAdminRole(role) {
+  const r = String(role || '').trim().toLowerCase();
+  if (r === 'superuser' || r === 'admin' || r === 'editor' || r === 'viewer') return r;
+  return 'admin';
+}
+function isRoleAtLeast(role, needed) {
+  const r = normalizeAdminRole(role);
+  const n = normalizeAdminRole(needed);
+  return (ADMIN_ROLE_RANK[r] || 0) >= (ADMIN_ROLE_RANK[n] || 0);
+}
+function requireAtLeast(neededRole) {
+  const needed = normalizeAdminRole(neededRole);
+  return (req, res, next) => {
+    if (isRoleAtLeast(req && req.adminRole, needed)) return next();
+    return res.status(403).json({ error: 'FORBIDDEN' });
+  };
 }
 
 function tryGetAdminFromReq(req) {
@@ -1880,7 +2076,7 @@ function tryGetAdminFromReq(req) {
     const payload = jwt.verify(token, jwtSecret);
     return {
       user: payload && payload.user ? String(payload.user) : 'admin',
-      role: payload && payload.role ? String(payload.role) : '',
+      role: payload && payload.role ? String(payload.role) : 'admin',
     };
   } catch {
     return null;
@@ -1888,7 +2084,7 @@ function tryGetAdminFromReq(req) {
 }
 
 function requireSuperuser(req, res, next) {
-  if (req && req.adminRole === 'superuser') return next();
+  if (req && normalizeAdminRole(req.adminRole) === 'superuser') return next();
   return res.status(403).json({ error: 'FORBIDDEN' });
 }
 
@@ -1901,7 +2097,7 @@ app.get('/api/settings', requireAdmin, (req, res) => {
   });
 });
 
-app.put('/api/settings', requireAdmin, async (req, res) => {
+app.put('/api/settings', requireAdmin, requireAtLeast('admin'), async (req, res) => {
   const body = req && req.body && typeof req.body === 'object' ? req.body : null;
   const input = body && body.settings && typeof body.settings === 'object' ? body.settings : body;
   if (!input || typeof input !== 'object' || Array.isArray(input)) return res.status(400).json({ error: 'BAD_REQUEST' });
@@ -1967,7 +2163,7 @@ function verifyPassword(pw, stored) {
   return crypto.timingSafeEqual(expected, calc);
 }
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
   const u = String(req.body.username || '').trim();
   const p = String(req.body.password || '');
   const key = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown') + '|' + u;
@@ -1989,16 +2185,19 @@ app.post('/api/auth/login', async (req, res) => {
     return res.json({ token });
   }
 
+  if (u.length < 3 || p.length < 6) return res.status(400).json({ error: 'BAD_REQUEST' });
+
   // 2. DB Users
   try {
-    const { rows } = await pool.query('SELECT username, password_hash FROM admin_users WHERE username = $1 LIMIT 1;', [u]);
+    const { rows } = await pool.query('SELECT username, password_hash, role FROM admin_users WHERE username = $1 LIMIT 1;', [u]);
     if (rows.length) {
       const row = rows[0];
       const ok = verifyPassword(p, String(row.password_hash));
       if (!ok) { rec.count++; global.__loginAttempts.set(key, rec); return res.status(401).json({ error: 'INVALID_CREDENTIALS' }); }
       const jwtSecret = getJwtSecret();
       if (!jwtSecret) return res.status(500).json({ error: 'JWT_NOT_CONFIGURED' });
-      const token = jwt.sign({ user: u }, jwtSecret, { expiresIn: getJwtExpiresIn() });
+      const role = normalizeAdminRole(row && row.role ? String(row.role) : 'admin');
+      const token = jwt.sign({ user: u, role }, jwtSecret, { expiresIn: getJwtExpiresIn() });
       return res.json({ token });
     }
   } catch {}
@@ -2052,9 +2251,10 @@ app.get('/api/admin/whoami', requireAdmin, (req, res) => {
 
 app.get('/api/admin/users', requireAdmin, requireSuperuser, async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT username, created_at, updated_at FROM admin_users ORDER BY username ASC;');
+    const { rows } = await pool.query('SELECT username, role, created_at, updated_at FROM admin_users ORDER BY username ASC;');
     res.json((rows || []).map(r => ({
       username: String(r.username || ''),
+      role: normalizeAdminRole(r.role),
       created_at: r.created_at || null,
       updated_at: r.updated_at || null,
     })));
@@ -2067,15 +2267,34 @@ app.get('/api/admin/users', requireAdmin, requireSuperuser, async (req, res) => 
 app.post('/api/admin/users', requireAdmin, requireSuperuser, async (req, res) => {
   const username = String(req.body && req.body.username || '').trim();
   const password = String(req.body && req.body.password || '');
+  const roleIn = String(req.body && req.body.role || '').trim();
   if (!username || !password) return res.status(400).json({ error: 'BAD_REQUEST' });
   if (username.length > 120) return res.status(400).json({ error: 'BAD_REQUEST' });
 
   try {
     const h = hashPassword(password);
-    await pool.query('INSERT INTO admin_users (username, password_hash) VALUES ($1, $2);', [username, h]);
+    const role = normalizeAdminRole(roleIn || 'admin');
+    if (role === 'superuser') return res.status(400).json({ error: 'BAD_REQUEST' });
+    await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3);', [username, h, role]);
     res.status(201).json({ ok: true });
   } catch (err) {
     if (String(err && err.code || '') === '23505') return res.status(409).json({ error: 'EXISTS' });
+    if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
+    res.status(500).json({ error: 'SERVER_ERROR' });
+  }
+});
+
+app.put('/api/admin/users/:username/role', requireAdmin, requireSuperuser, async (req, res) => {
+  const username = String(req.params.username || '').trim();
+  const roleIn = String(req.body && req.body.role || '').trim();
+  if (!username) return res.status(400).json({ error: 'BAD_REQUEST' });
+  const role = normalizeAdminRole(roleIn || '');
+  if (!role || role === 'superuser') return res.status(400).json({ error: 'BAD_REQUEST' });
+  try {
+    const r = await pool.query('UPDATE admin_users SET role = $2, updated_at = CURRENT_TIMESTAMP WHERE username = $1;', [username, role]);
+    if (r.rowCount === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    res.json({ ok: true });
+  } catch (err) {
     if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
     res.status(500).json({ error: 'SERVER_ERROR' });
   }
@@ -2236,7 +2455,7 @@ app.get('/api/content/revision/:id', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/content', requireAdmin, async (req, res) => {
+app.post('/api/content', requireAdmin, requireAtLeast('editor'), async (req, res) => {
   const key = String(req.body.content_key || '').trim();
   const type = String(req.body.content_type || 'html').trim();
   const data = String(req.body.data || '');
@@ -2270,7 +2489,7 @@ app.post('/api/content', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/content/:key/publish', requireAdmin, async (req, res) => {
+app.post('/api/content/:key/publish', requireAdmin, requireAtLeast('editor'), async (req, res) => {
   const key = String(req.params.key || '').trim();
   if (!key) return res.status(400).json({ error: 'BAD_REQUEST' });
   try {
@@ -2288,7 +2507,7 @@ app.post('/api/content/:key/publish', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/content/:key/publish_revision', requireAdmin, async (req, res) => {
+app.post('/api/content/:key/publish_revision', requireAdmin, requireAtLeast('editor'), async (req, res) => {
   const key = String(req.params.key || '').trim();
   const revisionId = Number(req.body && req.body.revision_id || 0);
   if (!key || !Number.isFinite(revisionId) || revisionId <= 0) return res.status(400).json({ error: 'BAD_REQUEST' });
@@ -2312,7 +2531,7 @@ app.post('/api/content/:key/publish_revision', requireAdmin, async (req, res) =>
   }
 });
 
-app.post('/api/deploy/trigger', requireAdmin, async (req, res) => {
+app.post('/api/deploy/trigger', requireAdmin, requireAtLeast('admin'), async (req, res) => {
   try {
     const deployHookUrl = getRenderDeployHookUrl();
     const renderApiKey = getRenderApiKey();
@@ -2414,14 +2633,37 @@ app.get('/api/export', requireAdmin, async (req, res) => {
 
 app.get('/api/media', requireAdmin, async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT id, url_full, url_thumb, title, alt, created_at FROM media ORDER BY id DESC LIMIT 200;');
-    res.json(rows);
+    const mediaRes = await pool.query('SELECT id, url_full, url_thumb, title, alt, created_at FROM media ORDER BY id DESC LIMIT 400;');
+    const outMap = new Map();
+    const out = [];
+    (mediaRes.rows || []).forEach((r) => {
+      const u = normalizePhotoUrlToCurrentPublicBase(r && r.url_full ? r.url_full : null);
+      const t = normalizePhotoUrlToCurrentPublicBase(r && r.url_thumb ? r.url_thumb : null);
+      const key = String(u || t || '');
+      if (!key) return;
+      if (!outMap.has(key)) {
+        outMap.set(key, true);
+        out.push({ id: r.id, url_full: u || t, url_thumb: t || u, title: r.title || null, alt: r.alt || null, created_at: r.created_at || null });
+      }
+    });
+    const photosRes = await pool.query('SELECT url_full, url_thumb FROM photos ORDER BY id DESC LIMIT 800;');
+    (photosRes.rows || []).forEach((p) => {
+      const u = normalizePhotoUrlToCurrentPublicBase(p && p.url_full ? p.url_full : null);
+      const t = normalizePhotoUrlToCurrentPublicBase(p && p.url_thumb ? p.url_thumb : null);
+      const key = String(u || t || '');
+      if (!key) return;
+      if (!outMap.has(key)) {
+        outMap.set(key, true);
+        out.push({ id: null, url_full: u || t, url_thumb: t || u, title: null, alt: null, created_at: null });
+      }
+    });
+    res.json(out);
   } catch (err) {
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
 
-app.post('/api/media', requireAdmin, uploadArray('files', getUploadMaxFiles()), async (req, res) => {
+app.post('/api/media', requireAdmin, requireAtLeast('editor'), uploadArray('files', getUploadMaxFiles()), async (req, res) => {
   let client = null;
   try {
     client = await pool.connect();
@@ -2430,9 +2672,7 @@ app.post('/api/media', requireAdmin, uploadArray('files', getUploadMaxFiles()), 
     return res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
   }
   try {
-    if (!process.env.R2_BUCKET_NAME || !process.env.R2_PUBLIC_URL) {
-      return res.status(500).json({ error: 'STORAGE_CONFIG' });
-    }
+    const isR2Configured = !!process.env.R2_BUCKET_NAME && !!process.env.R2_PUBLIC_URL;
     await client.query('BEGIN');
     const out = [];
     if (!req.files || req.files.length === 0) {
@@ -2453,21 +2693,88 @@ app.post('/api/media', requireAdmin, uploadArray('files', getUploadMaxFiles()), 
           await client.query('ROLLBACK');
           return res.status(413).json({ error: 'FILE_TOO_LARGE' });
         }
-        const fileName = generateFileName();
-        const params = { Bucket: process.env.R2_BUCKET_NAME, Key: fileName, Body: file.buffer, ContentType: file.mimetype, CacheControl: 'public, max-age=31536000, immutable' };
-        try {
-          await s3Client.send(new PutObjectCommand(params));
-        } catch (e) {
-          await client.query('ROLLBACK');
-          return res.status(502).json({ error: 'STORAGE_ERROR', detail: String(e && e.message ? e.message : e) });
+        const digest = require('crypto').createHash('sha256').update(file.buffer).digest('hex').slice(0, 24);
+        const baseName = 'media/' + digest;
+        const isImage = mt.startsWith('image/');
+        let fullKey = baseName;
+        let thumbKey = baseName;
+        let fullBody = file.buffer;
+        let thumbBody = file.buffer;
+        let fullType = file.mimetype;
+        let thumbType = file.mimetype;
+        let existing = [];
+        if (isR2Configured) {
+          const urlCandidate = joinUrl(process.env.R2_PUBLIC_URL, baseName + '.webp');
+          ({ rows: existing } = await client.query('SELECT id, url_full, url_thumb FROM media WHERE url_full = $1 LIMIT 1;', [urlCandidate]));
+        } else {
+          const cand1 = baseName + '.webp';
+          const cand2 = '/' + cand1;
+          ({ rows: existing } = await client.query('SELECT id, url_full, url_thumb FROM media WHERE url_full = $1 OR url_full = $2 LIMIT 1;', [cand1, cand2]));
         }
-        if (process.env.R2_BACKUP_BUCKET_NAME) {
-          const backupParams = { Bucket: process.env.R2_BACKUP_BUCKET_NAME, Key: fileName, Body: file.buffer, ContentType: file.mimetype, CacheControl: 'public, max-age=31536000, immutable' };
-          try { await s3Client.send(new PutObjectCommand(backupParams)); } catch {}
+        if (existing && existing.length) {
+          out.push({ id: existing[0].id, url_full: existing[0].url_full, url_thumb: existing[0].url_thumb, reused: true });
+          continue;
         }
-        const url = joinUrl(process.env.R2_PUBLIC_URL, fileName);
-        const { rows } = await client.query('INSERT INTO media (url_full, url_thumb, title, alt) VALUES ($1, $2, $3, $4) RETURNING id;', [url, url, null, null]);
-        out.push({ id: rows[0].id, url_full: url, url_thumb: url });
+        if (isImage) {
+          try {
+            fullBody = await sharp(file.buffer).resize({ width: 1280, withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+            thumbBody = await sharp(file.buffer).resize({ width: 480, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
+            fullKey = baseName + '.webp';
+            thumbKey = baseName + '.thumb.webp';
+            fullType = 'image/webp';
+            thumbType = 'image/webp';
+            if (isR2Configured) {
+              const fullAvif = await sharp(file.buffer).resize({ width: 1280, withoutEnlargement: true }).avif({ quality: 50 }).toBuffer();
+              const thumbAvif = await sharp(file.buffer).resize({ width: 480, withoutEnlargement: true }).avif({ quality: 48 }).toBuffer();
+              const fullAvifKey = baseName + '.avif';
+              const thumbAvifKey = baseName + '.thumb.avif';
+              const paramsFullAvif = { Bucket: process.env.R2_BUCKET_NAME, Key: fullAvifKey, Body: fullAvif, ContentType: 'image/avif', CacheControl: 'public, max-age=31536000, immutable' };
+              const paramsThumbAvif = { Bucket: process.env.R2_BUCKET_NAME, Key: thumbAvifKey, Body: thumbAvif, ContentType: 'image/avif', CacheControl: 'public, max-age=31536000, immutable' };
+              try {
+                await s3Client.send(new PutObjectCommand(paramsFullAvif));
+                await s3Client.send(new PutObjectCommand(paramsThumbAvif));
+              } catch {}
+              if (process.env.R2_BACKUP_BUCKET_NAME) {
+                try { await s3Client.send(new PutObjectCommand({ ...paramsFullAvif, Bucket: process.env.R2_BACKUP_BUCKET_NAME })); } catch {}
+                try { await s3Client.send(new PutObjectCommand({ ...paramsThumbAvif, Bucket: process.env.R2_BACKUP_BUCKET_NAME })); } catch {}
+              }
+            }
+          } catch {}
+        }
+        let urlFull = '';
+        let urlThumb = '';
+        if (isR2Configured) {
+          const paramsFull = { Bucket: process.env.R2_BUCKET_NAME, Key: fullKey, Body: fullBody, ContentType: fullType, CacheControl: 'public, max-age=31536000, immutable' };
+          const paramsThumb = { Bucket: process.env.R2_BUCKET_NAME, Key: thumbKey, Body: thumbBody, ContentType: thumbType, CacheControl: 'public, max-age=31536000, immutable' };
+          try {
+            await s3Client.send(new PutObjectCommand(paramsFull));
+            await s3Client.send(new PutObjectCommand(paramsThumb));
+          } catch (e) {
+            await client.query('ROLLBACK');
+            return res.status(502).json({ error: 'STORAGE_ERROR', detail: String(e && e.message ? e.message : e) });
+          }
+          if (process.env.R2_BACKUP_BUCKET_NAME) {
+            try { await s3Client.send(new PutObjectCommand({ ...paramsFull, Bucket: process.env.R2_BACKUP_BUCKET_NAME })); } catch {}
+            try { await s3Client.send(new PutObjectCommand({ ...paramsThumb, Bucket: process.env.R2_BACKUP_BUCKET_NAME })); } catch {}
+          }
+          urlFull = joinUrl(process.env.R2_PUBLIC_URL, fullKey);
+          urlThumb = joinUrl(process.env.R2_PUBLIC_URL, thumbKey);
+        } else {
+          try {
+            fs.mkdirSync(path.join(publicStaticRoot, 'media'), { recursive: true });
+          } catch {}
+          try {
+            fs.writeFileSync(path.join(publicStaticRoot, fullKey), fullBody);
+            fs.writeFileSync(path.join(publicStaticRoot, thumbKey), thumbBody);
+          } catch (e) {
+            await client.query('ROLLBACK');
+            return res.status(500).json({ error: 'LOCAL_STORAGE_ERROR', detail: String(e && e.message ? e.message : e) });
+          }
+          urlFull = '/' + fullKey;
+          urlThumb = '/' + thumbKey;
+        }
+        const { rows } = await client.query('INSERT INTO media (url_full, url_thumb, title, alt) VALUES ($1, $2, $3, $4) RETURNING id;', [urlFull, urlThumb, null, null]);
+        out.push({ id: rows[0].id, url_full: urlFull, url_thumb: urlThumb });
       }
     }
     await client.query('COMMIT');
@@ -2480,7 +2787,7 @@ app.post('/api/media', requireAdmin, uploadArray('files', getUploadMaxFiles()), 
   }
 });
 
-app.delete('/api/media/:id', requireAdmin, async (req, res) => {
+app.delete('/api/media/:id', requireAdmin, requireAtLeast('editor'), async (req, res) => {
   const id = Number(req.params.id || 0);
   if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: 'BAD_REQUEST' });
   try {
@@ -2488,6 +2795,188 @@ app.delete('/api/media/:id', requireAdmin, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+app.patch('/api/media/:id', requireAdmin, requireAtLeast('editor'), async (req, res) => {
+  const id = Number(req.params.id || 0);
+  if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: 'BAD_REQUEST' });
+  const title = req.body && req.body.title !== undefined ? String(req.body.title || '') : undefined;
+  const alt = req.body && req.body.alt !== undefined ? String(req.body.alt || '') : undefined;
+  try {
+    if (title !== undefined) await pool.query('UPDATE media SET title = $1 WHERE id = $2;', [title, id]);
+    if (alt !== undefined) await pool.query('UPDATE media SET alt = $1 WHERE id = $2;', [alt, id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+app.post('/api/photo/upscale', photoLimiter, uploadSingleMemory('file'), async (req, res) => {
+  try {
+    const f = req.file || null;
+    if (!f) return res.status(400).json({ error: 'BAD_REQUEST' });
+    const ct = String(f.mimetype || '').toLowerCase();
+    if (!ct.startsWith('image/')) return res.status(415).json({ error: 'UNSUPPORTED_FORMAT' });
+    const photoPublic = parseBooleanLike(process.env.PHOTO_AI_PUBLIC, false);
+    if (!photoPublic) {
+      const admin = tryGetAdminFromReq(req);
+      if (!admin) return res.status(401).json({ error: 'UNAUTHORIZED' });
+    }
+    const base = getPhotoAiBaseUrl();
+    const url = new URL('/upscale', base).toString();
+    const fd = new FormData();
+    const blob = new Blob([f.buffer], { type: String(f.mimetype || 'application/octet-stream') });
+    fd.append('file', blob, String(f.originalname || 'upload.png'));
+    const r = await fetch(url, { method: 'POST', body: fd });
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      return res.status(r.status).json({ error: 'PHOTO_AI_ERROR', detail: t.slice(0, 500) });
+    }
+    const ab = await r.arrayBuffer();
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Type', 'image/png');
+    return res.send(Buffer.from(ab));
+  } catch (err) {
+    return res.status(500).json({ error: 'SERVER_ERROR', detail: String(err && err.message ? err.message : err) });
+  }
+});
+app.post('/api/ai/photo/upscale', photoLimiter, uploadSingleMemory('file'), async (req, res) => {
+  try {
+    const f = req.file || null;
+    if (!f) return res.status(400).json({ error: 'BAD_REQUEST' });
+    const ct = String(f.mimetype || '').toLowerCase();
+    if (!ct.startsWith('image/')) return res.status(415).json({ error: 'UNSUPPORTED_FORMAT' });
+    const photoPublic = parseBooleanLike(process.env.PHOTO_AI_PUBLIC, false);
+    if (!photoPublic) {
+      const admin = tryGetAdminFromReq(req);
+      if (!admin) return res.status(401).json({ error: 'UNAUTHORIZED' });
+    }
+    const base = getPhotoAiBaseUrl();
+    const url = new URL('/upscale', base).toString();
+    const fd = new FormData();
+    const blob = new Blob([f.buffer], { type: String(f.mimetype || 'application/octet-stream') });
+    fd.append('file', blob, String(f.originalname || 'upload.png'));
+    const r = await fetch(url, { method: 'POST', body: fd });
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      return res.status(r.status).json({ error: 'PHOTO_AI_ERROR', detail: t.slice(0, 500) });
+    }
+    const ab = await r.arrayBuffer();
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Type', 'image/png');
+    return res.send(Buffer.from(ab));
+  } catch (err) {
+    return res.status(500).json({ error: 'SERVER_ERROR', detail: String(err && err.message ? err.message : err) });
+  }
+});
+
+app.post('/api/ai/text/rewrite', requireAdmin, async (req, res) => {
+  try {
+    if (!getAiEnabled()) return res.status(503).json({ error: 'AI_DISABLED' });
+    const inBody = req && req.body && typeof req.body === 'object' ? req.body : null;
+    const raw = String(inBody && inBody.text || '').trim();
+    const mode = String(inBody && inBody.mode || '').trim().toLowerCase();
+    const facts = (inBody && typeof inBody.facts === 'object') ? inBody.facts : null;
+    const lang = String(inBody && inBody.lang || 'it').trim().toLowerCase();
+    const html = !!(inBody && inBody.html);
+    if (!raw) return res.status(400).json({ error: 'BAD_REQUEST' });
+    const apiKey = getAiApiKey();
+    if (!apiKey) return res.status(503).json({ error: 'AI_NOT_CONFIGURED' });
+    const base = getAiBaseUrl();
+    const model = getAiModel();
+    const temperature = getAiTemperature();
+    const url = new URL('/chat/completions', base).toString();
+    const sys = [
+      `Scrivi in lingua ${lang}.`,
+      'Non inventare dettagli. Mantieni numeri e specifiche esatti.',
+      'Usa i fatti forniti come contesto autorevole, ma non duplicare inutilmente.',
+      mode === 'bullets'
+        ? (html ? 'Output HTML <ul><li>…</li></ul> con punti chiari e brevi.' : 'Output elenco puntato chiaro e sintetico.')
+        : mode === 'shorten'
+        ? (html ? 'Accorcia: Output HTML con paragrafi separati da <br>.' : 'Accorcia mantenendo le informazioni principali.')
+        : (html ? 'Riscrivi: Output HTML con paragrafi brevi separati da <br>.' : 'Riscrivi rendendo il testo chiaro e accattivante.')
+    ].join(' ');
+    const userContent = facts
+      ? `TESTO:\n${raw}\n\nFATTI:\n${JSON.stringify(facts)}`
+      : raw;
+    const body = {
+      model,
+      temperature,
+      messages: [
+        { role: 'system', content: sys },
+        { role: 'user', content: userContent }
+      ]
+    };
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      return res.status(r.status).json({ error: 'AI_PROVIDER_ERROR', detail: t.slice(0, 500) });
+    }
+    const j = await r.json().catch(() => null);
+    let out = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content ? String(j.choices[0].message.content) : '';
+    out = out.trim();
+    if (!out) return res.status(502).json({ error: 'AI_EMPTY' });
+    res.json({ text: out, content_type: html ? 'html' : 'text' });
+  } catch (err) {
+    res.status(500).json({ error: 'SERVER_ERROR', detail: String(err && err.message ? err.message : err) });
+  }
+});
+
+app.post('/api/ai/text/extract', requireAdmin, async (req, res) => {
+  try {
+    if (!getAiEnabled()) return res.status(503).json({ error: 'AI_DISABLED' });
+    const inBody = req && req.body && typeof req.body === 'object' ? req.body : null;
+    const raw = String(inBody && inBody.text || '').trim();
+    if (!raw) return res.status(400).json({ error: 'BAD_REQUEST' });
+    const apiKey = getAiApiKey();
+    if (!apiKey) return res.status(503).json({ error: 'AI_NOT_CONFIGURED' });
+    const base = getAiBaseUrl();
+    const model = getAiModel();
+    const temperature = getAiTemperature();
+    const url = new URL('/chat/completions', base).toString();
+    const sys = 'Estrai campi rilevanti per una scheda roulotte. Rispondi SOLO JSON array di oggetti {key,label,value,reason}. Chiavi supportate: marca, modello, anno, prezzo, tipologiaMezzo, stato, stato_annuncio, targata, librettoCircolazione, omologataCircolazione, numeroTelaio, numeroAssi, timone, frenoRepulsione, pesoVuoto, lunghezza, lunghezzaInterna, larghezza, altezza, posti, massa, documenti, tipologia, lettoFisso, tipoDinette, cucina, bagno, docciaSeparata, armadi, gavoniInterni, presa220Esterna, impianto12V, batteriaServizi, illuminazioneLed, impiantoGas, numeroBombole, scadenzaImpiantoGas, serbatoioAcquaPulita, serbatoioAcqueGrigie, riscaldamento, tipoRiscaldamento, climatizzatore, predisposizioneClima, verandaTendalino, portabici, contattoTelefono, contattoWhatsapp, contattoEmail, localita, orariContatto.';
+    const body = {
+      model,
+      temperature,
+      messages: [
+        { role: 'system', content: sys },
+        { role: 'user', content: raw }
+      ]
+    };
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      return res.status(r.status).json({ error: 'AI_PROVIDER_ERROR', detail: t.slice(0, 500) });
+    }
+    const j = await r.json().catch(() => null);
+    let out = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content ? String(j.choices[0].message.content) : '';
+    out = out.trim();
+    if (!out) return res.status(502).json({ error: 'AI_EMPTY' });
+    let arr = [];
+    try { arr = JSON.parse(out); } catch {
+      // tenta di estrarre JSON tra apici
+      const m = out.match(/\[[\s\S]*\]/);
+      if (m) {
+        try { arr = JSON.parse(m[0]); } catch {}
+      }
+    }
+    if (!Array.isArray(arr)) return res.status(502).json({ error: 'AI_PARSE_ERROR', detail: out.slice(0, 500) });
+    res.json({ suggestions: arr });
+  } catch (err) {
+    res.status(500).json({ error: 'SERVER_ERROR', detail: String(err && err.message ? err.message : err) });
   }
 });
 // Rotta per ottenere tutte le roulotte con le loro foto
@@ -2529,7 +3018,7 @@ app.get('/api/roulottes', async (req, res) => {
         r.updated_at AS updated_at,
         COALESCE(
           (
-            SELECT json_agg(p.url_full ORDER BY p.sort_order)
+            SELECT json_agg(json_build_object('src', p.url_full, 'thumb', p.url_thumb, 'is_cover', p.is_cover) ORDER BY p.is_cover DESC, p.sort_order ASC, p.id ASC)
             FROM photos p 
             WHERE p.roulotte_id = r.id
           ), '[]'::json
@@ -2543,7 +3032,11 @@ app.get('/api/roulottes', async (req, res) => {
     const list = result.rows.map((row) => ({
         ...(row.data || {}),
         id: row.id,
-        photos: (row.photos || []).map(normalizePhotoUrlToCurrentPublicBase),
+        photos: (row.photos || []).map((ph) => ({
+          src: normalizePhotoUrlToCurrentPublicBase(ph && ph.src ? ph.src : null),
+          thumb: normalizePhotoUrlToCurrentPublicBase(ph && ph.thumb ? ph.thumb : null),
+          is_cover: ph && ph.is_cover === true
+        })).filter(x => !!x.src),
         visibile: row.visibile !== undefined && row.visibile !== null ? row.visibile : true,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -2635,7 +3128,7 @@ app.get('/api/roulottes/:id', async (req, res) => {
         r.updated_at AS updated_at,
         COALESCE(
           (
-            SELECT json_agg(p.url_full ORDER BY p.sort_order)
+            SELECT json_agg(json_build_object('src', p.url_full, 'thumb', p.url_thumb, 'is_cover', p.is_cover) ORDER BY p.is_cover DESC, p.sort_order ASC, p.id ASC)
             FROM photos p 
             WHERE p.roulotte_id = r.id
           ), '[]'::json
@@ -2652,7 +3145,11 @@ app.get('/api/roulottes/:id', async (req, res) => {
     const r = {
       ...(row.data || {}),
       id: row.id,
-      photos: (row.photos || []).map(normalizePhotoUrlToCurrentPublicBase),
+      photos: (row.photos || []).map((ph) => ({
+        src: normalizePhotoUrlToCurrentPublicBase(ph && ph.src ? ph.src : null),
+        thumb: normalizePhotoUrlToCurrentPublicBase(ph && ph.thumb ? ph.thumb : null),
+        is_cover: ph && ph.is_cover === true
+      })).filter(x => !!x.src),
       visibile: row.visibile !== undefined && row.visibile !== null ? row.visibile : true,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -2677,6 +3174,214 @@ app.get('/api/roulottes/:id', async (req, res) => {
     if (isDbUnavailable(err)) return res.status(503).json({ error: 'DB_UNAVAILABLE' });
     console.error('Errore durante il recupero della roulotte:', err);
     res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
+  }
+});
+
+app.get('/api/export/subito/:id', requireAdmin, async (req, res) => {
+  try {
+    const publicId = String(req.params.id || '').trim();
+    if (!publicId) return res.status(400).json({ error: 'BAD_REQUEST' });
+  const { rows } = await pool.query(`
+      SELECT r.id, r.public_id, r.data, r.visibile, r.created_at, r.updated_at,
+             (SELECT json_agg(json_build_object('url_full', p.url_full, 'url_thumb', p.url_thumb) ORDER BY p.is_cover DESC, p.sort_order ASC, p.id ASC) FROM photos p WHERE p.roulotte_id = r.id) AS photos
+      FROM roulottes r
+      WHERE r.public_id = $1
+      LIMIT 1;
+    `, [publicId]);
+    if (!rows.length) return res.status(404).json({ error: 'NOT_FOUND' });
+    const row = rows[0];
+    const d = row.data || {};
+    const title = `${d.marca || ''} ${d.modello || ''}`.trim() || 'Roulotte';
+    const descr = String(d.note || d.descrizione || '').trim();
+    const price = Number.isFinite(Number(d.prezzo)) ? Number(d.prezzo) : '';
+    const year = Number.isFinite(Number(d.anno)) ? Number(d.anno) : '';
+    const category = String(d.tipologiaMezzo || d.tipologia || 'Roulotte');
+    const condition = String(d.stato || '').trim() || 'Usato';
+    const loc = String(d.localita || '').trim();
+    let comune = '';
+    let provincia = '';
+    if (loc) {
+      const m = loc.match(/^(.*?)(?:\s*\((.*?)\))?$/);
+      if (m) { comune = (m[1] || '').trim(); provincia = (m[2] || '').trim(); }
+    }
+    const email = String(d.contattoEmail || '').trim();
+    const telefono = String(d.contattoTelefono || d.contattoWhatsapp || '').trim();
+    const photos = Array.isArray(row.photos) ? row.photos : [];
+    const photoUrls = photos.map(p => normalizePhotoUrlToCurrentPublicBase(p && p.url_full ? p.url_full : null)).filter(Boolean);
+    const headers = ['titolo','prezzo','categoria','condizione','descrizione','anno','comune','provincia','email','telefono','immagini'];
+    const values = [
+      title,
+      price,
+      category,
+      condition,
+      descr.replace(/\r?\n/g, ' ').slice(0, 3000),
+      year,
+      comune,
+      provincia,
+      email,
+      telefono,
+      photoUrls.join('|')
+    ];
+    const esc = (v) => {
+      const s = String(v === undefined || v === null ? '' : v);
+      if (s.includes(';') || s.includes('"')) return '"' + s.replace(/"/g, '""') + '"';
+      return s;
+    };
+    const csv = headers.join(';') + '\n' + values.map(esc).join(';') + '\n';
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="subito_${publicId}.csv"`);
+    return res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: 'SERVER_ERROR', detail: String(err && err.message ? err.message : err) });
+  }
+});
+
+app.get('/api/export/marketplace/:id', requireAdmin, async (req, res) => {
+  try {
+    const publicId = String(req.params.id || '').trim();
+    if (!publicId) return res.status(400).json({ error: 'BAD_REQUEST' });
+  const { rows } = await pool.query(`
+      SELECT r.id, r.public_id, r.data, r.visibile, r.created_at, r.updated_at,
+             (SELECT json_agg(json_build_object('url_full', p.url_full, 'url_thumb', p.url_thumb) ORDER BY p.is_cover DESC, p.sort_order ASC, p.id ASC) FROM photos p WHERE p.roulotte_id = r.id) AS photos
+      FROM roulottes r
+      WHERE r.public_id = $1
+      LIMIT 1;
+    `, [publicId]);
+    if (!rows.length) return res.status(404).json({ error: 'NOT_FOUND' });
+    const row = rows[0];
+    const d = row.data || {};
+    const title = `${d.marca || ''} ${d.modello || ''}`.trim() || 'Roulotte';
+    const descr = String(d.note || d.descrizione || '').trim();
+    const price = Number.isFinite(Number(d.prezzo)) ? Number(d.prezzo) : null;
+    const condition = String(d.stato || '').trim() || 'Usato';
+    const loc = String(d.localita || '').trim();
+    const photos = Array.isArray(row.photos) ? row.photos : [];
+    const photoUrls = photos.map(p => normalizePhotoUrlToCurrentPublicBase(p && p.url_full ? p.url_full : null)).filter(Boolean);
+    const out = {
+      title,
+      description: descr,
+      price,
+      condition,
+      location: loc,
+      photos: photoUrls
+    };
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(out);
+  } catch (err) {
+    res.status(500).json({ error: 'SERVER_ERROR', detail: String(err && err.message ? err.message : err) });
+  }
+});
+
+app.get('/api/export/subito-feed', async (req, res) => {
+  try {
+    const admin = tryGetAdminFromReq(req);
+    const isAdmin = !!admin;
+    if (!isAdmin && !isAnnunciPublishingEnabled()) return res.status(403).json({ error: 'FORBIDDEN' });
+    const rows = await pool.query(`
+      SELECT r.id, r.public_id, r.data, r.visibile, r.created_at, r.updated_at,
+             (SELECT json_agg(json_build_object('url_full', p.url_full) ORDER BY p.sort_order) FROM photos p WHERE p.roulotte_id = r.id) AS photos
+      FROM roulottes r
+      ORDER BY r.id DESC;
+    `);
+    const now = Date.now();
+    const list = rows.rows.map((row) => ({
+      ...(row.data || {}),
+      id: row.public_id,
+      visibile: row.visibile !== undefined && row.visibile !== null ? row.visibile : true,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      photos: (row.photos || []).map(x => normalizePhotoUrlToCurrentPublicBase(x && x.url_full ? x.url_full : null)).filter(Boolean)
+    })).filter((r) => {
+      if (!r || typeof r !== 'object') return false;
+      if (r.visibile === false) return false;
+      const sRaw = r.stato_annuncio !== undefined && r.stato_annuncio !== null ? String(r.stato_annuncio) : '';
+      const fallback = String(r.stato || '') === 'Venduto' ? 'venduto' : 'pubblicato';
+      const s = (sRaw || fallback).trim().toLowerCase();
+      if (!(s === 'pubblicato' || s === 'venduto')) return false;
+      if (s === 'pubblicato' && r.data_pubblicazione) {
+        const t = Date.parse(String(r.data_pubblicazione));
+        if (Number.isFinite(t) && t > now) return false;
+      }
+      return true;
+    });
+    const headers = ['titolo','prezzo','categoria','condizione','descrizione','anno','comune','provincia','email','telefono','immagini'];
+    const esc = (v) => {
+      const s = String(v === undefined || v === null ? '' : v);
+      if (s.includes(';') || s.includes('"')) return '"' + s.replace(/"/g, '""') + '"';
+      return s;
+    };
+    const lines = [headers.join(';')];
+    list.forEach((d) => {
+      const title = `${d.marca || ''} ${d.modello || ''}`.trim() || 'Roulotte';
+      const descr = String(d.note || d.descrizione || '').trim().replace(/\r?\n/g, ' ').slice(0, 3000);
+      const price = Number.isFinite(Number(d.prezzo)) ? Number(d.prezzo) : '';
+      const year = Number.isFinite(Number(d.anno)) ? Number(d.anno) : '';
+      const category = String(d.tipologiaMezzo || d.tipologia || 'Roulotte');
+      const condition = String(d.stato || '').trim() || 'Usato';
+      const loc = String(d.localita || '').trim();
+      let comune = '';
+      let provincia = '';
+      if (loc) {
+        const m = loc.match(/^(.*?)(?:\s*\((.*?)\))?$/);
+        if (m) { comune = (m[1] || '').trim(); provincia = (m[2] || '').trim(); }
+      }
+      const email = String(d.contattoEmail || '').trim();
+      const telefono = String(d.contattoTelefono || d.contattoWhatsapp || '').trim();
+      const photoUrls = Array.isArray(d.photos) ? d.photos : [];
+      const values = [title, price, category, condition, descr, year, comune, provincia, email, telefono, photoUrls.join('|')];
+      lines.push(values.map(esc).join(';'));
+    });
+    const csv = lines.join('\n') + '\n';
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: 'SERVER_ERROR', detail: String(err && err.message ? err.message : err) });
+  }
+});
+
+app.get('/api/export/marketplace-feed', async (req, res) => {
+  try {
+    const admin = tryGetAdminFromReq(req);
+    const isAdmin = !!admin;
+    if (!isAdmin && !isAnnunciPublishingEnabled()) return res.status(403).json({ error: 'FORBIDDEN' });
+    const rows = await pool.query(`
+      SELECT r.id, r.public_id, r.data, r.visibile, r.created_at, r.updated_at,
+             (SELECT json_agg(json_build_object('url_full', p.url_full) ORDER BY p.sort_order) FROM photos p WHERE p.roulotte_id = r.id) AS photos
+      FROM roulottes r
+      ORDER BY r.id DESC;
+    `);
+    const now = Date.now();
+    const list = rows.rows.map((row) => {
+      const d = row.data || {};
+      const photos = Array.isArray(row.photos) ? row.photos : [];
+      const photoUrls = photos.map(x => normalizePhotoUrlToCurrentPublicBase(x && x.url_full ? x.url_full : null)).filter(Boolean);
+      return {
+        id: row.public_id,
+        title: `${d.marca || ''} ${d.modello || ''}`.trim() || 'Roulotte',
+        description: String(d.note || d.descrizione || '').trim(),
+        price: Number.isFinite(Number(d.prezzo)) ? Number(d.prezzo) : null,
+        condition: String(d.stato || '').trim() || 'Usato',
+        location: String(d.localita || '').trim(),
+        photos: photoUrls,
+        visibile: row.visibile !== undefined && row.visibile !== null ? row.visibile : true,
+        stato_annuncio: d.stato_annuncio
+      };
+    }).filter((r) => {
+      if (!r || typeof r !== 'object') return false;
+      if (r.visibile === false) return false;
+      const sRaw = r.stato_annuncio !== undefined && r.stato_annuncio !== null ? String(r.stato_annuncio) : '';
+      const fallback = String(r.condition || '') === 'Venduto' ? 'venduto' : 'pubblicato';
+      const s = (sRaw || fallback).trim().toLowerCase();
+      if (!(s === 'pubblicato' || s === 'venduto')) return false;
+      return true;
+    });
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ items: list });
+  } catch (err) {
+    res.status(500).json({ error: 'SERVER_ERROR', detail: String(err && err.message ? err.message : err) });
   }
 });
 
@@ -3188,10 +3893,20 @@ app.get('/api/health', async (req, res) => {
     } catch (err) {
       if (!isDbUnavailable(err)) throw err;
     }
+    let photo = null;
+    try {
+      const base = getPhotoAiBaseUrl();
+      const pr = await Promise.race([
+        fetch(new URL('/health', base).toString(), { method: 'GET' }).then((r) => r.ok).catch(() => false),
+        new Promise((resolve) => setTimeout(() => resolve(false), 500))
+      ]);
+      photo = !!pr;
+    } catch {}
     res.json({
       ok: true,
       db: dbPing.rows && dbPing.rows[0] ? dbPing.rows[0].ok === 1 : false,
       tables: (tables.rows || []).map((r) => r.table_name),
+      photo_ai: photo,
     });
   } catch (err) {
     if (isDbUnavailable(err)) {
@@ -3206,6 +3921,21 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+app.get('/api/version', (req, res) => {
+  try {
+    const pkg = require('./package.json');
+    res.json({ name: pkg.name, version: pkg.version });
+  } catch {
+    res.json({ name: 'unknown', version: '0.0.0' });
+  }
+});
+app.get('/api/metrics', requireAdmin, requireAtLeast('editor'), (req, res) => {
+  const out = [];
+  for (const [k, v] of global.__metrics.entries()) {
+    out.push({ k, v });
+  }
+  res.json(out.sort((a, b) => b.v - a.v));
+});
 function parseBooleanLike(v, fallback) {
   if (v === undefined || v === null || v === '') return fallback;
   if (v === true || v === false) return v;
@@ -3851,6 +4581,7 @@ const PORT = process.env.PORT || 3001; // Render userÃ  la variabile d'ambient
 createTables()
   .then(async () => {
     console.log('Tabelle database pronte.');
+    await bootstrapDefaultContents();
     await loadSettingsCache();
     await bootstrapCentralSettings();
     await loadSettingsCache();
@@ -3860,3 +4591,141 @@ createTables()
 server.listen(PORT, () => {
   console.log(`Server in ascolto sulla porta ${PORT}`);
 });
+
+// --- Feed Auto Sync (Subito / Marketplace) ---
+let __lastFeedSync = { at: null, ok: false, error: '', files: {} };
+async function fetchRoulottesForFeed() {
+  const query = `
+    SELECT 
+      r.id,
+      r.public_id,
+      r.data,
+      r.visibile,
+      r.created_at,
+      r.updated_at,
+      COALESCE(
+        (
+          SELECT json_agg(p.url_full ORDER BY p.sort_order)
+          FROM photos p 
+          WHERE p.roulotte_id = r.id
+        ), '[]'::json
+      ) AS photos
+    FROM roulottes r
+    ORDER BY r.id DESC;
+  `;
+  const result = await pool.query(query);
+  return result.rows.map((row) => ({
+      ...(row.data || {}),
+      id: row.public_id,
+      photos: (row.photos || []).map(normalizePhotoUrlToCurrentPublicBase),
+      visibile: row.visibile !== undefined && row.visibile !== null ? row.visibile : true,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+}
+function buildSubitoCsv(list) {
+  const headers = ['titolo','prezzo','categoria','condizione','descrizione','anno','comune','provincia','email','telefono','immagini'];
+  const esc = (v) => {
+    const s = String(v === undefined || v === null ? '' : v);
+    if (s.includes(';') || s.includes('"')) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  };
+  const now = Date.now();
+  const allowed = new Set(['pubblicato', 'venduto']);
+  const lines = [headers.join(';')];
+  list.filter((r) => {
+    if (!r || typeof r !== 'object') return false;
+    if (r.visibile === false) return false;
+    const sRaw = r.stato_annuncio !== undefined && r.stato_annuncio !== null ? String(r.stato_annuncio) : '';
+    const fallback = String(r.stato || '') === 'Venduto' ? 'venduto' : 'pubblicato';
+    const s = (sRaw || fallback).trim().toLowerCase();
+    if (!allowed.has(s)) return false;
+    if (s === 'pubblicato' && r.data_pubblicazione) {
+      const t = Date.parse(String(r.data_pubblicazione));
+      if (Number.isFinite(t) && t > now) return false;
+    }
+    return true;
+  }).forEach((d) => {
+    const title = `${d.marca || ''} ${d.modello || ''}`.trim() || 'Roulotte';
+    const descr = String(d.note || d.descrizione || '').trim().replace(/\r?\n/g, ' ').slice(0, 3000);
+    const price = Number.isFinite(Number(d.prezzo)) ? Number(d.prezzo) : '';
+    const year = Number.isFinite(Number(d.anno)) ? Number(d.anno) : '';
+    const category = String(d.tipologiaMezzo || d.tipologia || 'Roulotte');
+    const condition = String(d.stato || '').trim() || 'Usato';
+    const loc = String(d.localita || '').trim();
+    let comune = '';
+    let provincia = '';
+    if (loc) {
+      const m = loc.match(/^(.*?)(?:\s*\((.*?)\))?$/);
+      if (m) { comune = (m[1] || '').trim(); provincia = (m[2] || '').trim(); }
+    }
+    const email = String(d.contattoEmail || '').trim();
+    const telefono = String(d.contattoTelefono || d.contattoWhatsapp || '').trim();
+    const photoUrls = Array.isArray(d.photos) ? d.photos : [];
+    const values = [title, price, category, condition, descr, year, comune, provincia, email, telefono, photoUrls.join('|')];
+    lines.push(values.map(esc).join(';'));
+  });
+  return lines.join('\n') + '\n';
+}
+function buildMarketplaceJson(list) {
+  const allowed = new Set(['pubblicato', 'venduto']);
+  const now = Date.now();
+  const items = list.filter((r) => {
+    if (!r || typeof r !== 'object') return false;
+    if (r.visibile === false) return false;
+    const sRaw = r.stato_annuncio !== undefined && r.stato_annuncio !== null ? String(r.stato_annuncio) : '';
+    const fallback = String(r.stato || '') === 'Venduto' ? 'venduto' : 'pubblicato';
+    const s = (sRaw || fallback).trim().toLowerCase();
+    if (!allowed.has(s)) return false;
+    if (s === 'pubblicato' && r.data_pubblicazione) {
+      const t = Date.parse(String(r.data_pubblicazione));
+      if (Number.isFinite(t) && t > now) return false;
+    }
+    return true;
+  }).map((d) => ({
+    id: d.id,
+    title: `${d.marca || ''} ${d.modello || ''}`.trim() || 'Roulotte',
+    description: String(d.note || d.descrizione || '').trim(),
+    price: Number.isFinite(Number(d.prezzo)) ? Number(d.prezzo) : null,
+    condition: String(d.stato || '').trim() || 'Usato',
+    location: String(d.localita || '').trim(),
+    photos: Array.isArray(d.photos) ? d.photos : []
+  }));
+  return JSON.stringify({ items }, null, 2);
+}
+async function pushFeedsToR2() {
+  if (!process.env.R2_BUCKET_NAME || !process.env.R2_PUBLIC_URL) throw new Error('R2_NOT_CONFIGURED');
+  const list = await fetchRoulottesForFeed();
+  const csv = buildSubitoCsv(list);
+  const json = buildMarketplaceJson(list);
+  const csvKey = 'feeds/subito.csv';
+  const jsonKey = 'feeds/marketplace.json';
+  const csvParams = { Bucket: process.env.R2_BUCKET_NAME, Key: csvKey, Body: Buffer.from(csv, 'utf-8'), ContentType: 'text/csv; charset=utf-8', CacheControl: 'no-store' };
+  const jsonParams = { Bucket: process.env.R2_BUCKET_NAME, Key: jsonKey, Body: Buffer.from(json, 'utf-8'), ContentType: 'application/json', CacheControl: 'no-store' };
+  await s3Client.send(new PutObjectCommand(csvParams));
+  await s3Client.send(new PutObjectCommand(jsonParams));
+  const files = {
+    subito_csv_url: joinUrl(process.env.R2_PUBLIC_URL, csvKey),
+    marketplace_json_url: joinUrl(process.env.R2_PUBLIC_URL, jsonKey)
+  };
+  __lastFeedSync = { at: new Date().toISOString(), ok: true, error: '', files };
+  return files;
+}
+app.get('/api/export/status', requireAdmin, async (req, res) => {
+  res.json(__lastFeedSync);
+});
+function scheduleAutoFeed() {
+  const minutes = Math.max(3, Math.min(240, Number(process.env.FEED_INTERVAL_MINUTES || 10)));
+  const tick = async () => {
+    try {
+      await pushFeedsToR2();
+      console.log('[feeds] sincronizzati');
+    } catch (e) {
+      console.warn('[feeds] errore sync:', String(e && e.message ? e.message : e));
+      __lastFeedSync = { at: new Date().toISOString(), ok: false, error: String(e && e.message ? e.message : e), files: (__lastFeedSync.files || {}) };
+    }
+  };
+  tick();
+  setInterval(tick, minutes * 60 * 1000);
+}
+scheduleAutoFeed();
