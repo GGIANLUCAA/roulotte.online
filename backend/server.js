@@ -4665,7 +4665,7 @@ createTables()
   })
   .catch((err) => console.error('Errore durante la preparazione delle tabelle:', err));
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server in ascolto sulla porta ${PORT}`);
 });
 
