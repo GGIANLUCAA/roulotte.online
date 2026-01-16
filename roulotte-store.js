@@ -160,6 +160,12 @@
     if (!store) store = loadDBFromStorage() || seed();
     return store;
   }
+  function unlockAdminOffline() {
+    const db = getDB();
+    const admin = (db && db.admin && typeof db.admin === 'object') ? db.admin : { username: 'admin', password: 'admin', failedAttempts: 0, lastLogin: null, lockedUntil: null };
+    const newAdmin = { ...admin, failedAttempts: 0, lockedUntil: null };
+    saveDB({ ...db, admin: newAdmin });
+  }
 
   let serverPushTimer = null;
   let serverBackoffUntil = 0;
@@ -548,6 +554,7 @@
     storageKey,
     initializeStore,
     getDB,
+    unlockAdminOffline,
     saveDB,
     addRoulotte,
     updateRoulotte,

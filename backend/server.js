@@ -976,12 +976,89 @@ async function ensureContentKeyExists(key, contentType = 'html') {
 
 async function bootstrapDefaultContents() {
   const keys = [
+    { key: 'page_header_fragment', type: 'html' },
+    { key: 'page_header_styles', type: 'html' },
+    { key: 'page_home_fragment', type: 'html' },
+    { key: 'page_home_styles', type: 'html' },
+    { key: 'page_filters_fragment', type: 'html' },
+    { key: 'page_filters_styles', type: 'html' },
+    { key: 'page_list_top_fragment', type: 'html' },
+    { key: 'page_list_top_styles', type: 'html' },
+    { key: 'page_list_bottom_fragment', type: 'html' },
+    { key: 'page_list_bottom_styles', type: 'html' },
+    { key: 'page_detail_dialog_fragment', type: 'html' },
+    { key: 'page_detail_dialog_styles', type: 'html' },
+    { key: 'page_card_template_fragment', type: 'html' },
+    { key: 'page_card_template_styles', type: 'html' },
+    { key: 'home_hero_title', type: 'text' },
+    { key: 'home_hero_text', type: 'text' },
     { key: 'page_footer_fragment', type: 'html' },
     { key: 'page_footer_styles', type: 'html' },
   ];
-  for (const k of keys) {
-    await ensureContentKeyExists(k.key, k.type);
-  }
+  for (const k of keys) await ensureContentKeyExists(k.key, k.type);
+
+  try {
+    const htmlPath = resolveStaticFile('index.html');
+    let raw = '';
+    try { raw = fs.readFileSync(htmlPath, 'utf8'); } catch {}
+    if (raw) {
+      const pickInner = (id) => {
+        try {
+          const m = raw.match(new RegExp(`<[^>]*id=["']${id}["'][^>]*>([\\s\\S]*?)<\\/${id === 'detailDialog' ? 'dialog' : '[a-z]+'}>`, 'i'));
+          if (m && m[1]) return m[1].trim();
+        } catch {}
+        return '';
+      };
+      const seedMap = [
+        { key: 'page_header_fragment', value: pickInner('editableHeader') },
+        { key: 'page_home_fragment', value: pickInner('editableHome') },
+        { key: 'page_filters_fragment', value: pickInner('editableFilters') },
+        { key: 'page_list_top_fragment', value: pickInner('editableListTop') },
+        { key: 'page_list_bottom_fragment', value: pickInner('editableListBottom') },
+        { key: 'page_detail_dialog_fragment', value: pickInner('detailDialog') },
+        { key: 'page_footer_fragment', value: pickInner('editableFooter') },
+      ];
+      for (const s of seedMap) {
+        const k = s.key;
+        const v = String(s.value || '').trim();
+        if (!v) continue;
+        try {
+          const { rows } = await pool.query('SELECT published_data FROM contents WHERE content_key = $1;', [k]);
+          const published = rows && rows[0] ? String(rows[0].published_data || '') : '';
+          if (!published) {
+            await pool.query(
+              `INSERT INTO contents (content_key, content_type, published_data, updated_at)
+               VALUES ($1, 'html', $2, CURRENT_TIMESTAMP)
+               ON CONFLICT (content_key) DO UPDATE SET published_data = EXCLUDED.published_data, updated_at = CURRENT_TIMESTAMP;`,
+              [k, v]
+            );
+          }
+        } catch {}
+      }
+      // Seed hero title/text if empty
+      try {
+        const titleMatch = raw.match(/id=["']heroTitle["'][^>]*>([^<]*)</i);
+        const textMatch = raw.match(/id=["']heroText["'][^>]*>([^<]*)</i);
+        const heroTitle = titleMatch && titleMatch[1] ? String(titleMatch[1]).trim() : '';
+        const heroText = textMatch && textMatch[1] ? String(textMatch[1]).trim() : '';
+        const ensureText = async (key, value) => {
+          if (!value) return;
+          const { rows } = await pool.query('SELECT published_data FROM contents WHERE content_key = $1;', [key]);
+          const published = rows && rows[0] ? String(rows[0].published_data || '') : '';
+          if (!published) {
+            await pool.query(
+              `INSERT INTO contents (content_key, content_type, published_data, updated_at)
+               VALUES ($1, 'text', $2, CURRENT_TIMESTAMP)
+               ON CONFLICT (content_key) DO UPDATE SET published_data = EXCLUDED.published_data, updated_at = CURRENT_TIMESTAMP;`,
+              [key, value]
+            );
+          }
+        };
+        await ensureText('home_hero_title', heroTitle);
+        await ensureText('home_hero_text', heroText);
+      } catch {}
+    }
+  } catch {}
 }
 
 function getJwtSecret() {

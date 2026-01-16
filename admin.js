@@ -138,8 +138,22 @@
     const statSold = document.getElementById('statSold');
     const statSoldValue = document.getElementById('statSoldValue');
     const statValue = document.getElementById('statValue');
+    const statAvgPriceEl = document.getElementById('statAvgPrice');
+    const statMinMaxEl = document.getElementById('statMinMax');
+    const statPublishedEl = document.getElementById('statPublished');
+    const statDraftsEl = document.getElementById('statDrafts');
+    const statNoPhotosEl = document.getElementById('statNoPhotos');
     const catStats = document.getElementById('catStats');
     const activityLog = document.getElementById('activityLog');
+    const autoRefreshToggle = document.getElementById('autoRefreshToggle');
+    const autoRefreshInterval = document.getElementById('autoRefreshInterval');
+    const probeBtn = document.getElementById('probeBtn');
+    const syncNowBtnDash = document.getElementById('syncNowBtnDash');
+    const wsStatusEl = document.getElementById('wsStatus');
+    const filterNoPhotosBtn = document.getElementById('filterNoPhotosBtn');
+    const filterDraftsBtn = document.getElementById('filterDraftsBtn');
+    const filterPublishedBtn = document.getElementById('filterPublishedBtn');
+    let listFilterMissingPhotos = false;
 
     // Form Nuova Roulotte
     const newForm = document.getElementById('newForm');
@@ -310,6 +324,18 @@
     const livePublishBtn = document.getElementById('livePublishBtn');
     const liveStatusEl = document.getElementById('liveStatus');
     let gjsEditor = null;
+    function updateOfflineUiState(isOffline) {
+      const mb = document.getElementById('modeBadge');
+      if (mb) mb.textContent = isOffline ? 'Modalità: Offline' : 'Modalità: Online';
+      const disable = (el) => { if (el) el.disabled = !!isOffline; };
+      disable(publishContentBtn);
+      disable(mediaUploadBtn);
+      disable(syncNowBtn);
+      disable(pullServerBtn);
+      disable(pushServerBtn);
+      disable(livePublishBtn);
+      disable(liveSaveBtn);
+    }
     let builderAutoLoaded = false;
     let builderLoading = false;
     let builderDirty = false;
@@ -1116,9 +1142,12 @@
     function isLocalHost() {
       return (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
     }
+    function isFileProtocol() {
+      try { return location && location.protocol === 'file:'; } catch { return false; }
+    }
 
     const API_BASE_STORAGE_KEY = 'roulotte_api_base_url';
-    const DEFAULT_REMOTE_API_BASE_URL = 'https://roulotte-online-foto.onrender.com';
+    const DEFAULT_REMOTE_API_BASE_URL = 'https://roulotte.online';
 
     function normalizeApiBaseUrl(input) {
       const s = String(input || '').trim();
@@ -1214,6 +1243,8 @@
 
       const hasOverride = !!getApiBaseUrlOverride() || (location && location.protocol === 'file:');
       if (clearApiOverrideBtn) clearApiOverrideBtn.style.display = hasOverride ? '' : 'none';
+      const hasApi = !!getApiBaseUrl();
+      if (location && location.protocol === 'file:' && !hasApi) updateOfflineUiState(true);
     }
 
     async function checkLoginApiHealth(timeoutMs = 1500) {
@@ -1233,10 +1264,11 @@
           return;
         }
         const j = await r.json().catch(() => null);
-        if (j && typeof j === 'object' && j.ok === true) loginApiHealthEl.textContent = 'Online';
-        else loginApiHealthEl.textContent = 'Online (DB KO)';
+        if (j && typeof j === 'object' && j.ok === true) { loginApiHealthEl.textContent = 'Online'; updateOfflineUiState(false); }
+        else { loginApiHealthEl.textContent = 'Online (DB KO)'; updateOfflineUiState(false); }
       } catch {
         loginApiHealthEl.textContent = 'Offline';
+        updateOfflineUiState(true);
       } finally {
         if (t) clearTimeout(t);
       }
@@ -1247,6 +1279,22 @@
         setApiBaseUrlOverride('');
         updateLoginDiagnostics();
         await checkLoginApiHealth(1500);
+      });
+    }
+    const apiOverrideInput = document.getElementById('apiOverrideInput');
+    const saveApiOverrideBtn = document.getElementById('saveApiOverrideBtn');
+    if (saveApiOverrideBtn && apiOverrideInput) {
+      saveApiOverrideBtn.addEventListener('click', async () => {
+        setApiBaseUrlOverride(apiOverrideInput.value);
+        updateLoginDiagnostics();
+        await checkLoginApiHealth(1500);
+      });
+    }
+    const unlockOfflineBtn = document.getElementById('unlockOfflineBtn');
+    if (unlockOfflineBtn) {
+      unlockOfflineBtn.addEventListener('click', () => {
+        try { window.RoulotteStore.unlockAdminOffline(); } catch {}
+        loginError.hidden = true;
       });
     }
 
@@ -1288,7 +1336,7 @@
           body: JSON.stringify({ username, password })
         });
         if (!response.ok) {
-          if (isLocalHost()) {
+          if (isLocalHost() || isFileProtocol()) {
             const resLocal = window.RoulotteStore.checkLogin(username, password);
             if (resLocal.success) {
               setAuthed(true);
@@ -1319,7 +1367,7 @@
           loginError.textContent = 'Errore di autenticazione.';
         }
       } catch {
-        if (isLocalHost()) {
+        if (isLocalHost() || isFileProtocol()) {
           const resLocal = window.RoulotteStore.checkLogin(userEl.value, passEl.value);
           if (resLocal.success) {
             setAuthed(true);
@@ -1363,6 +1411,20 @@
 
     updateLoginDiagnostics();
     checkLoginApiHealth(1500);
+    (async function autoDetectLocalBackend(){
+      try {
+        if (!getApiBaseUrl()) {
+          const r = await fetch('http://localhost:3001/api/health', { method: 'GET' }).catch(() => null);
+          if (r && r.ok) {
+            setApiBaseUrlOverride('http://localhost:3001');
+            updateLoginDiagnostics();
+            await checkLoginApiHealth(1500);
+          } else {
+            updateOfflineUiState(true);
+          }
+        }
+      } catch {}
+    })();
     setInterval(() => { checkLoginApiHealth(1500); }, 60000);
     // Login con Google
     (async function initGoogleLogin(){
@@ -1543,6 +1605,33 @@
     logoutBtnMobile.addEventListener('click', logout);
     const helpTopBtn = document.getElementById('helpTopBtn');
     if (helpTopBtn) helpTopBtn.addEventListener('click', () => switchSection('help'));
+    const openSiteBtn = document.getElementById('openSiteBtn');
+    if (openSiteBtn) openSiteBtn.addEventListener('click', () => {
+      try { window.open('index.html', '_blank'); } catch {}
+    });
+    const deployNowBtn = document.getElementById('deployNowBtn');
+    if (deployNowBtn) deployNowBtn.addEventListener('click', async () => {
+      try {
+        deployNowBtn.disabled = true;
+        try { showToast('info', 'Deploy', 'Avvio aggiornamento online…', { timeoutMs: 1400 }); } catch {}
+        const token = window.RoulotteStore.getAuthToken();
+        const r = await fetch(apiUrl('/api/deploy/trigger'), { method: 'POST', headers: { 'Authorization': token ? ('Bearer ' + token) : '' } });
+        if (r.ok) { try { showToast('success', 'Deploy', 'Aggiornamento avviato.', { timeoutMs: 2000 }); } catch {} }
+        else {
+          let msg = 'Configurazione deploy mancante';
+          try {
+            const j = await r.json();
+            if (j && j.error === 'RENDER_CONFIG') msg = 'Configura Deploy Hook oppure API key + Service ID in Impostazioni.';
+            else msg = 'Errore aggiornamento online: ' + (j && j.detail ? String(j.detail).slice(0, 200) : r.status);
+          } catch {}
+          try { showToast('error', 'Deploy', msg, { timeoutMs: 2800 }); } catch {}
+        }
+      } catch {
+        try { showToast('error', 'Deploy', 'Errore di rete durante l’aggiornamento.', { timeoutMs: 2200 }); } catch {}
+      } finally {
+        deployNowBtn.disabled = false;
+      }
+    });
     Array.from(document.querySelectorAll('[data-help-target]')).forEach((el) => {
       el.addEventListener('click', (e) => {
         e.preventDefault();
@@ -1552,6 +1641,13 @@
           const target = document.getElementById(t);
           if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 0);
+      });
+    });
+    Array.from(document.querySelectorAll('[data-section-target]')).forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const s = String(el.dataset.sectionTarget || '');
+        if (s) switchSection(s);
       });
     });
 
@@ -2511,6 +2607,18 @@
       
       const totalValue = availableItems.reduce((acc, r) => acc + (Number(r.prezzo) || 0), 0);
       statValue.textContent = formatPrice(totalValue);
+      const prices = availableItems.map(r => Number(r.prezzo) || 0).filter(n => Number.isFinite(n));
+      const avg = prices.length ? (prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
+      const min = prices.length ? Math.min(...prices) : 0;
+      const max = prices.length ? Math.max(...prices) : 0;
+      if (statAvgPriceEl) statAvgPriceEl.textContent = formatPrice(avg);
+      if (statMinMaxEl) statMinMaxEl.textContent = `min ${formatPrice(min)} · max ${formatPrice(max)}`;
+      const published = list.filter(r => String(r.stato_annuncio || '').toLowerCase() === 'pubblicato').length;
+      const drafts = list.filter(r => String(r.stato_annuncio || '').toLowerCase() === 'bozza').length;
+      if (statPublishedEl) statPublishedEl.textContent = String(published);
+      if (statDraftsEl) statDraftsEl.textContent = `bozze: ${drafts}`;
+      const noPhotos = availableItems.filter(r => !Array.isArray(r.photos) || r.photos.length === 0).length;
+      if (statNoPhotosEl) statNoPhotosEl.textContent = String(noPhotos);
       
       // Calcolo Categorie
       catStats.innerHTML = '';
@@ -4125,6 +4233,9 @@
       'regole_tecniche.public.posthog_host',
       'regole_tecniche.public.posthog_key',
       'regole_tecniche.public.google_client_id',
+      'regole_tecniche.integrazioni.render.deploy_hook_url',
+      'regole_tecniche.integrazioni.render.api_key',
+      'regole_tecniche.integrazioni.render.service_id',
     ]);
 
     const CS_KEY_META = new Map([
@@ -4418,6 +4529,25 @@
         help: 'Identificatore OAuth del progetto Google (usato solo se l’integrazione è attiva).',
         placeholder: 'Es. 123…apps.googleusercontent.com',
         group_basic: 'Tracking'
+      }],
+      ['regole_tecniche.integrazioni.render.deploy_hook_url', {
+        label: 'Render: Deploy Hook URL',
+        help: 'URL https di api.render.com per avviare il deploy. Usalo in alternativa ad API key + Service ID.',
+        placeholder: 'https://api.render.com/deploy/srv-…',
+        format: 'url',
+        group_basic: 'Deploy'
+      }],
+      ['regole_tecniche.integrazioni.render.api_key', {
+        label: 'Render: API key',
+        help: 'Chiave API di Render per avviare il deploy via API.',
+        placeholder: 'rvk-…',
+        group_basic: 'Deploy'
+      }],
+      ['regole_tecniche.integrazioni.render.service_id', {
+        label: 'Render: Service ID',
+        help: 'ID del servizio web su Render (usato insieme alla API key).',
+        placeholder: 'srv-…',
+        group_basic: 'Deploy'
       }],
     ]);
 
@@ -5371,6 +5501,7 @@
         .filter(r => (category ? r.categoryId === category : true))
         .filter(r => (stato ? r.stato === stato : true))
         .filter(r => (annuncio ? String(r.stato_annuncio || '').trim().toLowerCase() === annuncio.toLowerCase() : true))
+        .filter(r => (listFilterMissingPhotos ? !(Array.isArray(r.photos) && r.photos.length) : true))
         .sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
 
       listMeta.textContent = `${filtered.length} risultati su ${items.length}`;
@@ -5409,6 +5540,173 @@
           </td>
         `;
         tableBody.appendChild(tr);
+      });
+    }
+    if (listReset) listReset.addEventListener('click', () => { listFilterMissingPhotos = false; });
+
+    function renderCharts() {
+      const db = window.RoulotteStore.getDB();
+      const items = (db.roulottes || []).filter(r => r.stato !== 'Venduto');
+      const cats = db.categories || [];
+      const byCat = new Map(cats.map(c => [c.id, { name: c.name, value: 0 }]));
+      items.forEach(r => {
+        const id = r.categoryId || '';
+        const rec = byCat.get(id);
+        if (rec) rec.value += (Number(r.prezzo) || 0);
+      });
+      const maxVal = Math.max(1, ...Array.from(byCat.values()).map(x => x.value));
+      const wrapCat = document.getElementById('chartPriceByCat');
+      if (wrapCat) {
+        wrapCat.innerHTML = '';
+        byCat.forEach(({ name, value }) => {
+          const barWrap = document.createElement('div');
+          barWrap.style.display = 'grid';
+          barWrap.style.gridTemplateColumns = '180px 1fr auto';
+          barWrap.style.gap = '10px';
+          const label = document.createElement('div');
+          label.textContent = name || '—';
+          const bar = document.createElement('div');
+          bar.style.height = '12px';
+          bar.style.alignSelf = 'center';
+          bar.style.background = 'linear-gradient(90deg, var(--primary), var(--accent))';
+          bar.style.width = `${Math.round((value / maxVal) * 100)}%`;
+          const val = document.createElement('div');
+          val.textContent = formatPrice(value);
+          wrapCat.appendChild(barWrap);
+          barWrap.appendChild(label);
+          barWrap.appendChild(bar);
+          barWrap.appendChild(val);
+        });
+      }
+      const byYear = new Map();
+      items.forEach(r => {
+        const y = Number(r.anno || 0);
+        if (!Number.isFinite(y) || !y) return;
+        byYear.set(y, (byYear.get(y) || 0) + 1);
+      });
+      const years = Array.from(byYear.keys()).sort((a,b)=>a-b);
+      const maxCount = Math.max(1, ...Array.from(byYear.values()));
+      const wrapYear = document.getElementById('chartYearHistogram');
+      if (wrapYear) {
+        wrapYear.innerHTML = '';
+        years.forEach(y => {
+          const barWrap = document.createElement('div');
+          barWrap.style.display = 'grid';
+          barWrap.style.gridTemplateColumns = '120px 1fr auto';
+          barWrap.style.gap = '10px';
+          const label = document.createElement('div');
+          label.textContent = String(y);
+          const bar = document.createElement('div');
+          bar.style.height = '12px';
+          bar.style.alignSelf = 'center';
+          bar.style.background = 'linear-gradient(90deg, var(--success), var(--primary))';
+          bar.style.width = `${Math.round((byYear.get(y) / maxCount) * 100)}%`;
+          const val = document.createElement('div');
+          val.textContent = String(byYear.get(y));
+          wrapYear.appendChild(barWrap);
+          barWrap.appendChild(label);
+          barWrap.appendChild(bar);
+          barWrap.appendChild(val);
+        });
+      }
+      const bands = [
+        { key: '<10k', test: (p) => p < 10000 },
+        { key: '10–20k', test: (p) => p >= 10000 && p < 20000 },
+        { key: '20–30k', test: (p) => p >= 20000 && p < 30000 },
+        { key: '>30k', test: (p) => p >= 30000 },
+      ];
+      const bandCounts = bands.map(b => ({ key: b.key, count: items.filter(r => b.test(Number(r.prezzo) || 0)).length }));
+      const maxBand = Math.max(1, ...bandCounts.map(x => x.count));
+      const wrapBands = document.getElementById('chartPriceBands');
+      if (wrapBands) {
+        wrapBands.innerHTML = '';
+        bandCounts.forEach(({ key, count }) => {
+          const barWrap = document.createElement('div');
+          barWrap.style.display = 'grid';
+          barWrap.style.gridTemplateColumns = '120px 1fr auto';
+          barWrap.style.gap = '10px';
+          const label = document.createElement('div');
+          label.textContent = key;
+          const bar = document.createElement('div');
+          bar.style.height = '12px';
+          bar.style.alignSelf = 'center';
+          bar.style.background = 'linear-gradient(90deg, var(--accent), var(--primary))';
+          bar.style.width = `${Math.round((count / maxBand) * 100)}%`;
+          const val = document.createElement('div');
+          val.textContent = String(count);
+          wrapBands.appendChild(barWrap);
+          barWrap.appendChild(label);
+          barWrap.appendChild(bar);
+          barWrap.appendChild(val);
+        });
+      }
+    }
+    function renderQualityIssues() {
+      const db = window.RoulotteStore.getDB();
+      const items = db.roulottes || [];
+      function score(r) {
+        let s = 0;
+        if (Array.isArray(r.photos) && r.photos.length) s += 30;
+        const descLen = String(r.note || '').replace(/<[^>]*>/g,' ').trim().length;
+        if (descLen > 60) s += 25;
+        if (String(r.contattoTelefono||'').trim() || String(r.contattoEmail||'').trim()) s += 20;
+        if (String(r.marca||'').trim()) s += 5;
+        if (String(r.modello||'').trim()) s += 5;
+        if (Number(r.prezzo)) s += 5;
+        if (Number(r.anno)) s += 5;
+        if (String(r.stato_annuncio||'').trim().toLowerCase() === 'pubblicato') s += 5;
+        return s;
+      }
+      function missingList(r) {
+        const m = [];
+        if (!Array.isArray(r.photos) || !r.photos.length) m.push('foto');
+        const descLen = String(r.note || '').replace(/<[^>]*>/g,' ').trim().length;
+        if (descLen <= 60) m.push('descrizione');
+        if (!String(r.contattoTelefono||'').trim() && !String(r.contattoEmail||'').trim()) m.push('contatti');
+        if (!String(r.marca||'').trim()) m.push('marca');
+        if (!String(r.modello||'').trim()) m.push('modello');
+        if (!Number(r.prezzo)) m.push('prezzo');
+        if (!Number(r.anno)) m.push('anno');
+        return m;
+      }
+      const ranked = items
+        .filter(r => r.stato !== 'Venduto')
+        .map(r => ({ r, s: score(r) }))
+        .sort((a,b) => a.s - b.s)
+        .slice(0, 5);
+      const wrap = document.getElementById('qualityIssuesList');
+      if (!wrap) return;
+      wrap.innerHTML = '';
+      if (!ranked.length) {
+        const hint = document.createElement('div');
+        hint.className = 'hint';
+        hint.textContent = 'Tutte le schede sono in buono stato.';
+        wrap.appendChild(hint);
+        return;
+      }
+      ranked.forEach(({ r, s }) => {
+        const row = document.createElement('div');
+        row.style.display = 'grid';
+        row.style.gridTemplateColumns = '1fr auto';
+        row.style.gap = '10px';
+        const left = document.createElement('div');
+        left.innerHTML = `<strong>${r.marca||''} ${r.modello||''}</strong> • ${r.id} • punteggio ${s}/100<br/><span class="hint">Mancano: ${missingList(r).join(', ')}</span>`;
+        const actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.gap = '6px';
+        const btnEdit = document.createElement('button');
+        btnEdit.className = 'btn';
+        btnEdit.textContent = 'Modifica';
+        btnEdit.addEventListener('click', () => { if (typeof window.editItem === 'function') window.editItem(r.id); });
+        const btnView = document.createElement('button');
+        btnView.className = 'btn';
+        btnView.textContent = 'Dettaglio';
+        btnView.addEventListener('click', () => { if (typeof window.viewItem === 'function') window.viewItem(r.id); });
+        actions.appendChild(btnEdit);
+        actions.appendChild(btnView);
+        row.appendChild(left);
+        row.appendChild(actions);
+        wrap.appendChild(row);
       });
     }
 
@@ -6042,9 +6340,48 @@
     // --- Init ---
     function refreshAll() {
       refreshStats();
+      renderCharts();
       renderCategories();
       renderList();
+      renderQualityIssues();
     }
+    let autoRefreshTimer = null;
+    function setAutoRefreshEnabled(on) {
+      if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+      if (on) {
+        const sec = Number(autoRefreshInterval && autoRefreshInterval.value || 60);
+        autoRefreshTimer = setInterval(() => refreshAll(), Math.max(10, sec) * 1000);
+      }
+    }
+    if (autoRefreshToggle) autoRefreshToggle.addEventListener('change', () => setAutoRefreshEnabled(autoRefreshToggle.checked));
+    if (autoRefreshInterval) autoRefreshInterval.addEventListener('change', () => setAutoRefreshEnabled(autoRefreshToggle && autoRefreshToggle.checked));
+    if (probeBtn) probeBtn.addEventListener('click', async () => { try { await checkHealth(); } catch {} });
+    if (syncNowBtnDash) syncNowBtnDash.addEventListener('click', async () => {
+      try {
+        const res = await window.RoulotteStore.syncNow();
+        refreshAll();
+        if (res && res.ok) { try { showToast('success', 'Sync', `Sync OK (${res.mode})`, { timeoutMs: 1600 }); } catch {} }
+        else { try { showToast('error', 'Sync', 'Server non disponibile.', { timeoutMs: 2200 }); } catch {} }
+      } catch { try { showToast('error', 'Sync', 'Sync fallita.', { timeoutMs: 2200 }); } catch {} }
+    });
+    if (filterNoPhotosBtn) filterNoPhotosBtn.addEventListener('click', () => {
+      listFilterMissingPhotos = true;
+      listAnnuncio.value = '';
+      switchSection('list');
+      renderList();
+    });
+    if (filterDraftsBtn) filterDraftsBtn.addEventListener('click', () => {
+      listFilterMissingPhotos = false;
+      listAnnuncio.value = 'bozza';
+      switchSection('list');
+      renderList();
+    });
+    if (filterPublishedBtn) filterPublishedBtn.addEventListener('click', () => {
+      listFilterMissingPhotos = false;
+      listAnnuncio.value = 'pubblicato';
+      switchSection('list');
+      renderList();
+    });
 
     window.addEventListener('storage', (e) => {
       if (e.key === window.RoulotteStore.storageKey) refreshAll();
@@ -6128,9 +6465,10 @@
       try {
         const url = getWsUrl();
         adminWs = new WebSocket(url);
-        adminWs.onopen = () => {};
+        if (wsStatusEl) wsStatusEl.textContent = 'WS: Connessione…';
+        adminWs.onopen = () => { if (wsStatusEl) wsStatusEl.textContent = 'WS: Connesso'; };
         adminWs.onclose = () => { scheduleWsRetry(); };
-        adminWs.onerror = () => { try { if (adminWs) adminWs.close(); } catch {} };
+        adminWs.onerror = () => { try { if (adminWs) adminWs.close(); } catch {}; if (wsStatusEl) wsStatusEl.textContent = 'WS: Errore'; };
         adminWs.onmessage = (ev) => {
           let msg = null;
           try { msg = JSON.parse(String(ev && ev.data || '')); } catch {}
@@ -6150,6 +6488,7 @@
                 if (currentDetailId) renderDetail(currentDetailId);
               })
               .catch(() => {});
+            if (wsStatusEl) wsStatusEl.textContent = 'WS: Dati aggiornati';
           }
         };
       } catch {
