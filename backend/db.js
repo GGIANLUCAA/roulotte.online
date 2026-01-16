@@ -63,6 +63,11 @@ async function ensurePool() {
 
   poolInitPromise = (async () => {
     if (!process.env.DATABASE_URL) {
+      if (process.env.NODE_ENV === 'production') {
+        const err = new Error('DB_NOT_CONFIGURED');
+        err.code = 'DB_NOT_CONFIGURED';
+        throw err;
+      }
       if (!MemPg) {
         const { newDb } = require('pg-mem');
         const db = newDb({ autoCreateForeignKeyIndices: true });
