@@ -15,6 +15,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
       - name: Install backend dependencies
         working-directory: backend
         run: npm ci
@@ -32,34 +33,55 @@ jobs:
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          RENDER_SERVICE_IDS: ${{ secrets.RENDER_SERVICE_IDS }}
         run: |
-          if [ -z "$RENDER_API_KEY" ] || [ -z "$RENDER_SERVICE_ID" ]; then
-            echo "Missing Render secrets (RENDER_API_KEY, RENDER_SERVICE_ID)"
+          if [ -z "$RENDER_API_KEY" ]; then
+            echo "Missing Render secrets (RENDER_API_KEY)"
             exit 1
           fi
-          echo "Triggering deploy for service $RENDER_SERVICE_ID"
-          RESP=$(curl -s -X POST "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
-            -H "Authorization: Bearer $RENDER_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d '{}')
-          echo "$RESP" | jq .
-          DEPLOY_ID=$(echo "$RESP" | jq -r '.id')
-          if [ -z "$DEPLOY_ID" ] || [ "$DEPLOY_ID" = "null" ]; then
-            echo "Unable to retrieve deploy id"; exit 1
+
+          SERVICES="$RENDER_SERVICE_IDS"
+          if [ -z "$SERVICES" ]; then
+            SERVICES="$RENDER_SERVICE_ID"
           fi
-          echo "Deploy id: $DEPLOY_ID"
-          for i in $(seq 1 40); do
-            STATUS=$(curl -s "https://api.render.com/v1/deploys/$DEPLOY_ID" -H "Authorization: Bearer $RENDER_API_KEY" | jq -r '.status')
-            echo "Status: $STATUS"
-            if [ "$STATUS" = "live" ]; then
-              echo "Deploy live"; exit 0
+          if [ -z "$SERVICES" ]; then
+            echo "Missing Render secrets (RENDER_SERVICE_ID or RENDER_SERVICE_IDS)"
+            exit 1
+          fi
+
+          IFS=',' read -r -a IDS <<< "$SERVICES"
+          for SERVICE_ID in "${IDS[@]}"; do
+            SERVICE_ID="$(echo "$SERVICE_ID" | xargs)"
+            if [ -z "$SERVICE_ID" ]; then
+              continue
             fi
-            if [ "$STATUS" = "failed" ]; then
-              echo "Deploy failed"; exit 1
+            echo "Triggering deploy for service $SERVICE_ID"
+            RESP=$(curl -s -X POST "https://api.render.com/v1/services/$SERVICE_ID/deploys" \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d '{}')
+            echo "$RESP" | jq .
+            DEPLOY_ID=$(echo "$RESP" | jq -r '.id')
+            if [ -z "$DEPLOY_ID" ] || [ "$DEPLOY_ID" = "null" ]; then
+              echo "Unable to retrieve deploy id"; exit 1
             fi
-            sleep 15
+            echo "Deploy id: $DEPLOY_ID"
+            for i in $(seq 1 40); do
+              STATUS=$(curl -s "https://api.render.com/v1/deploys/$DEPLOY_ID" -H "Authorization: Bearer $RENDER_API_KEY" | jq -r '.status')
+              echo "Status: $STATUS"
+              if [ "$STATUS" = "live" ]; then
+                echo "Deploy live"
+                break
+              fi
+              if [ "$STATUS" = "failed" ]; then
+                echo "Deploy failed"; exit 1
+              fi
+              sleep 15
+            done
+            if [ "$STATUS" != "live" ]; then
+              echo "Timeout waiting for deploy"; exit 1
+            fi
           done
-          echo "Timeout waiting for deploy"; exit 1
       - name: Optional health check
         env:
           PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
