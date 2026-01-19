@@ -526,7 +526,10 @@ const s3Client = require('./s3-client'); // Importiamo il client S3 per R2
 const { PutObjectCommand } = require('@aws-sdk/client-s3');
 const multer = require('multer');
 const crypto = require('crypto');
-const sharp = require('sharp');
+let sharp = null;
+try {
+  sharp = require('sharp');
+} catch {}
 const { createTables } = require('./init-db');
 
 const ENV_ADMIN_USER = String(process.env.ADMIN_USER || '').trim();
@@ -540,6 +543,19 @@ function normalizeSettingKey(key) {
   if (k.length > 160) return '';
   if (!/^[a-z0-9_.-]+$/i.test(k)) return '';
   return k.toLowerCase();
+}
+
+function mimeToExt(mime) {
+  const mt = String(mime || '').toLowerCase().trim();
+  if (mt === 'image/jpeg' || mt === 'image/jpg') return '.jpg';
+  if (mt === 'image/png') return '.png';
+  if (mt === 'image/webp') return '.webp';
+  if (mt === 'image/avif') return '.avif';
+  if (mt === 'image/gif') return '.gif';
+  if (mt === 'image/svg+xml') return '.svg';
+  if (mt === 'application/pdf') return '.pdf';
+  if (mt === 'text/plain') return '.txt';
+  return '';
 }
 
 async function loadSettingsCache() {
@@ -2766,7 +2782,7 @@ app.post('/api/media', requireAdmin, requireAtLeast('editor'), uploadArray('file
     return res.status(500).json({ error: 'Errore interno del server', detail: String(err && err.message ? err.message : err) });
   }
   try {
-    const isR2Configured = !!process.env.R2_BUCKET_NAME && !!process.env.R2_PUBLIC_URL;
+    const isR2Configured = !!s3Client && !!process.env.R2_BUCKET_NAME && !!process.env.R2_PUBLIC_URL;
     await client.query('BEGIN');
     const out = [];
     if (!req.files || req.files.length === 0) {
@@ -2790,6 +2806,7 @@ app.post('/api/media', requireAdmin, requireAtLeast('editor'), uploadArray('file
         const digest = require('crypto').createHash('sha256').update(file.buffer).digest('hex').slice(0, 24);
         const baseName = 'media/' + digest;
         const isImage = mt.startsWith('image/');
+        const srcExt = mimeToExt(mt);
         let fullKey = baseName;
         let thumbKey = baseName;
         let fullBody = file.buffer;
@@ -2797,43 +2814,55 @@ app.post('/api/media', requireAdmin, requireAtLeast('editor'), uploadArray('file
         let fullType = file.mimetype;
         let thumbType = file.mimetype;
         let existing = [];
-        if (isR2Configured) {
-          const urlCandidate = joinUrl(process.env.R2_PUBLIC_URL, baseName + '.webp');
-          ({ rows: existing } = await client.query('SELECT id, url_full, url_thumb FROM media WHERE url_full = $1 LIMIT 1;', [urlCandidate]));
-        } else {
-          const cand1 = baseName + '.webp';
-          const cand2 = '/' + cand1;
-          ({ rows: existing } = await client.query('SELECT id, url_full, url_thumb FROM media WHERE url_full = $1 OR url_full = $2 LIMIT 1;', [cand1, cand2]));
+        {
+          const preferWebp = isImage && !!sharp;
+          const candidateKey = baseName + (preferWebp ? '.webp' : (srcExt || '.bin'));
+          if (isR2Configured) {
+            const urlCandidate = joinUrl(process.env.R2_PUBLIC_URL, candidateKey);
+            ({ rows: existing } = await client.query('SELECT id, url_full, url_thumb FROM media WHERE url_full = $1 LIMIT 1;', [urlCandidate]));
+          } else {
+            const cand1 = candidateKey;
+            const cand2 = '/' + candidateKey;
+            ({ rows: existing } = await client.query('SELECT id, url_full, url_thumb FROM media WHERE url_full = $1 OR url_full = $2 LIMIT 1;', [cand1, cand2]));
+          }
         }
         if (existing && existing.length) {
           out.push({ id: existing[0].id, url_full: existing[0].url_full, url_thumb: existing[0].url_thumb, reused: true });
           continue;
         }
         if (isImage) {
-          try {
-            fullBody = await sharp(file.buffer).resize({ width: 1280, withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
-            thumbBody = await sharp(file.buffer).resize({ width: 480, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
-            fullKey = baseName + '.webp';
-            thumbKey = baseName + '.thumb.webp';
-            fullType = 'image/webp';
-            thumbType = 'image/webp';
-            if (isR2Configured) {
-              const fullAvif = await sharp(file.buffer).resize({ width: 1280, withoutEnlargement: true }).avif({ quality: 50 }).toBuffer();
-              const thumbAvif = await sharp(file.buffer).resize({ width: 480, withoutEnlargement: true }).avif({ quality: 48 }).toBuffer();
-              const fullAvifKey = baseName + '.avif';
-              const thumbAvifKey = baseName + '.thumb.avif';
-              const paramsFullAvif = { Bucket: process.env.R2_BUCKET_NAME, Key: fullAvifKey, Body: fullAvif, ContentType: 'image/avif', CacheControl: 'public, max-age=31536000, immutable' };
-              const paramsThumbAvif = { Bucket: process.env.R2_BUCKET_NAME, Key: thumbAvifKey, Body: thumbAvif, ContentType: 'image/avif', CacheControl: 'public, max-age=31536000, immutable' };
-              try {
-                await s3Client.send(new PutObjectCommand(paramsFullAvif));
-                await s3Client.send(new PutObjectCommand(paramsThumbAvif));
-              } catch {}
-              if (process.env.R2_BACKUP_BUCKET_NAME) {
-                try { await s3Client.send(new PutObjectCommand({ ...paramsFullAvif, Bucket: process.env.R2_BACKUP_BUCKET_NAME })); } catch {}
-                try { await s3Client.send(new PutObjectCommand({ ...paramsThumbAvif, Bucket: process.env.R2_BACKUP_BUCKET_NAME })); } catch {}
+          if (sharp) {
+            try {
+              fullBody = await sharp(file.buffer).resize({ width: 1280, withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+              thumbBody = await sharp(file.buffer).resize({ width: 480, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
+              fullKey = baseName + '.webp';
+              thumbKey = baseName + '.thumb.webp';
+              fullType = 'image/webp';
+              thumbType = 'image/webp';
+              if (isR2Configured) {
+                const fullAvif = await sharp(file.buffer).resize({ width: 1280, withoutEnlargement: true }).avif({ quality: 50 }).toBuffer();
+                const thumbAvif = await sharp(file.buffer).resize({ width: 480, withoutEnlargement: true }).avif({ quality: 48 }).toBuffer();
+                const fullAvifKey = baseName + '.avif';
+                const thumbAvifKey = baseName + '.thumb.avif';
+                const paramsFullAvif = { Bucket: process.env.R2_BUCKET_NAME, Key: fullAvifKey, Body: fullAvif, ContentType: 'image/avif', CacheControl: 'public, max-age=31536000, immutable' };
+                const paramsThumbAvif = { Bucket: process.env.R2_BUCKET_NAME, Key: thumbAvifKey, Body: thumbAvif, ContentType: 'image/avif', CacheControl: 'public, max-age=31536000, immutable' };
+                try {
+                  await s3Client.send(new PutObjectCommand(paramsFullAvif));
+                  await s3Client.send(new PutObjectCommand(paramsThumbAvif));
+                } catch {}
+                if (process.env.R2_BACKUP_BUCKET_NAME) {
+                  try { await s3Client.send(new PutObjectCommand({ ...paramsFullAvif, Bucket: process.env.R2_BACKUP_BUCKET_NAME })); } catch {}
+                  try { await s3Client.send(new PutObjectCommand({ ...paramsThumbAvif, Bucket: process.env.R2_BACKUP_BUCKET_NAME })); } catch {}
+                }
               }
-            }
-          } catch {}
+            } catch {}
+          } else {
+            const ext = srcExt || '.bin';
+            fullKey = baseName + ext;
+            thumbKey = baseName + '.thumb' + ext;
+            fullType = file.mimetype;
+            thumbType = file.mimetype;
+          }
         }
         let urlFull = '';
         let urlThumb = '';
