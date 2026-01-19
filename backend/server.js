@@ -69,6 +69,22 @@ function trySyncStaticAssets() {
 
   const overwriteExisting = String(process.env.SYNC_STATIC_OVERWRITE || '').trim() === '1' || process.env.NODE_ENV !== 'production';
 
+  function fileDigestSha256(filePath) {
+    const buf = fs.readFileSync(filePath);
+    return require('crypto').createHash('sha256').update(buf).digest('hex');
+  }
+
+  function filesDiffer(a, b) {
+    try {
+      const sa = fs.statSync(a);
+      const sb = fs.statSync(b);
+      if (sa.size !== sb.size) return true;
+      return fileDigestSha256(a) !== fileDigestSha256(b);
+    } catch {
+      return true;
+    }
+  }
+
   const files = [
     'admin.html',
     'admin.js',
@@ -88,7 +104,9 @@ function trySyncStaticAssets() {
     const dst = path.join(publicStaticRoot, f);
     try {
       if (!fs.existsSync(src)) continue;
-      if (!overwriteExisting && fs.existsSync(dst)) continue;
+      if (fs.existsSync(dst)) {
+        if (!overwriteExisting && !filesDiffer(src, dst)) continue;
+      }
       fs.copyFileSync(src, dst);
     } catch {}
   }
@@ -1424,21 +1442,20 @@ function makeUpload() {
 function uploadArray(field, maxCount) {
   return (req, res, next) => {
     const cfg = getUploadConfig();
-    if (!cfg.allowed.length || cfg.maxBytes <= 0 || cfg.maxFiles <= 0) {
-      return res.status(500).json({ error: 'UPLOAD_NOT_CONFIGURED' });
-    }
-    const u = makeUpload();
+    const configured = cfg.allowed.length && cfg.maxBytes > 0 && cfg.maxFiles > 0;
+    const u = configured ? makeUpload() : multer({ storage, limits: { files: 0 } });
     let requestedCount = Number(maxCount);
     if (typeof maxCount === 'function') {
       try { requestedCount = Number(maxCount()); } catch { requestedCount = Number.NaN; }
     }
-    const count = Number.isFinite(requestedCount) && requestedCount > 0
-      ? Math.min(requestedCount, cfg.maxFiles)
-      : cfg.maxFiles;
+    const count = configured
+      ? (Number.isFinite(requestedCount) && requestedCount > 0 ? Math.min(requestedCount, cfg.maxFiles) : cfg.maxFiles)
+      : 0;
     return u.array(field, count)(req, res, (err) => {
       if (!err) return next();
       const msg = String(err && err.message ? err.message : err);
       const code = String(err && err.code ? err.code : '');
+      if (!configured) return res.status(500).json({ error: 'UPLOAD_NOT_CONFIGURED' });
       if (msg === 'UNSUPPORTED_FORMAT') return res.status(415).json({ error: 'UNSUPPORTED_FORMAT' });
       if (code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'FILE_TOO_LARGE' });
       if (code === 'LIMIT_FILE_COUNT') return res.status(400).json({ error: 'TOO_MANY_FILES' });
@@ -3104,7 +3121,14 @@ app.get('/api/roulottes', async (req, res) => {
       ORDER BY r.id DESC;
     `;
 
-    const result = await pool.query(query);
+    const timeoutMs = Math.max(500, Math.min(30_000, Number(process.env.ROULOTTES_LIST_TIMEOUT_MS || 5000) || 5000));
+    const timeout = new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), timeoutMs));
+    const race = await Promise.race([
+      pool.query(query).then((r) => ({ r })),
+      timeout
+    ]);
+    if (race && race.timeout) return res.json([]);
+    const result = race.r;
     const now = Date.now();
     const list = result.rows.map((row) => ({
         ...(row.data || {}),

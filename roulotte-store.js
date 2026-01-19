@@ -3,7 +3,7 @@
   // Rileva automaticamente se siamo in locale o in produzione
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   const API_BASE_STORAGE_KEY = 'roulotte_api_base_url';
-  const DEFAULT_REMOTE_API_BASE_URL = 'https://roulotte-online-foto.onrender.com';
+  const DEFAULT_REMOTE_API_BASE_URL = 'https://roulotte.online';
 
   function normalizeApiBaseUrl(input) {
     const s = String(input || '').trim();

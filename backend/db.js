@@ -63,7 +63,9 @@ async function ensurePool() {
 
   poolInitPromise = (async () => {
     if (!process.env.DATABASE_URL) {
-      if (process.env.NODE_ENV === 'production') {
+      const isRender = String(process.env.RENDER || '').trim() === 'true' || !!process.env.RENDER_SERVICE_ID;
+      const requireDatabaseUrl = String(process.env.REQUIRE_DATABASE_URL || '').trim() === '1' && !isRender;
+      if (requireDatabaseUrl) {
         const err = new Error('DB_NOT_CONFIGURED');
         err.code = 'DB_NOT_CONFIGURED';
         throw err;

@@ -1949,7 +1949,7 @@
     }
 
     const API_BASE_STORAGE_KEY = 'roulotte_api_base_url';
-    const DEFAULT_REMOTE_API_BASE_URL = 'https://roulotte-online-foto.onrender.com';
+    const DEFAULT_REMOTE_API_BASE_URL = 'https://roulotte.online';
 
     function normalizeApiBaseUrl(input) {
       const s = String(input || '').trim();
