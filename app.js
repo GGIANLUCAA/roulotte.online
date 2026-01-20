@@ -3196,16 +3196,6 @@
     function buildDefaultCardElement(r, categoriesById) {
       const card = document.createElement('article');
       card.className = 'card';
-      try {
-        const stateLabel = getStatusLabel(r.stato);
-        if (stateLabel) {
-          const ribbon = document.createElement('div');
-          ribbon.className = 'card-ribbon';
-          ribbon.dataset.state = stateLabel;
-          ribbon.textContent = stateLabel;
-          card.appendChild(ribbon);
-        }
-      } catch {}
       const media = document.createElement('div');
       media.className = 'card-media';
       const firstPhoto = Array.isArray(r.photos) ? r.photos[0] : null;
@@ -3310,16 +3300,6 @@
         const root = tpl.content.firstElementChild;
         if (!root) return null;
         if (!root.classList.contains('card')) root.classList.add('card');
-        try {
-          const stateLabel = getStatusLabel(r.stato);
-          if (stateLabel) {
-            const ribbon = document.createElement('div');
-            ribbon.className = 'card-ribbon';
-            ribbon.dataset.state = stateLabel;
-            ribbon.textContent = stateLabel;
-            root.appendChild(ribbon);
-          }
-        } catch {}
 
         const imgSlot = root.querySelector('img[data-slot="photo"]') || root.querySelector('img');
         if (imgSlot) {
@@ -3710,9 +3690,14 @@
         try {
           const doc = new DOMParser().parseFromString(raw, 'text/html');
           const root = doc.body || doc;
-          const hasEditableFilters = !!root.querySelector('#editableFilters');
-          const hasSearch = !!root.querySelector('[role="search"], input[name="q"], input[type="search"]');
-          return hasEditableFilters || hasSearch;
+          const scope = root.querySelector('#editableFilters') || root;
+          const hasQ = !!scope.querySelector('input[name="q"], input#q, input[type="search"]');
+          const hasCategory = !!scope.querySelector('select[name="categoryFilter"], select#categoryFilter');
+          const hasStatus = !!scope.querySelector('select[name="statoFilter"], select#statoFilter');
+          const hasSort = !!scope.querySelector('select[name="sort"], select#sort');
+          const hasPrice = !!scope.querySelector('input[name="priceMax"], input#priceMax');
+          const score = Number(hasCategory) + Number(hasStatus) + Number(hasSort) + Number(hasPrice);
+          return hasQ && score >= 2;
         } catch {
           return false;
         }
@@ -3878,7 +3863,7 @@
               const rootF = document.getElementById('editableFilters');
               if (rootF) {
                 const inner = extractInnerHtmlFromHtml(htmlF, ['#editableFilters', '.controls', '[role="search"]']);
-                if (inner) rootF.innerHTML = sanitizeHtmlForPublicInsert(inner);
+                if (inner && looksLikeHomeFragment(inner)) rootF.innerHTML = sanitizeHtmlForPublicInsert(inner);
               }
             }
           }
