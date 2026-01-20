@@ -5524,33 +5524,48 @@
       updateShareSelectionUi();
       
       filtered.forEach(r => {
-        const categoryLabel = categoriesById[r.categoryId] || '—';
+        const safeId = escapeHtmlText(String(r.id || ''));
+        const safeBrand = escapeHtmlText(String(r.marca || ''));
+        const safeModel = escapeHtmlText(String(r.modello || ''));
+        const safeTitle = escapeHtmlText(`${String(r.marca || '')} ${String(r.modello || '')}`.trim() || '—');
+        const categoryLabel = escapeHtmlText(String(categoriesById[r.categoryId] || '—'));
+        const safeYear = escapeHtmlText(String(r.anno || '—'));
+        const safeState = escapeHtmlText(String(r.stato || '—'));
+        const safeAnnuncio = escapeHtmlText(String(r.stato_annuncio || '—'));
+        const firstPhoto = Array.isArray(r.photos) ? r.photos[0] : null;
+        const thumbUrl = (firstPhoto && typeof firstPhoto === 'object')
+          ? String(firstPhoto.thumb || firstPhoto.url_thumb || firstPhoto.urlThumb || firstPhoto.src || firstPhoto.url_full || firstPhoto.urlFull || '')
+          : '';
+        const safeThumbUrl = escapeHtmlText(thumbUrl);
         const tr = document.createElement('tr');
         const isChecked = selectedShareIds.has(String(r.id || '').trim());
         tr.innerHTML = `
           <td style="width:52px">
-            <input class="share-select" type="checkbox" data-id="${r.id}" ${isChecked ? 'checked' : ''} aria-label="Seleziona ${r.id}" />
+            <input class="share-select" type="checkbox" data-id="${safeId}" ${isChecked ? 'checked' : ''} aria-label="Seleziona ${safeId}" />
+          </td>
+          <td style="width:74px">
+            ${thumbUrl ? `<img class="list-thumb action-btn" data-action="view" data-id="${safeId}" src="${safeThumbUrl}" alt="${safeTitle}" loading="lazy" />` : `<div class="list-thumb list-thumb-empty">—</div>`}
           </td>
           <td>
-            <div class="action-btn list-cell" data-action="view" data-id="${r.id}" title="Apri scheda" style="cursor:pointer;display:grid;gap:2px">
+            <div class="action-btn list-cell" data-action="view" data-id="${safeId}" title="Apri scheda" style="cursor:pointer;display:grid;gap:2px">
               <div class="list-row">
-                <div class="list-title">${r.marca} ${r.modello}</div>
-                <div class="list-id">${r.id}</div>
+                <div class="list-title">${safeTitle}</div>
+                <div class="list-id">${safeId}</div>
               </div>
               <div class="list-meta">${categoryLabel}</div>
             </div>
           </td>
-          <td>${r.anno}</td>
+          <td>${safeYear}</td>
           <td>${formatPrice(r.prezzo)}</td>
-          <td><span class="${statusClass(r.stato)}">${r.stato}</span></td>
-          <td>${r.stato_annuncio || '—'}</td>
+          <td><span class="${statusClass(String(r.stato || ''))}">${safeState}</span></td>
+          <td>${safeAnnuncio}</td>
           <td>
             <div style="display:flex;gap:6px">
-              <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="view" data-id="${r.id}">Dettaglio</button>
-              <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="edit" data-id="${r.id}">Modifica</button>
-              <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="duplicate" data-id="${r.id}">Duplica</button>
-              <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="sold" data-id="${r.id}">Venduto</button>
-              <button class="btn btn-danger action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="delete" data-id="${r.id}">Elimina</button>
+              <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="view" data-id="${safeId}">Dettaglio</button>
+              <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="edit" data-id="${safeId}">Modifica</button>
+              <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="duplicate" data-id="${safeId}">Duplica</button>
+              <button class="btn action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="sold" data-id="${safeId}">Venduto</button>
+              <button class="btn btn-danger action-btn" style="padding:6px 10px;font-size:0.8rem" data-action="delete" data-id="${safeId}">Elimina</button>
             </div>
           </td>
         `;
