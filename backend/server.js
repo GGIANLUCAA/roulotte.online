@@ -2294,8 +2294,8 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     const token = jwt.sign({ user: u, role: 'superuser' }, jwtSecret, { expiresIn: getJwtExpiresIn() });
     return res.json({ token });
   }
-
-  if (u.length < 3 || p.length < 6) return res.status(400).json({ error: 'BAD_REQUEST' });
+34
+  if (u.length < 3 || p.length < 1) return res.status(400).json({ error: 'BAD_REQUEST' });
 
   // 2. DB Users
   try {

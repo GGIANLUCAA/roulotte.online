@@ -1336,6 +1336,11 @@
           body: JSON.stringify({ username, password })
         });
         if (!response.ok) {
+          let errCode = '';
+          try {
+            const errJson = await response.json().catch(() => ({}));
+            errCode = String(errJson && errJson.error || '');
+          } catch {}
           if (isLocalHost() || isFileProtocol()) {
             const resLocal = window.RoulotteStore.checkLogin(username, password);
             if (resLocal.success) {
@@ -1348,7 +1353,17 @@
             }
           }
           loginError.hidden = false;
-          loginError.textContent = 'Credenziali non valide o server non configurato.';
+          if (response.status === 401) {
+            loginError.textContent = 'Credenziali non valide.';
+          } else if (response.status === 429 || errCode === 'TOO_MANY_ATTEMPTS') {
+            loginError.textContent = 'Troppi tentativi. Attendi qualche minuto e riprova.';
+          } else if (response.status === 500 && errCode === 'JWT_NOT_CONFIGURED') {
+            loginError.textContent = 'Server non configurato: manca JWT_SECRET per generare i token.';
+          } else if (response.status === 503 && errCode === 'DB_UNAVAILABLE') {
+            loginError.textContent = 'Database non disponibile. Riprova più tardi.';
+          } else {
+            loginError.textContent = 'Credenziali non valide o server non configurato.';
+          }
           passEl.value = '';
           passEl.focus();
           return;
