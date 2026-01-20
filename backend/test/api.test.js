@@ -446,5 +446,5 @@ writeTest('Condivisione: crea link e risolve selezione', async (t) => {
   const page = await fetch(String(created.url), { headers: { 'Accept': 'text/html' } });
   assert.ok([200, 410].includes(page.status));
   const html = await page.text();
-  assert.ok(html.includes('index.html?share='));
+  assert.ok(html.includes('?share='));
  });

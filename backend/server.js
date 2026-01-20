@@ -238,7 +238,7 @@ app.get('/p/:id', async (req, res) => {
   const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim() || 'https';
   const host = String(req.headers.host || '').trim();
   const origin = host ? `${proto}://${host}` : '';
-  const canonicalUrl = (origin || '') + '/index.html?id=' + encodeURIComponent(publicId);
+  const canonicalUrl = (origin || '') + '/?id=' + encodeURIComponent(publicId);
   const shareUrl = (origin || '') + '/p/' + encodeURIComponent(publicId);
 
   const fallbackTitle = String(getSettingStringFirst(['sito.brand.name'], 'Roulotte online') || '').trim() || 'Roulotte online';
@@ -358,7 +358,7 @@ app.get('/s/:token', async (req, res) => {
   const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim() || 'https';
   const host = String(req.headers.host || '').trim();
   const origin = host ? `${proto}://${host}` : '';
-  const canonicalUrl = (origin || '') + '/index.html?share=' + encodeURIComponent(token);
+  const canonicalUrl = (origin || '') + '/?share=' + encodeURIComponent(token);
   const shareUrl = (origin || '') + '/s/' + encodeURIComponent(token);
 
   const fallbackTitle = String(getSettingStringFirst(['sito.brand.name'], 'Roulotte online') || '').trim() || 'Roulotte online';
