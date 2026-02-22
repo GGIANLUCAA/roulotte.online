@@ -1095,8 +1095,25 @@ async function bootstrapDefaultContents() {
   } catch {}
 }
 
+function normalizeEnvSecretValue(raw, expectedKey) {
+  let s = String(raw || '').trim();
+  if (!s) return '';
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1).trim();
+  }
+  const eq = s.indexOf('=');
+  if (eq > 0) {
+    const left = s.slice(0, eq).trim().toLowerCase();
+    const right = s.slice(eq + 1).trim();
+    const exp = String(expectedKey || '').trim().toLowerCase();
+    if (exp && left === exp && right) s = right;
+  }
+  return s.trim();
+}
+
 function getJwtSecret() {
-  return getSettingString('security.jwt_secret', String(process.env.JWT_SECRET || ''));
+  const env = normalizeEnvSecretValue(process.env.JWT_SECRET, 'jwt_secret');
+  return getSettingString('security.jwt_secret', env);
 }
 
 function getJwtExpiresIn() {
@@ -1141,7 +1158,8 @@ function verifyShareToken(token) {
 }
 
 function getAdminResetToken() {
-  return getSettingString('security.admin_reset_token', String(process.env.ADMIN_RESET_TOKEN || ''));
+  const env = normalizeEnvSecretValue(process.env.ADMIN_RESET_TOKEN, 'admin_reset_token');
+  return getSettingString('security.admin_reset_token', env);
 }
 
 function getGoogleClientId() {
