@@ -1247,7 +1247,7 @@
       if (location && location.protocol === 'file:' && !hasApi) updateOfflineUiState(true);
     }
 
-    async function checkLoginApiHealth(timeoutMs = 1500) {
+    async function checkLoginApiHealth(timeoutMs = 1500, attemptedFallback = false) {
       if (!loginApiHealthEl) return;
       updateLoginDiagnostics();
       loginApiHealthEl.textContent = 'Verifica…';
@@ -1260,10 +1260,25 @@
           signal: ctrl ? ctrl.signal : undefined
         });
         if (!r.ok) {
+          if (!attemptedFallback && !getApiBaseUrlOverride() && !isLocalHost() && !isFileProtocol()) {
+            const j = await r.json().catch(() => null);
+            if (j && typeof j === 'object' && j.error === 'DB_UNAVAILABLE') {
+              setApiBaseUrlOverride('https://roulotte-api.onrender.com');
+              updateLoginDiagnostics();
+              return await checkLoginApiHealth(timeoutMs, true);
+            }
+          }
           loginApiHealthEl.textContent = 'Errore (' + r.status + ')';
           return;
         }
         const j = await r.json().catch(() => null);
+        if (!attemptedFallback && !getApiBaseUrlOverride() && !isLocalHost() && !isFileProtocol()) {
+          if (j && typeof j === 'object' && j.error === 'DB_UNAVAILABLE') {
+            setApiBaseUrlOverride('https://roulotte-api.onrender.com');
+            updateLoginDiagnostics();
+            return await checkLoginApiHealth(timeoutMs, true);
+          }
+        }
         if (j && typeof j === 'object' && j.ok === true) { loginApiHealthEl.textContent = 'Online'; updateOfflineUiState(false); }
         else { loginApiHealthEl.textContent = 'Online (DB KO)'; updateOfflineUiState(false); }
       } catch {
